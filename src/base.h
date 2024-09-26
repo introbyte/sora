@@ -282,4 +282,6 @@ function rect_t rect_shrink(rect_t, vec2_t);
 
 function rect_t rect_translate(rect_t, vec2_t);
 
+function rect_t rect_bbox(vec2_t*, u32);
+
 #endif // BASE_H

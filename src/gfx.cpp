@@ -211,6 +211,17 @@ gfx_init() {
 		{"STY", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
 	} });
 
+	gfx_state.tri_shader = gfx_shader_load(str("res/shaders/ui_triangle.hlsl"), { {
+		{"POS", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{"COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{"COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{"PNT", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{"PNT", 1, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{"PNT", 2, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{"STY", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+	} });
+
 }
 
 function void 
@@ -228,6 +239,7 @@ gfx_release() {
 	gfx_shader_release(gfx_state.text_shader);
 	gfx_shader_release(gfx_state.line_shader);
 	gfx_shader_release(gfx_state.disk_shader);
+	gfx_shader_release(gfx_state.tri_shader);
 
 	// release samplers
 	if (gfx_state.point_sampler != nullptr) { gfx_state.point_sampler->Release(); }
@@ -470,15 +482,32 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 
 
 
+function b8
+gfx_batch_state_equal(gfx_batch_state_t* state_a, gfx_batch_state_t* state_b) {
+
+	if ((state_a->shader == state_b->shader) &&
+		(state_a->texture == state_b->texture) &&
+		(state_a->instance_size = state_b->instance_size) &&
+		(state_a->clip_mask.x0 == state_b->clip_mask.x0) &&
+		(state_a->clip_mask.y0 == state_b->clip_mask.y0) &&
+		(state_a->clip_mask.x1 == state_b->clip_mask.x1) &&
+		(state_a->clip_mask.y1 == state_b->clip_mask.y1)) {
+		return true;
+	}
+
+	return false;
+
+}
+
 function gfx_batch_t*
 gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
 
 	// search through current batches
 	for (gfx_batch_t* batch = renderer->batch_first; batch != 0; batch = batch->next) {
 
-		b8 batches_equal = memcmp((void*)&state, (void*)&batch->batch_state, sizeof(gfx_batch_state_t)) == 0;
+		b8 batches_equal = gfx_batch_state_equal(&state, &batch->batch_state);
 		b8 batch_has_size = (batch->batch_state.instance_size * (batch->instance_count + count)) < gfx_batch_size;
-		
+
 		// if state matches, and we have room..
 		if (batches_equal && batch_has_size) {
 			return batch;
@@ -626,6 +655,38 @@ gfx_renderer_push_disk(gfx_renderer_t* renderer, vec2_t pos, f32 radius, f32 sta
 
 }
 
+function void 
+gfx_renderer_push_tri(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, vec2_t p2, gfx_tri_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.tri_shader;
+	state.instance_size = sizeof(gfx_tri_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_tri_instance_t* instance = &((gfx_tri_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	// calculate bounding box
+	vec2_t points[3] = { p0, p1, p2 };
+	rect_t bbox = rect_bbox(points, 3);
+	bbox = rect_grow(bbox, 5.0f * roundf(params.thickness + params.softness));
+
+	vec2_t c = rect_center(bbox);
+	vec2_t c_p0 = vec2_sub(p0, c);
+	vec2_t c_p1 = vec2_sub(p1, c);
+	vec2_t c_p2 = vec2_sub(p2, c);
+
+	instance->pos = bbox;
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->col2 = params.col2;
+	instance->p0 = c_p0;
+	instance->p1 = c_p1;
+	instance->p2 = c_p2;
+	instance->style = { params.thickness, params.softness };
+}
+
+
 // params
 
 function gfx_quad_params_t 
@@ -670,6 +731,14 @@ gfx_disk_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
 	return params;
 }
 
+function gfx_tri_params_t 
+gfx_tri_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
+	gfx_tri_params_t params;
+	params.col0 = params.col1 = params.col2 = color;
+	params.thickness = thickness;
+	params.softness = softness;
+	return params;
+}
 
 // texture functions
 

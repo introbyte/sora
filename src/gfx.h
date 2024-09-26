@@ -193,6 +193,26 @@ struct gfx_disk_instance_t {
 	vec2_t style; // (thickness, softness)
 };
 
+struct gfx_tri_params_t {
+	color_t col0;
+	color_t col1;
+	color_t col2;
+	f32 thickness;
+	f32 softness;
+};
+
+struct gfx_tri_instance_t {
+	rect_t pos;
+	color_t col0;
+	color_t col1;
+	color_t col2;
+	vec2_t p0;
+	vec2_t p1;
+	vec2_t p2;
+	vec2_t style; // (thickness, softness)
+};
+
+
 
 struct gfx_batch_state_t {
 	gfx_shader_t* shader;
@@ -301,6 +321,7 @@ struct gfx_state_t {
 	gfx_shader_t* text_shader;
 	gfx_shader_t* line_shader;
 	gfx_shader_t* disk_shader;
+	gfx_shader_t* tri_shader;
 
 
 };
@@ -322,6 +343,7 @@ function void gfx_renderer_resize(gfx_renderer_t*);
 function void gfx_renderer_begin_frame(gfx_renderer_t*);
 function void gfx_renderer_end_frame(gfx_renderer_t*);
 
+function b8 gfx_batch_state_equal(gfx_batch_state_t*, gfx_batch_state_t*);
 function gfx_batch_t* gfx_batch_find(gfx_renderer_t*, gfx_batch_state_t, u32);
 
 function void gfx_renderer_push_quad(gfx_renderer_t*, rect_t, gfx_quad_params_t);
@@ -329,11 +351,13 @@ function void gfx_renderer_push_line(gfx_renderer_t*, vec2_t, vec2_t, gfx_line_p
 function void gfx_renderer_push_text(gfx_renderer_t*, str_t, vec2_t, gfx_text_params_t);
 function void gfx_renderer_push_text(gfx_renderer_t*, str16_t, vec2_t, gfx_text_params_t);
 function void gfx_renderer_push_disk(gfx_renderer_t*, vec2_t, f32, f32, f32, gfx_disk_params_t);
+function void gfx_renderer_push_tri(gfx_renderer_t*, vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
 
 function gfx_quad_params_t gfx_quad_params(color_t, f32, f32, f32);
 function gfx_line_params_t gfx_line_params(color_t, f32, f32);
 function gfx_text_params_t gfx_text_params(color_t, gfx_font_t*, f32);
 function gfx_disk_params_t gfx_disk_params(color_t, f32, f32);
+function gfx_tri_params_t gfx_tri_params(color_t, f32, f32);
 
 function gfx_texture_t* gfx_texture_create(str_t, u32, u32, void*);
 function gfx_texture_t* gfx_texture_load(str_t);

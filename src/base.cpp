@@ -726,10 +726,25 @@ rect_shrink(rect_t r, vec2_t a) {
 	return { r.x0 + a.x, r.y0 + a.y, r.x1 - a.x, r.y1 - a.y };
 }
 
-
 function rect_t 
 rect_translate(rect_t r, vec2_t a) {
 	return { r.x0 + a.x, r.y0 + a.y, r.x1 + a.x, r.y1 + a.y };
+}
+
+function rect_t 
+rect_bbox(vec2_t* points, u32 count) {
+	rect_t result = {f32_max, f32_max, f32_min, f32_min};
+
+	for (i32 i = 0; i < count; i++) {
+		vec2_t p = points[i];
+
+		if (p.x < result.x0) { result.x0 = p.x; }
+		if (p.y < result.y0) { result.y0 = p.y; }
+		if (p.x > result.x1) { result.x1 = p.x; }
+		if (p.y > result.y1) { result.y1 = p.y; }
+	}
+	
+	return result;
 }
 
 #endif // BASE_CPP

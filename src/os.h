@@ -167,6 +167,11 @@ struct os_window_t {
 	f64 delta_time;
 	f64 elasped_time;
 
+	// input state
+	vec2_t mouse_pos;
+	vec2_t mouse_pos_last;
+	vec2_t mouse_delta;
+
 	// fullscreen
 	WINDOWPLACEMENT last_window_placement;
 
@@ -242,6 +247,7 @@ function b8 os_key_release(os_window_t*, os_key, os_modifiers);
 function b8 os_mouse_press(os_window_t*, os_mouse_button, os_modifiers);
 function b8 os_mouse_release(os_window_t*, os_mouse_button, os_modifiers);
 function f32 os_mouse_scroll(os_window_t*);
+function vec2_t os_mouse_move(os_window_t*);
 
 // window
 

@@ -54,12 +54,22 @@ os_update() {
 	}
 
 	for (os_window_t* window = os_state.first_window; window != 0; window = window->next) {
+		
+		// window size
 		RECT w32_rect = { 0 };
 		GetClientRect(window->handle, &w32_rect);
 		window->width = (w32_rect.right - w32_rect.left);
 		window->height = (w32_rect.bottom - w32_rect.top);
+		
+		// mouse position
+		POINT cursor_pos;
+		GetCursorPos(&cursor_pos);
+		ScreenToClient(window->handle, &cursor_pos);
+		window->mouse_pos_last = window->mouse_pos;
+		window->mouse_pos = { (f32)cursor_pos.x, (f32)cursor_pos.y };
+		window->mouse_delta = vec2_sub(window->mouse_pos, window->mouse_pos_last);
 
-
+		// time
 		window->tick_previous = window->tick_current;
 		QueryPerformanceCounter(&window->tick_current);
 		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / os_state.time_frequency.QuadPart;
@@ -168,6 +178,21 @@ os_mouse_scroll(os_window_t* window) {
 	return result;
 }
 
+function vec2_t
+os_mouse_move(os_window_t* window) {
+
+	vec2_t result = vec2(0.0f, 0.0f);
+
+	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
+		if (e->type == os_event_type_mouse_move && (window == e->window)) {
+			os_pop_event(e);
+			result = e->position;
+			break;
+		}
+	}
+
+	return result;
+}
 
 
 function os_window_t* 
