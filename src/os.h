@@ -136,6 +136,18 @@ enum os_event_type {
 	os_event_type_mouse_move,
 };
 
+typedef u32 os_file_access_flag;
+enum {
+	os_file_access_flag_none = (0),
+	os_file_access_flag_read = (1 << 0),
+	os_file_access_flag_write = (1 << 1),
+	os_file_access_flag_execute = (1 << 2),
+	os_file_access_flag_append = (1 << 3),
+	os_file_access_flag_share_read = (1 << 4),
+	os_file_access_flag_share_write = (1 << 5),
+	os_file_access_flag_attribute = (1 << 6),
+};
+
 // structs
 
 struct os_window_t {
@@ -174,6 +186,15 @@ struct os_event_list_t {
 	os_event_t* last;
 };
 
+struct os_file_attributes_t {
+	u32 size;
+	u32 last_modified;
+};
+
+struct os_file_t {
+	HANDLE handle;
+	os_file_attributes_t attributes;
+};
 
 struct os_state_t {
 
@@ -204,6 +225,10 @@ function void os_init();
 function void os_release();
 function void os_update();
 
+function b8 os_any_window_exist();
+
+// events
+
 function void os_pop_event(os_event_t*);
 
 function os_modifiers os_get_modifiers();
@@ -213,6 +238,7 @@ function b8 os_mouse_press(os_window_t*, os_mouse_button, os_modifiers);
 function b8 os_mouse_release(os_window_t*, os_mouse_button, os_modifiers);
 function f32 os_mouse_scroll(os_window_t*);
 
+// window
 
 function os_window_t* os_window_open(str_t, u32, u32);
 function void os_window_close(os_window_t*);
@@ -225,7 +251,7 @@ function void os_window_fullscreen(os_window_t*);
 
 function void os_window_set_title(os_window_t*, str_t);
 
-
+// memory
 
 function u32 os_page_size();
 function void* os_mem_reserve(u32);
@@ -233,6 +259,18 @@ function void os_mem_release(void*, u32);
 function void os_mem_commit(void*, u32);
 function void os_mem_decommit(void*, u32);
 
+// file 
+
+function os_file_t os_file_open(str_t, os_file_access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);
+function void os_file_close(os_file_t);
+function os_file_attributes_t os_file_get_attributes(os_file_t);
+function str_t os_file_read_range(arena_t*, os_file_t, u32, u32);
+function str_t os_file_read_all(arena_t*, str_t);
+function str_t os_file_read_all(arena_t*, os_file_t);
+
+function void os_file_delete(str_t);
+function void os_file_move(str_t, str_t);
+function void os_file_copy(str_t, str_t);
 
 
 LRESULT CALLBACK window_procedure(HWND, UINT, WPARAM, LPARAM);

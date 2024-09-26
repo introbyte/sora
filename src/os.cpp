@@ -52,8 +52,20 @@ os_update() {
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}
+
+	for (os_window_t* window = os_state.first_window; window != 0; window = window->next) {
+		RECT w32_rect = { 0 };
+		GetClientRect(window->handle, &w32_rect);
+		window->width = (w32_rect.right - w32_rect.left);
+		window->height = (w32_rect.bottom - w32_rect.top);
+	}
+
 }
 
+function b8 
+os_any_window_exist() {
+	return os_state.first_window != nullptr;
+}
 
 function void 
 os_pop_event(os_event_t* event) {
@@ -280,6 +292,124 @@ os_mem_decommit(void* ptr, u32 size) {
 	VirtualFree(ptr, size, MEM_DECOMMIT);
 }
 
+
+// files
+
+function os_file_t
+os_file_open(str_t filepath, os_file_access_flag flags) {
+
+	os_file_t file = { 0 };
+
+	DWORD access_flags = 0;
+	DWORD share_mode = 0;
+	DWORD creation_disposition = OPEN_EXISTING;
+
+	if (flags & os_file_access_flag_read) { access_flags |= GENERIC_READ; }
+	if (flags & os_file_access_flag_write) { access_flags |= GENERIC_WRITE; }
+	if (flags & os_file_access_flag_execute) { access_flags |= GENERIC_EXECUTE; }
+	if (flags & os_file_access_flag_share_read) { share_mode |= FILE_SHARE_READ; }
+	if (flags & os_file_access_flag_share_write) { share_mode |= FILE_SHARE_WRITE; }
+	if (flags & os_file_access_flag_write) { creation_disposition = CREATE_ALWAYS; }
+	if (flags & os_file_access_flag_append) { creation_disposition = OPEN_ALWAYS; }
+	if (flags & os_file_access_flag_attribute) { access_flags = READ_CONTROL | FILE_READ_ATTRIBUTES;  share_mode = FILE_SHARE_READ; }
+
+	file.handle = CreateFileA((char*)filepath.data, access_flags, share_mode, NULL, creation_disposition, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (file.handle == INVALID_HANDLE_VALUE) {
+		printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
+	}
+
+	os_file_attributes_t attributes = os_file_get_attributes(file);
+	file.attributes = attributes;
+
+	return file;
+}
+
+function void
+os_file_close(os_file_t file) {
+	CloseHandle(file.handle);
+}
+
+function os_file_attributes_t
+os_file_get_attributes(os_file_t file) {
+
+	os_file_attributes_t attributes = { 0 };
+
+	u32 high_bits = 0;
+	u32 low_bits = GetFileSize(file.handle, (DWORD*)&high_bits);
+	FILETIME last_write_time = { 0 };
+	GetFileTime(file.handle, 0, 0, &last_write_time);
+	attributes.size = (u64)low_bits | (((u64)high_bits) << 32);
+	attributes.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
+
+	return attributes;
+}
+
+function str_t
+os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
+
+	str_t result;
+
+	LARGE_INTEGER off_li = { 0 };
+	off_li.QuadPart = start;
+
+	if (SetFilePointerEx(file.handle, off_li, 0, FILE_BEGIN)) {
+		u32 bytes_to_read = length;
+		u32 bytes_actually_read = 0;
+		result.data = (u8*)arena_malloc(arena, sizeof(u8) * bytes_to_read);
+		result.size = 0;
+
+		u8* ptr = (u8*)result.data;
+		u8* opl = (u8*)result.data + bytes_to_read;
+
+		for (;;) {
+			u32 unread = (u32)(opl - ptr);
+			DWORD to_read = (DWORD)(min(unread, u32_max));
+			DWORD did_read = 0;
+			if (!ReadFile(file.handle, ptr, to_read, &did_read, 0)) {
+				break;
+			}
+			ptr += did_read;
+			result.size += did_read;
+			if (ptr >= opl) {
+				break;
+			}
+		}
+	}
+	return result;
+
+}
+
+function str_t
+os_file_read_all(arena_t* arena, str_t filepath) {
+	os_file_t file = os_file_open(filepath);
+	os_file_attributes_t attributes = os_file_get_attributes(file);
+	str_t data = os_file_read_range(arena, file, 0, attributes.size);
+	os_file_close(file);
+	return data;
+}
+
+function str_t
+os_file_read_all(arena_t* arena, os_file_t file) {
+	os_file_attributes_t attributes = os_file_get_attributes(file);
+	str_t data = os_file_read_range(arena, file, 0, attributes.size);
+	return data;
+}
+
+function void
+os_file_delete(str_t filepath) {
+	DeleteFileA((char*)filepath.data);
+}
+
+function void
+os_file_move(str_t src_path, str_t dst_path) {
+	MoveFileA((char*)src_path.data, (char*)dst_path.data);
+}
+
+function void
+os_file_copy(str_t src_path, str_t dst_path) {
+	CopyFileA((char*)src_path.data, (char*)dst_path.data, true);
+}
 
 // window procedure
 

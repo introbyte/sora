@@ -6,6 +6,7 @@
 // includes
 
 #include <cstdio>
+#include <cmath>
 
 // defines
 
@@ -18,6 +19,40 @@
 #define megabytes(n)  (n << 20)
 #define gigabytes(n)  (((u64)n) << 30)
 #define terabytes(n)  (((u64)n) << 40)
+
+#define u8_max  (0xFF)
+#define u8_min  (0)
+#define u16_max (0xFFFF)
+#define u16_min (0)
+#define u32_max (0xFFFFFFFF)
+#define u32_min (0)
+#define u64_max (0xFFFFFFFFFFFFFFFF)
+#define u64_min (0)
+#define i8_max (0x7F)
+#define i8_min (-1 - 0x7F)
+#define i16_max (0x7FFF)
+#define i16_min (-1 - 0x7FFF)
+#define i32_max (0x7FFFFFFF)
+#define i32_min (-1 - 0x7FFFFFFF)
+#define i64_max (0x7FFFFFFFFFFFFFFF)
+#define i64_min (-1 - 0x7FFFFFFFFFFFFFFF)
+
+#define f32_sign (0x80000000)
+#define f32_exp (0x7F800000)
+#define f32_mantissa (0x7FFFFF)
+#define f32_max (3.402823e+38f)
+#define f32_min (-3.402823e+38f)
+#define f32_smallest_positive (1.1754943508e-38)
+#define f32_epsilon (5.96046448e-8)
+
+#define f32_pi (3.141592653597f)
+#define f64_pi (3.141592653597)
+
+#define min(a, b) (((a)<(b)) ? (a) : (b))
+#define max(a, b) (((a)>(b)) ? (a) : (b))
+#define clamp(x, a, b) (((a)>(x))?(a):((b)<(x))?(b):(x))
+
+#define array_count(a) (sizeof(a) / sizeof((a)[0]))
 
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
@@ -64,6 +99,18 @@ typedef double f64;
 typedef const char* cstr;
 
 typedef i8 b8;
+
+// enums
+
+typedef u32 str_match_flags;
+enum : u32 {
+	str_match_flag_case_insensitive = (1 << 0),
+	str_match_flag_right_side_sloppy = (1 << 1),
+	str_match_flag_slash_insensitive = (1 << 2),
+	str_match_flag_find_last = (1 << 3),
+	str_match_flag_keep_empties = (1 << 4),
+};
+
 
 // structs
 
@@ -126,14 +173,91 @@ function void arena_clear(arena_t*);
 function u32 cstr_length(cstr cstr);
 function b8 cstr_equals(cstr cstr1, cstr cstr2);
 
+function b8 char_is_whitespace(char);
+function b8 char_is_alpha(char);
+function b8 char_is_alpha_upper(char);
+function b8 char_is_alpha_lower(char);
+function b8 char_is_digit(char);
+function b8 char_is_symbol(char);
+function b8 char_is_space(char);
+function char char_to_upper(char);
+function char char_to_lower(char);
+function char char_to_forward_slash(char);
+
 // str
 function str_t str(char*);
 function str_t str(char*, u32);
+function str_t str_substr(str_t, u32, u32);
+function str_t str_range(u8*, u8*);
+function str_t str_skip(str_t, u32);
+function str_t str_chop(str_t, u32);
+function str_t str_prefix(str_t, u32);
+function str_t str_suffix(str_t, u32);
+function b8 str_match(str_t, str_t, str_match_flags);
+function u32 str_find_substr(str_t, str_t, u32, str_match_flags);
+
+function str_t str_get_file_name(str_t string);
+function str_t str_get_file_extension(str_t string);
 
 // color
 function color_t color(u32);
 function color_t color(f32, f32, f32, f32);
 
+// math
+function f32 radians(f32);
+function f32 degrees(f32);
 
+function f32 remap(f32, f32, f32, f32, f32);
+
+function f32 lerp(f32, f32, f32);
+
+// vec2 
+function vec2_t vec2(f32);
+function vec2_t vec2(f32, f32);
+
+function vec2_t vec2_add(vec2_t, f32);
+function vec2_t vec2_add(vec2_t, vec2_t);
+function vec2_t vec2_sub(vec2_t, f32);
+function vec2_t vec2_sub(vec2_t, vec2_t);
+function vec2_t vec2_mul(vec2_t, f32);
+function vec2_t vec2_mul(vec2_t, vec2_t);
+function vec2_t vec2_div(vec2_t, f32);
+function vec2_t vec2_div(vec2_t, vec2_t);
+
+function f32 vec2_dot(vec2_t, vec2_t);
+function f32 vec2_cross(vec2_t, vec2_t);
+function f32 vec2_length(vec2_t);
+function vec2_t vec2_normalize(vec2_t);
+function f32 vec2_direction(vec2_t);
+function vec2_t vec2_rotate(vec2_t, f32);
+function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
+
+
+// vec4
+
+function vec4_t vec4(f32);
+function vec4_t vec4(f32, f32, f32, f32);
+
+
+// rect
+function rect_t rect(f32, f32, f32, f32);
+function rect_t rect(vec2_t, vec2_t);
+
+function void rect_validate(rect_t&);
+function b8 rect_contains(rect_t, vec2_t);
+function b8 rect_contains(rect_t, rect_t);
+function rect_t rect_intersection(rect_t, rect_t);
+
+function f32 rect_width(rect_t);
+function f32 rect_height(rect_t);
+function vec2_t rect_center(rect_t);
+
+function rect_t rect_grow(rect_t, f32);
+function rect_t rect_grow(rect_t, vec2_t);
+
+function rect_t rect_shrink(rect_t, f32);
+function rect_t rect_shrink(rect_t, vec2_t);
+
+function rect_t rect_translate(rect_t, vec2_t);
 
 #endif // BASE_H
