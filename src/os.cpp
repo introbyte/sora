@@ -58,7 +58,14 @@ os_update() {
 		GetClientRect(window->handle, &w32_rect);
 		window->width = (w32_rect.right - w32_rect.left);
 		window->height = (w32_rect.bottom - w32_rect.top);
+
+
+		window->tick_previous = window->tick_current;
+		QueryPerformanceCounter(&window->tick_current);
+		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / os_state.time_frequency.QuadPart;
+		window->elasped_time += window->delta_time;
 	}
+
 
 }
 

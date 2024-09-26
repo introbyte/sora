@@ -20,7 +20,7 @@ gfx_init() {
 
 	// arenas
 	gfx_state.renderer_arena = arena_create(megabytes(64));
-	gfx_state.resource_arena = arena_create(megabytes(64));
+	gfx_state.resource_arena = arena_create(gigabytes(2));
 	gfx_state.scratch_arena = arena_create(megabytes(64));
 
 	u32 device_flags = 0;
@@ -207,8 +207,8 @@ gfx_init() {
 		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{"COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{"COL", 3, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"ANG", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"STY", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{"ANG", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{"STY", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
 	} });
 
 }
@@ -333,7 +333,7 @@ gfx_renderer_create(os_window_t* window, color_t clear_color, u8 sample_count) {
 	renderer->scissor_rect = { 0, 0, (i32)window->width, (i32)window->height };
 
 	// arena
-	renderer->batch_arena = arena_create(megabytes(8));
+	renderer->batch_arena = arena_create(gigabytes(2));
 
 	return renderer;
 
@@ -410,7 +410,7 @@ gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 	gfx_state.device_context->RSSetScissorRects(1, &renderer->scissor_rect);
 
 	// set input assembler state
-	gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// set samplers
 	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.point_sampler);
@@ -520,7 +520,7 @@ gfx_renderer_push_quad(gfx_renderer_t* renderer, rect_t pos, gfx_quad_params_t p
 	instance->col3 = params.col3;
 
 	instance->radii = params.radii;
-	instance->style = params.style;
+	instance->style = {params.thickness, params.softness, 0.0f, 0.0f};
 
 }
 
@@ -580,6 +580,51 @@ gfx_renderer_push_text(gfx_renderer_t* renderer, str_t string, vec2_t pos, gfx_t
 
 }
 
+function void
+gfx_renderer_push_text(gfx_renderer_t* renderer, str16_t string, vec2_t pos, gfx_text_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.text_shader;
+	state.instance_size = sizeof(gfx_text_instance_t);
+	state.texture = params.font->atlas_texture;
+	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
+
+	for (u32 i = 0; i < string.size; i++) {
+		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
+
+		u16 codepoint = *(string.data + i);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+
+		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		instance->uv = glyph->uv;
+		instance->col = params.color;
+		pos.x += glyph->advance;
+
+	}
+
+}
+
+function void
+gfx_renderer_push_disk(gfx_renderer_t* renderer, vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_disk_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.disk_shader;
+	state.instance_size = sizeof(gfx_disk_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_disk_instance_t* instance = &((gfx_disk_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	instance->pos = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->col2 = params.col2;
+	instance->col3 = params.col3;
+	instance->angles = { radians(start_angle), radians(end_angle) };
+	instance->style = { params.thickness, params.softness };
+
+}
 
 // params
 
@@ -592,7 +637,8 @@ gfx_quad_params(color_t color, f32 radius = 5.0f, f32 thickness = 0.0f, f32 soft
 	params.col2 = color;
 	params.col3 = color;
 	params.radii = { radius, radius, radius, radius };
-	params.style = { thickness, softness, 0.0f, 0.0f };
+	params.thickness = thickness;
+	params.softness = softness;
 
 	return params;
 }
@@ -615,6 +661,14 @@ gfx_text_params(color_t color, gfx_font_t* font, f32 size) {
 	return params;
 }
 
+function gfx_disk_params_t
+gfx_disk_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
+	gfx_disk_params_t params;
+	params.col0 = params.col1 = params.col2 = params.col2 = color;
+	params.thickness = thickness;
+	params.softness = softness;
+	return params;
+}
 
 
 // texture functions

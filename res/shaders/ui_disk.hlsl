@@ -11,7 +11,7 @@ struct vs_in {
     float4 col10 : COL2;
     float4 col11 : COL3;
     float2 angles : ANG;
-    float4 style : STY; // (thickess, softness, unused, unused)
+    float2 style : STY; // (thickess, softness)
     uint vertex_id : SV_VertexID;
 };
 
@@ -35,10 +35,6 @@ vs_out vs_main(vs_in input) {
     float2 quad_p0 = { input.pos.xy };
     float2 quad_p1 = { input.pos.zw };
     float2 rect_size = abs(quad_p1 - quad_p0);
-    
-    // unpack style params
-    float thickness = input.style.x;
-    float softness = input.style.y;
     
     // per-vertex arrays
     float2 vertex_pos[] = {
@@ -65,8 +61,8 @@ vs_out vs_main(vs_in input) {
     output.col11 = input.col11;
     output.col10 = input.col10;
     output.angles = input.angles;
-    output.thickness = thickness;
-    output.softness = softness;
+    output.thickness = input.style.x;
+    output.softness = input.style.y;
   
     return output;
 }

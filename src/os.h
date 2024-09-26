@@ -161,9 +161,14 @@ struct os_window_t {
 	u32 width;
 	u32 height;
 
+	// time
+	LARGE_INTEGER tick_current;
+	LARGE_INTEGER tick_previous;
+	f64 delta_time;
+	f64 elasped_time;
+
 	// fullscreen
 	WINDOWPLACEMENT last_window_placement;
-
 
 };
 
@@ -242,7 +247,6 @@ function f32 os_mouse_scroll(os_window_t*);
 
 function os_window_t* os_window_open(str_t, u32, u32);
 function void os_window_close(os_window_t*);
-function void os_window_update(os_window_t*);
 
 function void os_window_minimize(os_window_t*);
 function void os_window_maximize(os_window_t*);

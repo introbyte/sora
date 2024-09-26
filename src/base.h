@@ -207,8 +207,11 @@ function str_t str_prefix(str_t, u32);
 function str_t str_suffix(str_t, u32);
 function b8 str_match(str_t, str_t, str_match_flags);
 function u32 str_find_substr(str_t, str_t, u32, str_match_flags);
-function str_t str_get_file_name(str_t string);
-function str_t str_get_file_extension(str_t string);
+function str_t str_get_file_name(str_t);
+function str_t str_get_file_extension(str_t);
+
+function str_t str_formatv(arena_t*, char*, va_list);
+function str_t str_format(arena_t*, char*, ...);
 
 // str16
 
