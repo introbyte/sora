@@ -171,6 +171,128 @@ char_to_forward_slash(char c) {
 }
 
 
+// unicode
+
+global u8 utf8_class[32] = {
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
+};
+
+function codepoint_t 
+utf8_decode(u8* data, u32 max) {
+
+	codepoint_t result = { ~((u32)0), 1 };
+	u8 byte = data[0];
+	u8 byte_class = utf8_class[byte >> 3];
+
+	switch (byte_class) {
+		case 1: {
+			result.codepoint = byte;
+			break;
+		}
+
+		case 2: {
+			if (2 <= max) {
+				u8 cont_byte = data[1];
+				if (utf8_class[cont_byte >> 3] == 0) {
+					result.codepoint = (byte & 0x1F) << 6;
+					result.codepoint |= (cont_byte & 0x3F);
+					result.advance = 2;
+				}
+			}
+			break;
+		}
+
+		case 3: {
+			if (3 <= max) {
+				u8 cont_byte[2] = { data[1], data[2] };
+				if (utf8_class[cont_byte[0] >> 3] == 0 &&
+					utf8_class[cont_byte[1] >> 3] == 0) {
+					result.codepoint = (byte & 0x0F) << 12;
+					result.codepoint |= ((cont_byte[0] & 0x3F) << 6);
+					result.codepoint |= (cont_byte[1] & 0x3F);
+					result.advance = 3;
+				}
+			}
+			break;
+		}
+
+		case 4: {
+			if (4 <= max) {
+				u8 cont_byte[3] = { data[1], data[2], data[3] };
+				if (utf8_class[cont_byte[0] >> 3] == 0 &&
+					utf8_class[cont_byte[1] >> 3] == 0 &&
+					utf8_class[cont_byte[2] >> 3] == 0) {
+					result.codepoint = (byte & 0x07) << 18;
+					result.codepoint |= ((cont_byte[0] & 0x3F) << 12);
+					result.codepoint |= ((cont_byte[1] & 0x3F) << 6);
+					result.codepoint |= (cont_byte[2] & 0x3F);
+					result.advance = 4;
+				}
+			}
+			break;
+		}
+	}
+
+	return result;
+}
+
+function codepoint_t 
+utf16_decode(u16* data, u32 max) {
+	codepoint_t result = { ~((u32)0), 1 };
+	result.codepoint = data[0];
+	result.advance = 1;
+	if (1 < max && 0xD800 <= data[0] && data[0] < 0xDC00 && 0xDC00 <= data[1] && data[1] < 0xE000) {
+		result.codepoint = ((data[0] - 0xD800) << 10) | (data[1] - 0xDC00) + 0x10000;
+		result.advance = 2;
+	}
+	return result;
+}
+
+function u32 
+utf8_encode(u8* out, codepoint_t codepoint) {
+	u32 advance = 0;
+	if (codepoint.codepoint <= 0x7F) {
+		out[0] = (u8)codepoint.codepoint;
+		advance = 1;
+	} else if (codepoint.codepoint <= 0x7FF) {
+		out[0] = (0x03 << 6) | ((codepoint.codepoint >> 6) & 0x1F);
+		out[1] = 0x80 | (codepoint.codepoint & 0x3F);
+		advance = 2;
+	} else if (codepoint.codepoint <= 0xFFFF) {
+		out[0] = (0x07 << 5) | ((codepoint.codepoint >> 12) & 0x0F);
+		out[1] = 0x80 | ((codepoint.codepoint >> 6) & 0x3F);
+		out[2] = 0x80 | (codepoint.codepoint & 0x3F);
+		advance = 3;
+	} else if (codepoint.codepoint <= 0x10FFFF) {
+		out[0] = (0x0F << 4) | ((codepoint.codepoint >> 18) & 0x07);
+		out[1] = 0x80 | ((codepoint.codepoint >> 12) & 0x3F);
+		out[2] = 0x80 | ((codepoint.codepoint >> 6) & 0x3F);
+		out[3] = 0x80 | (codepoint.codepoint & 0x3F);
+		advance = 4;
+	} else {
+		out[0] = '?';
+		advance = 1;
+	}
+	return advance;
+}
+
+function u32 
+utf16_encode(u16* out, codepoint_t codepoint) {
+	u32 advance = 1;
+	if (codepoint.codepoint == ~((u32)0)) {
+		out[0] = (u16)'?';
+	} else if (codepoint.codepoint < 0x10000) {
+		out[0] = (u16)codepoint.codepoint;
+	} else {
+		u32 v = codepoint.codepoint - 0x10000;
+		out[0] = 0xD800 + (v >> 10);
+		out[1] = 0xDC00 + (v & 0x03FF);
+		advance = 2;
+	}
+	return advance;
+}
+
+
 // str functions
 
 function str_t 
@@ -309,6 +431,55 @@ str_get_file_extension(str_t string) {
 	}
 
 	return string;
+}
+
+// str16 functions
+
+function str16_t
+str16(u16* data) {
+	str16_t result;
+	result.data = data;
+	u16* i = data;
+	for (; *i; i += 1);
+	result.size = i - data;
+	return result;
+}
+
+function str16_t
+str16(u16* data, u32 size) {
+	str16_t result;
+	result.data = data;
+	result.size = size;
+	return result;
+}
+
+function str16_t
+str_to_str16(arena_t* arena, str_t string) {
+
+	u32 capacity = string.size * 2;
+
+	u16* string16 = (u16*)arena_malloc(arena, sizeof(u16) * capacity + 1);
+
+	u8* ptr = (u8*)string.data;
+	u8* opl = ptr + string.size;
+
+	u32 size = 0;
+	codepoint_t codepoint;
+
+	for (; ptr < opl;) {
+		codepoint = utf8_decode(ptr, opl - ptr);
+		ptr += codepoint.advance;
+		size += utf16_encode(string16 + size, codepoint);
+	}
+
+	string16[size] = 0;
+	//arena_pop(arena, 2 * (cap - size));
+
+	str16_t result;
+	result.data = string16;
+	result.size = size;
+	return result;
+
 }
 
 

@@ -129,6 +129,11 @@ struct str32_t {
 	u32 size;
 };
 
+struct codepoint_t {
+	u32 codepoint;
+	u32 advance;
+};
+
 struct vec2_t {
 	f32 x, y;
 };
@@ -184,6 +189,13 @@ function char char_to_upper(char);
 function char char_to_lower(char);
 function char char_to_forward_slash(char);
 
+// unicode
+function codepoint_t utf8_decode(u8*, u32);
+function codepoint_t utf16_decode(u16*, u32);
+
+function u8 utf8_encode(codepoint_t);
+function u16 utf16_encode(codepoint_t);
+
 // str
 function str_t str(char*);
 function str_t str(char*, u32);
@@ -195,9 +207,16 @@ function str_t str_prefix(str_t, u32);
 function str_t str_suffix(str_t, u32);
 function b8 str_match(str_t, str_t, str_match_flags);
 function u32 str_find_substr(str_t, str_t, u32, str_match_flags);
-
 function str_t str_get_file_name(str_t string);
 function str_t str_get_file_extension(str_t string);
+
+// str16
+
+function str16_t str16(u16*);
+function str16_t str16(u16*, u32);
+
+function str16_t str_to_st16(str_t);
+
 
 // color
 function color_t color(u32);

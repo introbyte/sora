@@ -6,6 +6,7 @@
 // includes
 #pragma comment(lib, "d3d11")
 #pragma comment(lib, "d3dcompiler")
+#pragma comment(lib, "dwrite")
 
 // defines
 
@@ -156,6 +157,19 @@ gfx_init() {
 	gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.constant_buffer);
 
 
+	// create dwrite factory
+	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&gfx_state.dwrite_factory);
+
+	// create rendering params
+	hr = gfx_state.dwrite_factory->CreateRenderingParams(&gfx_state.rendering_params);
+	f32 gamma = gfx_state.rendering_params->GetGamma();
+	f32 enhanced_contrast = gfx_state.rendering_params->GetEnhancedContrast();
+	f32 clear_type_level = gfx_state.rendering_params->GetClearTypeLevel();
+	hr = gfx_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_DEFAULT, &gfx_state.rendering_params);
+
+	gfx_state.dwrite_factory->GetGdiInterop(&gfx_state.gdi_interop);
+
+
 	// default texture
 	u32 texture_data = 0xFFFFFFFF;
 	gfx_state.default_texture = gfx_texture_create(str("default"), 1, 1, &texture_data);
@@ -196,7 +210,6 @@ gfx_init() {
 		{"ANG", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{"STY", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 	} });
-
 
 }
 
@@ -539,7 +552,33 @@ gfx_renderer_push_line(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, gfx_line_
 
 }
 
+function void 
+gfx_renderer_push_text(gfx_renderer_t* renderer, str_t string, vec2_t pos, gfx_text_params_t params) {
+	
+	gfx_batch_state_t state;
+	state.shader = gfx_state.text_shader;
+	state.instance_size = sizeof(gfx_text_instance_t);
+	state.texture = params.font->atlas_texture;
+	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
+	
+	for (u32 i = 0; i < string.size; i++) {
+		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
 
+		u8 codepoint = *(string.data + i);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+
+		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		instance->uv = glyph->uv;
+		instance->col = params.color;
+		pos.x += glyph->advance;
+
+	}
+
+
+
+
+}
 
 
 // params
@@ -566,6 +605,16 @@ gfx_line_params(color_t color, f32 thickness = 1.0f, f32 softness = 0.33f) {
 	params.softness = softness;
 	return params;
 }
+
+function gfx_text_params_t 
+gfx_text_params(color_t color, gfx_font_t* font, f32 size) {
+	gfx_text_params_t params;
+	params.color = color;
+	params.font = font;
+	params.font_size = size;
+	return params;
+}
+
 
 
 // texture functions
@@ -687,6 +736,20 @@ gfx_texture_load_buffer(gfx_texture_t* texture, void* data) {
 
 }
 
+function void 
+gfx_texture_fill(gfx_texture_t* texture, rect_t rect, void* data) {
+
+	D3D11_BOX dst_box = {
+	  (UINT)rect.x0, (UINT)rect.y0, 0,
+	  (UINT)rect.x1, (UINT)rect.y1, 1,
+	};
+
+	if (dst_box.right > texture->width || dst_box.bottom > texture->height) {
+		printf("[error] incorrect rect size.\n");
+	} else {
+		gfx_state.device_context->UpdateSubresource(texture->id, 0, &dst_box, data, (rect.x1 - rect.x0) * 4, 0);
+	}
+}
 
 // shader functions
 
@@ -864,6 +927,315 @@ d3d11_vertex_class_to_input_class(gfx_vertex_class classification) {
 	}
 
 	return shader_classification;
+}
+
+
+
+// font functions
+
+function gfx_font_t*
+gfx_font_open(str_t filepath) {
+
+	gfx_font_t* font = (gfx_font_t*)arena_malloc(gfx_state.resource_arena, sizeof(gfx_font_t));
+
+	// convert to wide path
+	str16_t wide_filepath = str_to_str16(gfx_state.scratch_arena, filepath);
+
+	// create font file and face
+	gfx_state.dwrite_factory->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &(font->file));
+	gfx_state.dwrite_factory->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
+
+	// glyph cache
+	font->glyph_first = nullptr;
+	font->glyph_last = nullptr;
+
+	// atlas nodes
+	font->root_size = vec2(1024.0f, 1024.0f);
+	font->root = (gfx_font_atlas_node_t*)arena_malloc(gfx_state.resource_arena, sizeof(gfx_font_atlas_node_t));
+	font->root->max_free_size[0] =
+		font->root->max_free_size[1] =
+		font->root->max_free_size[2] =
+		font->root->max_free_size[3] = vec2_mul(font->root_size, 0.5f);
+
+	// atlas texture
+	str_t font_name = str_get_file_name(filepath);
+	font->atlas_texture = gfx_texture_create(font_name, 1024, 1024, nullptr);
+
+	arena_clear(gfx_state.scratch_arena);
+
+	return font;
+}
+
+function void
+gfx_font_release(gfx_font_t* font) {
+	if (font->face != nullptr) { font->face->Release(); }
+	if (font->file != nullptr) { font->file->Release(); }
+	gfx_texture_release(font->atlas_texture);
+
+}
+
+function u32 
+gfx_font_glyph_hash(u32 codepoint, f32 size) {
+	u32 float_bits = *(u32*)&size;
+	u32 hash = float_bits ^ codepoint;
+
+	hash ^= (hash >> 16);
+	hash *= 0x45d9f3b;
+	hash ^= (hash >> 16);
+	hash *= 0x45d9f3b;
+	hash ^= (hash >> 16);
+
+	return hash;
+}
+
+function gfx_font_glyph_t*
+gfx_font_get_glyph(gfx_font_t* font, u32 codepoint, f32 size) {
+
+	gfx_font_glyph_t* glyph = nullptr;
+	u32 hash = gfx_font_glyph_hash(codepoint, size);
+
+	// try to find glyph in cache
+	for (gfx_font_glyph_t* current = font->glyph_first; current != 0; current = current->next) {
+
+		// we found a match
+		if (current->hash == hash) {
+			glyph = current;
+			break;
+		}
+	}
+
+	// if we did not find a match, add to cache
+	if (glyph == nullptr) {
+
+		// raster the glyph on scratch arena
+		gfx_font_raster_t raster = gfx_font_glyph_raster(gfx_state.scratch_arena, font, codepoint, size);
+		vec2_t raster_size = vec2((f32)raster.width, (f32)raster.height);
+
+		// add to atlas
+		vec2_t atlas_glyph_pos = gfx_font_atlas_add(font, raster_size);
+		vec2_t atlas_glyph_size = vec2_add(atlas_glyph_pos, raster_size);
+		rect_t region = { atlas_glyph_pos.x, atlas_glyph_pos.y, atlas_glyph_size.x, atlas_glyph_size.y };
+		gfx_texture_fill(font->atlas_texture, region, raster.data);
+
+		// add glyph to cache list
+		glyph = (gfx_font_glyph_t*)arena_malloc(gfx_state.resource_arena, sizeof(gfx_font_glyph_t));
+		glyph->hash = hash;
+		glyph->advance = raster.advance;
+		glyph->height = raster.height;
+		glyph->pos = rect(0.0f, 0.0f, raster_size.x, raster_size.y);
+		glyph->uv = rect(region.x0 / 1024.0f, region.y0 / 1024.0f, region.x1 / 1024.0f, region.y1/ 1024.0f);
+		dll_push_back(font->glyph_first, font->glyph_last, glyph);
+
+		arena_clear(gfx_state.scratch_arena);
+	}
+
+	return glyph;
+}
+
+function gfx_font_raster_t
+gfx_font_glyph_raster(arena_t* arena, gfx_font_t* font, u32 codepoint, f32 size) {
+
+	// get font metrics
+	DWRITE_FONT_METRICS font_metrics = { 0 };
+	font->face->GetMetrics(&font_metrics);
+	f32 design_units_per_em = font_metrics.designUnitsPerEm;
+	f32 ascent = (96.0f / 72.0f) * size * (f32)font_metrics.ascent / design_units_per_em;
+	f32 descent = (96.0f / 72.0f) * size * (f32)font_metrics.descent / design_units_per_em;
+	f32 pixel_per_design_unit = ((96.0f / 72.0f) * size) / (f32)font_metrics.designUnitsPerEm;
+
+	// get glyph indices
+	u16 glyph_index;
+	font->face->GetGlyphIndicesA(&codepoint, 1, &glyph_index);
+
+	// get metrics info
+	DWRITE_GLYPH_METRICS glyph_metrics = { 0 };
+	font->face->GetGdiCompatibleGlyphMetrics(size, 1.0f, 0, 1, &glyph_index, 1, &glyph_metrics, 0);
+
+	// determine atlas size
+	i32 atlas_dim_x = (i32)(96.0f / 72.0f) * size * glyph_metrics.advanceWidth / design_units_per_em;
+	i32 atlas_dim_y = (i32)((96.0f / 72.0f) * size * (font_metrics.ascent + font_metrics.descent) / design_units_per_em) + 2.0f;
+	f32 advance = (f32)glyph_metrics.advanceWidth * pixel_per_design_unit + 1.0f;
+	atlas_dim_x += 7;
+	atlas_dim_x -= atlas_dim_x % 8;
+	atlas_dim_x += 4;
+
+	// make bitmap for rendering
+	IDWriteBitmapRenderTarget* render_target;
+	gfx_state.gdi_interop->CreateBitmapRenderTarget(0, atlas_dim_x, atlas_dim_y, &render_target);
+	HDC dc = render_target->GetMemoryDC();
+
+	// draw glyph
+	DWRITE_GLYPH_RUN glyph_run = { 0 };
+	glyph_run.fontFace = font->face;
+	glyph_run.fontEmSize = size * 96.0f / 72.0f;
+	glyph_run.glyphCount = 1;
+	glyph_run.glyphIndices = &glyph_index;
+
+	RECT bounding_box = { 0 };
+	vec2_t draw_pos = { 1.0f, (f32)atlas_dim_y - 2.0f - descent };
+	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_NATURAL, &glyph_run, gfx_state.rendering_params, RGB(255, 255, 255), &bounding_box);
+
+	// get bitmap
+	DIBSECTION dib = { 0 };
+	HBITMAP bitmap = (HBITMAP)GetCurrentObject(dc, OBJ_BITMAP);
+	GetObject(bitmap, sizeof(dib), &dib);
+
+	gfx_font_raster_t raster = { 0 };
+
+	raster.width = atlas_dim_x;
+	raster.height = atlas_dim_y;
+	raster.advance = floorf(advance);
+
+	raster.data = (u8*)arena_malloc(arena, sizeof(u8) * atlas_dim_x * atlas_dim_y * 4);
+
+	u8* in_data = (u8*)dib.dsBm.bmBits;
+	u32 in_pitch = (u32)dib.dsBm.bmWidthBytes;
+	u8* out_data = raster.data;
+	u32 out_pitch = atlas_dim_x * 4;
+
+	u8* in_line = (u8*)in_data;
+	u8* out_line = out_data;
+	for (u64 y = 0; y < atlas_dim_y; y += 1) {
+		u8* in_pixel = in_line;
+		u8* out_pixel = out_line;
+		for (u32 x = 0; x < atlas_dim_x; x += 1) {
+			out_pixel[0] = 255;
+			out_pixel[1] = 255;
+			out_pixel[2] = 255;
+			out_pixel[3] = in_pixel[1];
+			in_pixel += 4;
+			out_pixel += 4;
+		}
+		in_line += in_pitch;
+		out_line += out_pitch;
+	}
+
+	render_target->Release();
+
+	return raster;
+}
+
+function vec2_t
+gfx_font_atlas_add(gfx_font_t* font, vec2_t needed_size) {
+
+	// find node with best-fit size
+	vec2_t region_p0 = { 0.0f, 0.0f };
+	vec2_t region_size = { 0.0f, 0.0f };
+
+	gfx_font_atlas_node_t* node = 0;
+	i32 node_corner = -1;
+
+	vec2_t n_supported_size = font->root_size;
+
+	const vec2_t corner_vertices[4] = {
+		vec2(0.0f, 0.0f),
+		vec2(0.0f, 1.0f),
+		vec2(1.0f, 0.0f),
+		vec2(1.0f, 1.0f),
+	};
+
+	for (gfx_font_atlas_node_t* n = font->root, *next = 0; n != 0; n = next, next = 0) {
+
+		if (n->taken) {
+			break;
+		}
+
+		b8 n_can_be_allocated = (n->child_count == 0);
+
+		if (n_can_be_allocated) {
+			region_size = n_supported_size;
+		}
+
+		vec2_t child_size = vec2_mul(n_supported_size, 0.5f);
+
+
+		gfx_font_atlas_node_t* best_child = 0;
+
+		if (child_size.x >= needed_size.x && child_size.y >= needed_size.y) {
+
+			for (i32 i = 0; i < 4; i++) {
+
+				if (n->children[i] == 0) {
+
+					n->children[i] = (gfx_font_atlas_node_t*)arena_malloc(gfx_state.resource_arena, sizeof(gfx_font_atlas_node_t));
+					n->children[i]->parent = n;
+					n->children[i]->max_free_size[0] =
+						n->children[i]->max_free_size[1] =
+						n->children[i]->max_free_size[2] =
+						n->children[i]->max_free_size[3] = vec2_mul(child_size, 0.5f);
+
+				}
+
+				if (n->max_free_size[i].x >= needed_size.x && n->max_free_size[i].y >= needed_size.y) {
+					best_child = n->children[i];
+					node_corner = i;
+					vec2_t side_vertex = corner_vertices[i];
+					region_p0.x += side_vertex.x * child_size.x;
+					region_p0.y += side_vertex.y * child_size.y;
+					break;
+				}
+			}
+		}
+
+		if (n_can_be_allocated && best_child == 0) {
+			node = n;
+		} else {
+			next = best_child;
+			n_supported_size = child_size;
+		}
+
+	}
+
+	if (node != 0 && node_corner != -1) {
+		node->taken = true;
+
+		if (node->parent != 0) {
+			memset(&node->parent->max_free_size[node_corner], 0, sizeof(vec2_t));
+		}
+
+		for (gfx_font_atlas_node_t* p = node->parent; p != 0; p = p->parent) {
+			p->child_count += 1;
+			gfx_font_atlas_node_t* parent = p->parent;
+			if (parent != 0) {
+				i32 p_corner = (
+					p == parent->children[0] ? 0 :
+					p == parent->children[1] ? 1 :
+					p == parent->children[2] ? 2 :
+					p == parent->children[3] ? 3 :
+					-1
+					);
+
+				parent->max_free_size[p_corner].x = max(max(p->max_free_size[0].x,
+					p->max_free_size[1].x),
+					max(p->max_free_size[2].x,
+						p->max_free_size[3].x));
+				parent->max_free_size[p_corner].y = max(max(p->max_free_size[0].y,
+					p->max_free_size[1].y),
+					max(p->max_free_size[2].y,
+						p->max_free_size[3].y));
+			}
+		}
+	}
+
+	vec2_t result = region_p0;
+
+	return result;
+}
+
+function gfx_font_metrics_t
+gfx_font_get_metrics(gfx_font_t* font, f32 size) {
+
+	DWRITE_FONT_METRICS metrics = { 0 };
+	font->face->GetMetrics(&metrics);
+	f32 design_units_per_em = (f32)metrics.designUnitsPerEm;
+
+	gfx_font_metrics_t result = { 0 };
+	result.line_gap = (96.0f / 72.0f) * size * (f32)metrics.lineGap / design_units_per_em;
+	result.ascent = (96.0f / 72.0f) * size * (f32)metrics.ascent / design_units_per_em;
+	result.descent = (96.0f / 72.0f) * size * (f32)metrics.descent / design_units_per_em;
+	result.capital_height = (96.0f / 72.0f) * size * (f32)metrics.capHeight / design_units_per_em;
+
+	return result;
 }
 
 

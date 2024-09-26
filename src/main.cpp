@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
 	os_window_t* window = os_window_open(str("title"), 1280, 960);
 	gfx_renderer_t* renderer = gfx_renderer_create(window, color(0x07090bff), 8);
 	
+	gfx_font_t* font = gfx_font_open(str("res/fonts/deja_vu_sans.ttf"));
 
 	while (os_any_window_exist()) {
 		os_update();
@@ -69,6 +70,12 @@ int main(int argc, char** argv) {
 		params.style = { 10.0f, 5.33f, 0.0f, 0.0f };
 		gfx_renderer_push_quad(renderer, rect_shrink(area, 5.0f), params);
 		area = rect_translate(area, vec2(100.0f, 0.0f));
+
+
+
+		gfx_text_params_t text_params = gfx_text_params(color(0xffffffff), font, 8.0f);
+		gfx_renderer_push_text(renderer, str("Scene"), vec2(5.0f, 200.0f), text_params);
+
 
 		gfx_renderer_end_frame(renderer);
 		
