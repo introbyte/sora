@@ -18,15 +18,14 @@ struct frame_stats_t {
 	u32 frame_count;
 };
 
-int main(int argc, char** argv) {
-
+function i32 
+app_main(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 
 	os_window_t* window = os_window_open(str("sora rendering test"), 1280, 960);
-	//gfx_renderer_t* renderer = gfx_renderer_create(window, color(0x07090bff), 8);
 	gfx_renderer_t* renderer = gfx_renderer_create(window, color(0x303030ff), 8);
-	
+
 	arena_t* scratch = arena_create(megabytes(1));
 
 	gfx_font_t* font_deja = gfx_font_open(str("res/fonts/deja_vu_sans.ttf"));
@@ -39,10 +38,15 @@ int main(int argc, char** argv) {
 	stats.frame_count = 0;
 
 	u32 tick = 0;
-	
+
 	while (os_any_window_exist()) {
 		os_update();
 		gfx_renderer_begin_frame(renderer);
+
+		// fullscreen
+		if (os_key_release(window, os_key_F11)) {
+			os_window_fullscreen(window);
+		}
 
 		// frame times
 		stats.frame_times[stats.frame_index] = window->delta_time * 1000.0f;
@@ -75,7 +79,7 @@ int main(int argc, char** argv) {
 		}
 
 		// quad
-		{ 
+		{
 			rect_t layout = rect(0.0f, 100.0f, 100.0f, 200.0f);
 
 			gfx_quad_params_t quad_params;
@@ -114,10 +118,10 @@ int main(int argc, char** argv) {
 			gfx_renderer_push_quad(renderer, rect_shrink(layout, 5.0f), quad_params);
 			layout = rect_translate(layout, vec2(100.0f, 0.0f));
 		}
-		
+
 		// disk
-		{ 
-			
+		{
+
 			vec2_t pos = vec2(50.0f, 270.0f);
 
 			gfx_disk_params_t disk_params;
@@ -130,7 +134,7 @@ int main(int argc, char** argv) {
 			disk_params.col0 = disk_params.col1 = disk_params.col2 = disk_params.col3 = color(0x803496ff);
 			gfx_renderer_push_disk(renderer, pos, 45.0f, 45.0f, 360.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
-			
+
 			disk_params.col0 = disk_params.col1 = color(0x18ac70ff);
 			disk_params.col2 = disk_params.col3 = color(0x184270ff);
 			gfx_renderer_push_disk(renderer, pos, 45.0f, 135.1f, 405.0f, disk_params);
@@ -188,7 +192,7 @@ int main(int argc, char** argv) {
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 		}
-		
+
 		// triangles
 		{
 			vec2_t pos = vec2(5.0f, 430.0f);
@@ -216,18 +220,21 @@ int main(int argc, char** argv) {
 			gfx_renderer_push_tri(renderer, vec2_add(pos, vec2(0.0f, 90.0f)), vec2_add(pos, vec2(45.0f, 0.0f)), vec2_add(pos, vec2(90.0f, 90.0f)), tri_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
+			tri_params.col0 = tri_params.col1 = tri_params.col2 = color(0xe6479aff);
+			tri_params.softness = 1.0f;
+			tri_params.thickness = 1.0f;
 			gfx_renderer_push_tri(renderer, vec2_add(pos, vec2(0.0f, 90.0f)), vec2_add(pos, vec2(45.0f, 0.0f)), vec2_add(pos, vec2(90.0f, 90.0f)), tri_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 		}
 
 		// text
-		{ 
+		{
 
 			vec2_t pos = vec2(5.0f, 530.0f);
 
 			gfx_text_params_t text_params;
-			
-			
+
+
 			text_params.color = color(0xffffffff);
 			text_params.font = font_deja;
 			text_params.font_size = 12.0f;
@@ -252,32 +259,44 @@ int main(int argc, char** argv) {
 			text_params.font_size = 9.0f;
 			gfx_renderer_push_text(renderer, str("system font"), pos, text_params);
 		}
-		
+
 		// frame times
 		{
 
 			str_t text;
-			vec2_t pos = vec2(5.0f, 5.0f);;
+			vec2_t pos = vec2(5.0f, 5.0f);
+
+			gfx_font_t* font = font_system;
+			const f32 font_size = 9.0f;
 
 			text = str_format(scratch, "frame_time: %.2f ms", window->delta_time * 1000.0f);
-			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font_system, 9.0f));
-			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font_system, 9.0f));
+			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
+			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
 			pos = vec2_add(pos, vec2(0.0f, 18.0f));
 
 			text = str_format(scratch, "min: %.2f ms", stats.min);
-			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font_system, 9.0f));
-			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font_system, 9.0f));
+			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
+			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
 			pos = vec2_add(pos, vec2(0.0f, 18.0f));
 
 			text = str_format(scratch, "max: %.2f ms", stats.max);
-			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font_system, 9.0f));
-			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font_system, 9.0f));
+			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
+			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
 			pos = vec2_add(pos, vec2(0.0f, 18.0f));
 
 			text = str_format(scratch, "avg: %.2f ms", stats.avg);
-			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font_system, 9.0f));
-			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font_system, 9.0f));
+			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
+			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
 			pos = vec2_add(pos, vec2(0.0f, 18.0f));
+
+			pos = vec2(250.0f, 5.0f);
+			text = str_format(scratch, "batch_count: %u", renderer->batch_count);
+			gfx_renderer_push_text(renderer, text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
+			gfx_renderer_push_text(renderer, text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
+			pos = vec2_add(pos, vec2(0.0f, 18.0f));
+
+
+
 
 			arena_clear(scratch);
 		}
@@ -290,3 +309,15 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
+// entry point
+
+#if defined(BUILD_DEBUG)
+int main(int argc, char** argv) {
+	return app_main(argc, argv);
+}
+#elif defined(BUILD_RELEASE)
+int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+	return app_main(__argc, __argv);
+}
+#endif 

@@ -260,6 +260,7 @@ struct gfx_renderer_t {
 	// batches
 	gfx_batch_t* batch_first;
 	gfx_batch_t* batch_last;
+	u32 batch_count;
 
 	gfx_constant_data_t constant_data;
 

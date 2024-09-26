@@ -5,6 +5,7 @@
 
 // include libs
 #pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
 
 // implementation
@@ -265,18 +266,25 @@ function void
 os_window_fullscreen(os_window_t* window) {
 
 	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
-
-	MONITORINFO monitor_info = { sizeof(monitor_info) };
-	if (GetWindowPlacement(window->handle, &window->last_window_placement) &&
-		GetMonitorInfo(MonitorFromWindow(window->handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
-		SetWindowLong(window->handle, GWL_STYLE, window_style & ~WS_OVERLAPPEDWINDOW);
-		SetWindowPos(window->handle, HWND_TOP,
-			monitor_info.rcMonitor.left,
-			monitor_info.rcMonitor.top,
-			monitor_info.rcMonitor.right -
-			monitor_info.rcMonitor.left,
-			monitor_info.rcMonitor.bottom -
-			monitor_info.rcMonitor.top,
+	if (window_style & WS_OVERLAPPEDWINDOW) {
+		MONITORINFO monitor_info = { sizeof(monitor_info) };
+		if (GetWindowPlacement(window->handle, &window->last_window_placement) &&
+			GetMonitorInfo(MonitorFromWindow(window->handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
+			SetWindowLong(window->handle, GWL_STYLE, window_style & ~WS_OVERLAPPEDWINDOW);
+			SetWindowPos(window->handle, HWND_TOP,
+				monitor_info.rcMonitor.left,
+				monitor_info.rcMonitor.top,
+				monitor_info.rcMonitor.right -
+				monitor_info.rcMonitor.left,
+				monitor_info.rcMonitor.bottom -
+				monitor_info.rcMonitor.top,
+				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+		}
+	} else {
+		SetWindowLong(window->handle, GWL_STYLE, window_style | WS_OVERLAPPEDWINDOW);
+		SetWindowPlacement(window->handle, &window->last_window_placement);
+		SetWindowPos(window->handle, 0, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
 			SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 	}
 

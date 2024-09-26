@@ -434,7 +434,7 @@ gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 
 function void
 gfx_renderer_end_frame(gfx_renderer_t* renderer) {
-	
+
 	// load constant buffer
 	D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
 	gfx_state.device_context->Map(gfx_state.constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
@@ -447,11 +447,12 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 	gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
 	// render batches
+	
 	for (gfx_batch_t* batch = renderer->batch_first; batch != 0; batch = batch->next) {
 
 		u32 stride = batch->batch_state.instance_size;
 		u32 offset = 0;
-
+		
 		// load vertex data into buffer
 		D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
 		gfx_state.device_context->Map(gfx_state.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
@@ -474,7 +475,8 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 	// clear batch list
 	arena_clear(renderer->batch_arena);
 	renderer->batch_first = renderer->batch_last = nullptr;
-	
+	renderer->batch_count = 0;
+
 	// present
 	renderer->swapchain->Present(1, 0);
 	gfx_state.device_context->ClearState();
@@ -523,6 +525,7 @@ gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
 	batch->instance_count = 0;
 
 	dll_push_back(renderer->batch_first, renderer->batch_last, batch);
+	renderer->batch_count++;
 
 	return batch;
 }
