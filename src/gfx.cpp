@@ -3,15 +3,10 @@
 #ifndef GFX_CPP
 #define GFX_CPP
 
-// includes
+// include libs
 #pragma comment(lib, "d3d11")
 #pragma comment(lib, "d3dcompiler")
 #pragma comment(lib, "dwrite")
-
-// defines
-
-#define gfx_buffer_size megabytes(8)
-#define gfx_batch_size megabytes(8)
 
 // implementation
 
@@ -227,14 +222,8 @@ gfx_init() {
 function void 
 gfx_release() {
 
-	// release arenas
-	arena_release(gfx_state.renderer_arena);
-	arena_release(gfx_state.resource_arena);
-	arena_release(gfx_state.scratch_arena);
-
 	// release default assets
 	gfx_texture_release(gfx_state.default_texture);
-
 	gfx_shader_release(gfx_state.quad_shader);
 	gfx_shader_release(gfx_state.text_shader);
 	gfx_shader_release(gfx_state.line_shader);
@@ -267,8 +256,12 @@ gfx_release() {
 	if (gfx_state.device_context != nullptr) { gfx_state.device_context->Release(); }
 	if (gfx_state.device != nullptr) { gfx_state.device->Release(); }
 
-}
+	// release arenas
+	arena_release(gfx_state.renderer_arena);
+	arena_release(gfx_state.resource_arena);
+	arena_release(gfx_state.scratch_arena);
 
+}
 
 // renderer functions
 
@@ -346,6 +339,7 @@ gfx_renderer_create(os_window_t* window, color_t clear_color, u8 sample_count) {
 
 	// arena
 	renderer->batch_arena = arena_create(gigabytes(2));
+	renderer->per_frame_arena = arena_create(megabytes(64));
 
 	return renderer;
 
@@ -362,6 +356,7 @@ gfx_renderer_release(gfx_renderer_t* renderer) {
 	if (renderer->framebuffer != nullptr) { renderer->framebuffer->Release(); }
 	if (renderer->swapchain != nullptr) { renderer->swapchain->Release(); }
 	arena_release(renderer->batch_arena);
+	arena_release(renderer->per_frame_arena);
 
 }
 
@@ -419,7 +414,7 @@ gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 	// set rasterizer state
 	gfx_state.device_context->RSSetState(gfx_state.solid_rasterizer_state);
 	gfx_state.device_context->RSSetViewports(1, &renderer->viewport);
-	gfx_state.device_context->RSSetScissorRects(1, &renderer->scissor_rect);
+	//gfx_state.device_context->RSSetScissorRects(1, &renderer->scissor_rect);
 
 	// set input assembler state
 	//gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -429,6 +424,13 @@ gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.linear_sampler);
 	
 	renderer->constant_data.window_size = vec2((f32)renderer->width, (f32)renderer->height);
+
+	// clear arenas
+	arena_clear(renderer->per_frame_arena);
+
+	// reset stacks
+	renderer->clip_stack_default.v = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
+	renderer->clip_stack_top = &renderer->clip_stack_default;
 
 }
 
@@ -460,6 +462,12 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 		memcpy(ptr, batch->batch_data, batch->instance_count * batch->batch_state.instance_size);
 		gfx_state.device_context->Unmap(gfx_state.vertex_buffer, 0);
 		
+		D3D11_RECT scissor_rect = { 
+			(i32)batch->batch_state.clip_mask.x0, (i32)batch->batch_state.clip_mask.y0,
+			(i32)batch->batch_state.clip_mask.x1 , (i32)batch->batch_state.clip_mask.y1
+		};
+		gfx_state.device_context->RSSetScissorRects(1, &scissor_rect);
+
 		gfx_state.device_context->IASetInputLayout(batch->batch_state.shader->input_layout);
 		gfx_state.device_context->IASetVertexBuffers(0, 1, &gfx_state.vertex_buffer, &stride, &offset);
 
@@ -483,6 +491,189 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 }
 
 
+function rect_t
+gfx_push_clip(gfx_renderer_t* renderer, rect_t clip) {
+	rect_t old_value = renderer->clip_stack_top->v;
+	gfx_clip_node_t* node = (gfx_clip_node_t*)arena_malloc(renderer->per_frame_arena, sizeof(gfx_clip_node_t));
+	node->v = clip;
+	stack_push(renderer->clip_stack_top, node);
+	return old_value;
+}
+
+function rect_t 
+gfx_pop_clip(gfx_renderer_t* renderer) {
+	rect_t value = renderer->clip_stack_top->v;
+	stack_pop(renderer->clip_stack_top);
+	return value;
+}
+
+function rect_t 
+gfx_top_clip(gfx_renderer_t* renderer) {
+	rect_t value = renderer->clip_stack_top->v;
+	return value;
+}
+
+
+function void 
+gfx_push_quad(gfx_renderer_t* renderer, rect_t pos, gfx_quad_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.quad_shader;
+	state.instance_size = sizeof(gfx_quad_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_quad_instance_t* instance = &((gfx_quad_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	rect_validate(pos);
+
+	instance->pos = pos;
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->col2 = params.col2;
+	instance->col3 = params.col3;
+
+	instance->radii = params.radii;
+	instance->style = {params.thickness, params.softness, 0.0f, 0.0f};
+
+}
+
+function void
+gfx_push_line(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, gfx_line_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.line_shader;
+	state.instance_size = sizeof(gfx_line_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_line_instance_t* instance = &((gfx_line_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	// calculate bounding box
+	rect_t bbox = { p0.x, p0.y, p1.x, p1.y };
+	rect_validate(bbox);
+	bbox = rect_grow(bbox, params.thickness + params.softness);
+
+	vec2_t c = rect_center(bbox);
+	vec2_t c_p0 = vec2_sub(c, p0);
+	vec2_t c_p1 = vec2_sub(c, p1);
+	
+	instance->pos = bbox;
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->points = { c_p0.x, c_p0.y, c_p1.x, c_p1.y };
+	instance->style = { params.thickness, params.softness, 0.0f, 0.0f };
+
+}
+
+function void 
+gfx_push_text(gfx_renderer_t* renderer, str_t string, vec2_t pos, gfx_text_params_t params) {
+	
+	gfx_batch_state_t state;
+	state.shader = gfx_state.text_shader;
+	state.instance_size = sizeof(gfx_text_instance_t);
+	state.texture = params.font->atlas_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
+	
+	for (u32 i = 0; i < string.size; i++) {
+		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
+
+		u8 codepoint = *(string.data + i);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+
+		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		instance->uv = glyph->uv;
+		instance->col = params.color;
+		pos.x += glyph->advance;
+
+	}
+
+
+
+
+}
+
+function void
+gfx_push_text(gfx_renderer_t* renderer, str16_t string, vec2_t pos, gfx_text_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.text_shader;
+	state.instance_size = sizeof(gfx_text_instance_t);
+	state.texture = params.font->atlas_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
+
+	for (u32 i = 0; i < string.size; i++) {
+		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
+
+		u16 codepoint = *(string.data + i);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+
+		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		instance->uv = glyph->uv;
+		instance->col = params.color;
+		pos.x += glyph->advance;
+
+	}
+
+}
+
+function void
+gfx_push_disk(gfx_renderer_t* renderer, vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_disk_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.disk_shader;
+	state.instance_size = sizeof(gfx_disk_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_disk_instance_t* instance = &((gfx_disk_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	instance->pos = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->col2 = params.col2;
+	instance->col3 = params.col3;
+	instance->angles = { radians(start_angle), radians(end_angle) };
+	instance->style = { params.thickness, params.softness };
+
+}
+
+function void 
+gfx_push_tri(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, vec2_t p2, gfx_tri_params_t params) {
+
+	gfx_batch_state_t state;
+	state.shader = gfx_state.tri_shader;
+	state.instance_size = sizeof(gfx_tri_instance_t);
+	state.texture = gfx_state.default_texture;
+	state.clip_mask = gfx_top_clip(renderer);
+	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
+	gfx_tri_instance_t* instance = &((gfx_tri_instance_t*)batch->batch_data)[batch->instance_count++];
+
+	// calculate bounding box
+	vec2_t points[3] = { p0, p1, p2 };
+	rect_t bbox = rect_bbox(points, 3);
+	bbox = rect_grow(bbox, 5.0f * roundf(params.thickness + params.softness));
+
+	vec2_t c = rect_center(bbox);
+	vec2_t c_p0 = vec2_sub(p0, c);
+	vec2_t c_p1 = vec2_sub(p1, c);
+	vec2_t c_p2 = vec2_sub(p2, c);
+
+	instance->pos = bbox;
+	instance->col0 = params.col0;
+	instance->col1 = params.col1;
+	instance->col2 = params.col2;
+	instance->p0 = c_p0;
+	instance->p1 = c_p1;
+	instance->p2 = c_p2;
+	instance->style = { params.thickness, params.softness };
+}
+
+// batch functions
 
 function b8
 gfx_batch_state_equal(gfx_batch_state_t* state_a, gfx_batch_state_t* state_b) {
@@ -517,9 +708,9 @@ gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
 	}
 
 	// ..else, create a new batch
-	
+
 	gfx_batch_t* batch = (gfx_batch_t*)arena_calloc(renderer->batch_arena, sizeof(gfx_batch_t));
-	
+
 	batch->batch_state = state;
 	batch->batch_data = arena_malloc(renderer->batch_arena, gfx_batch_size);
 	batch->instance_count = 0;
@@ -530,167 +721,8 @@ gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
 	return batch;
 }
 
-function void 
-gfx_renderer_push_quad(gfx_renderer_t* renderer, rect_t pos, gfx_quad_params_t params) {
 
-	gfx_batch_state_t state;
-	state.shader = gfx_state.quad_shader;
-	state.instance_size = sizeof(gfx_quad_instance_t);
-	state.texture = gfx_state.default_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
-	gfx_quad_instance_t* instance = &((gfx_quad_instance_t*)batch->batch_data)[batch->instance_count++];
-
-	rect_validate(pos);
-
-	instance->pos = pos;
-	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
-
-	instance->col0 = params.col0;
-	instance->col1 = params.col1;
-	instance->col2 = params.col2;
-	instance->col3 = params.col3;
-
-	instance->radii = params.radii;
-	instance->style = {params.thickness, params.softness, 0.0f, 0.0f};
-
-}
-
-function void
-gfx_renderer_push_line(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, gfx_line_params_t params) {
-
-	gfx_batch_state_t state;
-	state.shader = gfx_state.line_shader;
-	state.instance_size = sizeof(gfx_line_instance_t);
-	state.texture = gfx_state.default_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
-	gfx_line_instance_t* instance = &((gfx_line_instance_t*)batch->batch_data)[batch->instance_count++];
-
-	// calculate bounding box
-	rect_t bbox = { p0.x, p0.y, p1.x, p1.y };
-	rect_validate(bbox);
-	bbox = rect_grow(bbox, params.thickness + params.softness);
-
-	vec2_t c = rect_center(bbox);
-	vec2_t c_p0 = vec2_sub(c, p0);
-	vec2_t c_p1 = vec2_sub(c, p1);
-	
-	instance->pos = bbox;
-	instance->col0 = params.col0;
-	instance->col1 = params.col1;
-	instance->points = { c_p0.x, c_p0.y, c_p1.x, c_p1.y };
-	instance->style = { params.thickness, params.softness, 0.0f, 0.0f };
-
-}
-
-function void 
-gfx_renderer_push_text(gfx_renderer_t* renderer, str_t string, vec2_t pos, gfx_text_params_t params) {
-	
-	gfx_batch_state_t state;
-	state.shader = gfx_state.text_shader;
-	state.instance_size = sizeof(gfx_text_instance_t);
-	state.texture = params.font->atlas_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
-	
-	for (u32 i = 0; i < string.size; i++) {
-		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
-
-		u8 codepoint = *(string.data + i);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
-
-		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
-		instance->uv = glyph->uv;
-		instance->col = params.color;
-		pos.x += glyph->advance;
-
-	}
-
-
-
-
-}
-
-function void
-gfx_renderer_push_text(gfx_renderer_t* renderer, str16_t string, vec2_t pos, gfx_text_params_t params) {
-
-	gfx_batch_state_t state;
-	state.shader = gfx_state.text_shader;
-	state.instance_size = sizeof(gfx_text_instance_t);
-	state.texture = params.font->atlas_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, string.size);
-
-	for (u32 i = 0; i < string.size; i++) {
-		gfx_text_instance_t* instance = &((gfx_text_instance_t*)batch->batch_data)[batch->instance_count++];
-
-		u16 codepoint = *(string.data + i);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
-
-		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
-		instance->uv = glyph->uv;
-		instance->col = params.color;
-		pos.x += glyph->advance;
-
-	}
-
-}
-
-function void
-gfx_renderer_push_disk(gfx_renderer_t* renderer, vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_disk_params_t params) {
-
-	gfx_batch_state_t state;
-	state.shader = gfx_state.disk_shader;
-	state.instance_size = sizeof(gfx_disk_instance_t);
-	state.texture = gfx_state.default_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
-	gfx_disk_instance_t* instance = &((gfx_disk_instance_t*)batch->batch_data)[batch->instance_count++];
-
-	instance->pos = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
-	instance->col0 = params.col0;
-	instance->col1 = params.col1;
-	instance->col2 = params.col2;
-	instance->col3 = params.col3;
-	instance->angles = { radians(start_angle), radians(end_angle) };
-	instance->style = { params.thickness, params.softness };
-
-}
-
-function void 
-gfx_renderer_push_tri(gfx_renderer_t* renderer, vec2_t p0, vec2_t p1, vec2_t p2, gfx_tri_params_t params) {
-
-	gfx_batch_state_t state;
-	state.shader = gfx_state.tri_shader;
-	state.instance_size = sizeof(gfx_tri_instance_t);
-	state.texture = gfx_state.default_texture;
-	state.clip_mask = rect(0.0f, 0.0f, (f32)renderer->width, (f32)renderer->height);
-	gfx_batch_t* batch = gfx_batch_find(renderer, state, 1);
-	gfx_tri_instance_t* instance = &((gfx_tri_instance_t*)batch->batch_data)[batch->instance_count++];
-
-	// calculate bounding box
-	vec2_t points[3] = { p0, p1, p2 };
-	rect_t bbox = rect_bbox(points, 3);
-	bbox = rect_grow(bbox, 5.0f * roundf(params.thickness + params.softness));
-
-	vec2_t c = rect_center(bbox);
-	vec2_t c_p0 = vec2_sub(p0, c);
-	vec2_t c_p1 = vec2_sub(p1, c);
-	vec2_t c_p2 = vec2_sub(p2, c);
-
-	instance->pos = bbox;
-	instance->col0 = params.col0;
-	instance->col1 = params.col1;
-	instance->col2 = params.col2;
-	instance->p0 = c_p0;
-	instance->p1 = c_p1;
-	instance->p2 = c_p2;
-	instance->style = { params.thickness, params.softness };
-}
-
-
-// params
+// instance param functions
 
 function gfx_quad_params_t 
 gfx_quad_params(color_t color, f32 radius = 5.0f, f32 thickness = 0.0f, f32 softness = 0.33f) {
@@ -1019,48 +1051,10 @@ shader_build_cleanup:
 	return result;
 }
 
-function DXGI_FORMAT
-d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format type) {
-
-	DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
-
-	switch (type) {
-		case gfx_vertex_format_float: { format = DXGI_FORMAT_R32_FLOAT; break; }
-		case gfx_vertex_format_float2: { format = DXGI_FORMAT_R32G32_FLOAT; break; }
-		case gfx_vertex_format_float3: { format = DXGI_FORMAT_R32G32B32_FLOAT; break; }
-		case gfx_vertex_format_float4: { format = DXGI_FORMAT_R32G32B32A32_FLOAT; break; }
-		case gfx_vertex_format_int: { format = DXGI_FORMAT_R32_SINT; break; }
-		case gfx_vertex_format_int2: { format = DXGI_FORMAT_R32G32_SINT; break; }
-		case gfx_vertex_format_int3: { format = DXGI_FORMAT_R32G32B32_SINT; break; }
-		case gfx_vertex_format_int4: { format = DXGI_FORMAT_R32G32B32A32_SINT; break; }
-		case gfx_vertex_format_uint: { format = DXGI_FORMAT_R32_UINT; break; }
-		case gfx_vertex_format_uint2: { format = DXGI_FORMAT_R32G32_UINT; break; }
-		case gfx_vertex_format_uint3: { format = DXGI_FORMAT_R32G32B32_UINT; break; }
-		case gfx_vertex_format_uint4: { format = DXGI_FORMAT_R32G32B32A32_UINT; break; }
-	}
-
-	return format;
-
-}
-
-function D3D11_INPUT_CLASSIFICATION
-d3d11_vertex_class_to_input_class(gfx_vertex_class classification) {
-	D3D11_INPUT_CLASSIFICATION shader_classification;
-
-	switch (classification) {
-		case gfx_vertex_class_per_vertex: { shader_classification = D3D11_INPUT_PER_VERTEX_DATA; break; }
-		case gfx_vertex_class_per_instance: { shader_classification = D3D11_INPUT_PER_INSTANCE_DATA; break; }
-	}
-
-	return shader_classification;
-}
-
-
-
 // font functions
 
 function gfx_font_t*
-gfx_font_open(str_t filepath) {
+gfx_font_load(str_t filepath) {
 
 	gfx_font_t* font = (gfx_font_t*)arena_malloc(gfx_state.resource_arena, sizeof(gfx_font_t));
 
@@ -1165,9 +1159,10 @@ gfx_font_glyph_raster(arena_t* arena, gfx_font_t* font, u32 codepoint, f32 size)
 	DWRITE_FONT_METRICS font_metrics = { 0 };
 	font->face->GetMetrics(&font_metrics);
 	f32 design_units_per_em = font_metrics.designUnitsPerEm;
-	f32 ascent = (96.0f / 72.0f) * size * (f32)font_metrics.ascent / design_units_per_em;
-	f32 descent = (96.0f / 72.0f) * size * (f32)font_metrics.descent / design_units_per_em;
 	f32 pixel_per_design_unit = ((96.0f / 72.0f) * size) / (f32)font_metrics.designUnitsPerEm;
+	f32 ascent = (f32)font_metrics.ascent * pixel_per_design_unit;
+	f32 descent = (f32)font_metrics.descent * pixel_per_design_unit;
+	f32 capital_height = (f32)font_metrics.capHeight * pixel_per_design_unit;
 
 	// get glyph indices
 	u16 glyph_index;
@@ -1178,8 +1173,8 @@ gfx_font_glyph_raster(arena_t* arena, gfx_font_t* font, u32 codepoint, f32 size)
 	font->face->GetGdiCompatibleGlyphMetrics(size, 1.0f, 0, 1, &glyph_index, 1, &glyph_metrics, 0);
 
 	// determine atlas size
-	i32 atlas_dim_x = (i32)(96.0f / 72.0f) * size * glyph_metrics.advanceWidth / design_units_per_em;
-	i32 atlas_dim_y = (i32)((96.0f / 72.0f) * size * (font_metrics.ascent + font_metrics.descent) / design_units_per_em) + 2.0f;
+	i32 atlas_dim_x = (i32)(glyph_metrics.advanceWidth * pixel_per_design_unit);
+	i32 atlas_dim_y = (i32)((font_metrics.ascent + font_metrics.descent) * pixel_per_design_unit);
 	f32 advance = (f32)glyph_metrics.advanceWidth * pixel_per_design_unit + 1.0f;
 	atlas_dim_x += 7;
 	atlas_dim_x -= atlas_dim_x % 8;
@@ -1198,7 +1193,7 @@ gfx_font_glyph_raster(arena_t* arena, gfx_font_t* font, u32 codepoint, f32 size)
 	glyph_run.glyphIndices = &glyph_index;
 
 	RECT bounding_box = { 0 };
-	vec2_t draw_pos = { 1.0f, (f32)atlas_dim_y - 2.0f - descent };
+	vec2_t draw_pos = { 1.0f, (f32)atlas_dim_y - descent };
 	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_NATURAL, &glyph_run, gfx_state.rendering_params, RGB(255, 255, 255), &bounding_box);
 
 	// get bitmap
@@ -1360,9 +1355,66 @@ gfx_font_get_metrics(gfx_font_t* font, f32 size) {
 	result.ascent = (96.0f / 72.0f) * size * (f32)metrics.ascent / design_units_per_em;
 	result.descent = (96.0f / 72.0f) * size * (f32)metrics.descent / design_units_per_em;
 	result.capital_height = (96.0f / 72.0f) * size * (f32)metrics.capHeight / design_units_per_em;
+	result.x_height = (96.0f / 72.0f) * size * (f32)metrics.xHeight / design_units_per_em;
 
 	return result;
 }
 
+function f32 
+gfx_font_text_width(gfx_font_t* font, f32 size, str_t string) {
+	f32 width = 0.0f;
+	for (u32 offset = 0; offset < string.size; offset++) {
+		char c = *(string.data + offset);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, (u8)c, size);
+		width += glyph->advance;
+	}
+	return width;
+}
+
+function f32 
+gfx_font_text_height(gfx_font_t* font, f32 size) {
+	gfx_font_metrics_t metrics = gfx_font_get_metrics(font, size);
+	f32 h = (metrics.ascent + metrics.descent);
+	return h;
+}
+
+
+// enum helper functions
+
+function DXGI_FORMAT
+d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format type) {
+
+	DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+
+	switch (type) {
+		case gfx_vertex_format_float: { format = DXGI_FORMAT_R32_FLOAT; break; }
+		case gfx_vertex_format_float2: { format = DXGI_FORMAT_R32G32_FLOAT; break; }
+		case gfx_vertex_format_float3: { format = DXGI_FORMAT_R32G32B32_FLOAT; break; }
+		case gfx_vertex_format_float4: { format = DXGI_FORMAT_R32G32B32A32_FLOAT; break; }
+		case gfx_vertex_format_int: { format = DXGI_FORMAT_R32_SINT; break; }
+		case gfx_vertex_format_int2: { format = DXGI_FORMAT_R32G32_SINT; break; }
+		case gfx_vertex_format_int3: { format = DXGI_FORMAT_R32G32B32_SINT; break; }
+		case gfx_vertex_format_int4: { format = DXGI_FORMAT_R32G32B32A32_SINT; break; }
+		case gfx_vertex_format_uint: { format = DXGI_FORMAT_R32_UINT; break; }
+		case gfx_vertex_format_uint2: { format = DXGI_FORMAT_R32G32_UINT; break; }
+		case gfx_vertex_format_uint3: { format = DXGI_FORMAT_R32G32B32_UINT; break; }
+		case gfx_vertex_format_uint4: { format = DXGI_FORMAT_R32G32B32A32_UINT; break; }
+	}
+
+	return format;
+
+}
+
+function D3D11_INPUT_CLASSIFICATION
+d3d11_vertex_class_to_input_class(gfx_vertex_class classification) {
+	D3D11_INPUT_CLASSIFICATION shader_classification;
+
+	switch (classification) {
+		case gfx_vertex_class_per_vertex: { shader_classification = D3D11_INPUT_PER_VERTEX_DATA; break; }
+		case gfx_vertex_class_per_instance: { shader_classification = D3D11_INPUT_PER_INSTANCE_DATA; break; }
+	}
+
+	return shader_classification;
+}
 
 #endif // GFX_CPP

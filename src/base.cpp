@@ -14,11 +14,11 @@ arena_create(u32 size) {
 	size -= size % size_roundup;
 
 	// reserve memory
-	void* block = arena_impl_reserve(size);
+	void* block = os_mem_reserve(size);
 
 	// initial commit
 	u64 initial_commit_size = arena_commit_size;
-	arena_impl_commit(block, initial_commit_size);
+	os_mem_commit(block, initial_commit_size);
 
 	// fill struct
 	arena_t* arena = (arena_t*)block;
@@ -32,7 +32,7 @@ arena_create(u32 size) {
 
 function void
 arena_release(arena_t* arena) {
-	arena_impl_release(arena, arena->size);
+	os_mem_release(arena, arena->size);
 }
 
 function void*
@@ -56,7 +56,7 @@ arena_malloc(arena_t* arena, u32 size) {
 			u32 size_to_commit = arena->pos - arena->commit_pos;
 			size_to_commit += arena_commit_size - 1;
 			size_to_commit -= size_to_commit % arena_commit_size;
-			arena_impl_commit(base + arena->commit_pos, size_to_commit);
+			os_mem_commit(base + arena->commit_pos, size_to_commit);
 			arena->commit_pos += size_to_commit;
 		}
 
@@ -89,7 +89,7 @@ arena_clear(arena_t* arena) {
 	if (pos_aligned + arena_decommit_size <= arena->commit_pos) {
 		u8* base = (u8*)arena;
 		u32 size_to_decommit = arena->commit_pos - pos_aligned;
-		arena_impl_decommit(base + pos_aligned, size_to_decommit);
+		os_mem_decommit(base + pos_aligned, size_to_decommit);
 		arena->commit_pos -= size_to_decommit;
 	}
 
@@ -118,7 +118,6 @@ function b8
 char_is_whitespace(char c) {
 	return (c == ' ' || c == '\t' || c == '\v' || c == '\f');
 }
-
 
 function b8
 char_is_alpha(char c) {
@@ -169,7 +168,6 @@ function char
 char_to_forward_slash(char c) {
 	return (c == '\\' ? '/' : c);
 }
-
 
 // unicode
 
@@ -291,7 +289,6 @@ utf16_encode(u16* out, codepoint_t codepoint) {
 	}
 	return advance;
 }
-
 
 // str functions
 
@@ -546,9 +543,27 @@ color(f32 r, f32 g, f32 b, f32 a) {
 	return { r, g, b, a };
 }
 
+function color_t 
+color_add(color_t a, f32 b) {
+	return { a.r + b, a.g + b, a.b + b, a.a + b };
+}
+
+function color_t 
+color_add(color_t a, color_t b) {
+	return { a.r + b.r, a.g + b.g, a.b + b.b, a.a + b.a };
+}
+
+function color_t 
+color_lerp(color_t a, color_t b, f32 t) {
+	return { 
+		lerp(a.r, b.r, t),
+		lerp(a.g, b.g, t),
+		lerp(a.b, b.b, t),
+		lerp(a.a, b.a, t) 
+	};
+}
 
 // vec2 
-
 
 function vec2_t
 vec2(f32 v = 0.0f) {
@@ -559,7 +574,6 @@ function vec2_t
 vec2(f32 x, f32 y) {
 	return { x, y };
 }
-
 
 function vec2_t
 vec2_add(vec2_t a, vec2_t b) {
@@ -637,6 +651,18 @@ vec2_lerp(vec2_t a, vec2_t b, f32 t) {
 	return { lerp(a.x, b.x, t), lerp(a.y, b.y, t) };
 }
 
+// vec3
+
+function vec3_t
+vec3(f32 a = 0.0f) {
+	return {a, a, a };
+}
+
+function vec3_t
+vec3(f32 x, f32 y, f32 z) {
+	return { x, y, z };
+}
+
 // vec4
 
 function vec4_t 
@@ -660,7 +686,6 @@ function rect_t
 rect(vec2_t p0, vec2_t p1) {
 	return { p0.x, p0.y, p1.x, p1.y };
 }
-
 
 function void 
 rect_validate(rect_t& r) {
@@ -724,6 +749,11 @@ rect_shrink(rect_t r, f32 a) {
 function rect_t 
 rect_shrink(rect_t r, vec2_t a) {
 	return { r.x0 + a.x, r.y0 + a.y, r.x1 - a.x, r.y1 - a.y };
+}
+
+function rect_t 
+rect_translate(rect_t r, f32 a) {
+	return { r.x0 + a, r.y0 + a, r.x1 + a, r.y1 + a };
 }
 
 function rect_t 

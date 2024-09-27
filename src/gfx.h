@@ -8,6 +8,11 @@
 #include <d3dcompiler.h>
 #include <dwrite.h>
 
+// defines
+
+#define gfx_buffer_size megabytes(8)
+#define gfx_batch_size megabytes(8)
+
 // enums
 
 enum gfx_vertex_format {
@@ -32,11 +37,7 @@ enum gfx_vertex_class {
 
 // structs
 
-struct gfx_constant_data_t {
-	vec2_t window_size;
-};
-
-
+// textures
 struct gfx_texture_t {
 	gfx_texture_t* next;
 	gfx_texture_t* prev;
@@ -47,6 +48,7 @@ struct gfx_texture_t {
 	u32 width, height;
 };
 
+// shaders
 struct gfx_shader_attribute_t {
 	cstr name;
 	u32 slot;
@@ -72,12 +74,13 @@ struct gfx_shader_t {
 
 };
 
-
+// fonts
 struct gfx_font_metrics_t {
 	f32 line_gap;
 	f32 ascent;
 	f32 descent;
 	f32 capital_height;
+	f32 x_height;
 };
 
 struct gfx_font_glyph_t {
@@ -123,9 +126,7 @@ struct gfx_font_t {
 };
 
 
-
 // instance types
-
 struct gfx_quad_params_t {
 	color_t col0;
 	color_t col1;
@@ -212,8 +213,7 @@ struct gfx_tri_instance_t {
 	vec2_t style; // (thickness, softness)
 };
 
-
-
+// batches
 struct gfx_batch_state_t {
 	gfx_shader_t* shader;
 	gfx_texture_t* texture;
@@ -230,6 +230,15 @@ struct gfx_batch_t {
 	u32 instance_count;
 };
 
+struct gfx_clip_node_t { 
+	gfx_clip_node_t* next; 
+	rect_t v; 
+};
+
+struct gfx_constant_data_t {
+	vec2_t window_size;
+};
+
 struct gfx_renderer_t {
 	gfx_renderer_t* next;
 	gfx_renderer_t* prev;
@@ -240,6 +249,7 @@ struct gfx_renderer_t {
 
 	// arenas
 	arena_t* batch_arena;
+	arena_t* per_frame_arena;
 
 	color_t clear_color;
 
@@ -261,6 +271,12 @@ struct gfx_renderer_t {
 	gfx_batch_t* batch_first;
 	gfx_batch_t* batch_last;
 	u32 batch_count;
+
+	// stack defaults
+	gfx_clip_node_t clip_stack_default;
+
+	// stacks
+	gfx_clip_node_t* clip_stack_top;
 
 	gfx_constant_data_t constant_data;
 
@@ -327,7 +343,6 @@ struct gfx_state_t {
 
 };
 
-
 // globals
 
 global gfx_state_t gfx_state;
@@ -337,55 +352,61 @@ global gfx_state_t gfx_state;
 function void gfx_init();
 function void gfx_release();
 
-
+// renderer
 function gfx_renderer_t* gfx_renderer_create(os_window_t*, color_t, u8);
 function void gfx_renderer_release(gfx_renderer_t*);
 function void gfx_renderer_resize(gfx_renderer_t*);
 function void gfx_renderer_begin_frame(gfx_renderer_t*);
 function void gfx_renderer_end_frame(gfx_renderer_t*);
 
+function rect_t gfx_push_clip(gfx_renderer_t*, rect_t);
+function rect_t gfx_pop_clip(gfx_renderer_t*);
+function rect_t gfx_top_clip(gfx_renderer_t*);
+
+function void gfx_push_quad(gfx_renderer_t*, rect_t, gfx_quad_params_t);
+function void gfx_push_line(gfx_renderer_t*, vec2_t, vec2_t, gfx_line_params_t);
+function void gfx_push_text(gfx_renderer_t*, str_t, vec2_t, gfx_text_params_t);
+function void gfx_push_text(gfx_renderer_t*, str16_t, vec2_t, gfx_text_params_t);
+function void gfx_push_disk(gfx_renderer_t*, vec2_t, f32, f32, f32, gfx_disk_params_t);
+function void gfx_push_tri(gfx_renderer_t*, vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
+
+// batch
 function b8 gfx_batch_state_equal(gfx_batch_state_t*, gfx_batch_state_t*);
 function gfx_batch_t* gfx_batch_find(gfx_renderer_t*, gfx_batch_state_t, u32);
 
-function void gfx_renderer_push_quad(gfx_renderer_t*, rect_t, gfx_quad_params_t);
-function void gfx_renderer_push_line(gfx_renderer_t*, vec2_t, vec2_t, gfx_line_params_t);
-function void gfx_renderer_push_text(gfx_renderer_t*, str_t, vec2_t, gfx_text_params_t);
-function void gfx_renderer_push_text(gfx_renderer_t*, str16_t, vec2_t, gfx_text_params_t);
-function void gfx_renderer_push_disk(gfx_renderer_t*, vec2_t, f32, f32, f32, gfx_disk_params_t);
-function void gfx_renderer_push_tri(gfx_renderer_t*, vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
-
+// instance params
 function gfx_quad_params_t gfx_quad_params(color_t, f32, f32, f32);
 function gfx_line_params_t gfx_line_params(color_t, f32, f32);
 function gfx_text_params_t gfx_text_params(color_t, gfx_font_t*, f32);
 function gfx_disk_params_t gfx_disk_params(color_t, f32, f32);
 function gfx_tri_params_t gfx_tri_params(color_t, f32, f32);
 
+// texture
 function gfx_texture_t* gfx_texture_create(str_t, u32, u32, void*);
 function gfx_texture_t* gfx_texture_load(str_t);
 function void gfx_texture_release(gfx_texture_t*);
 function void gfx_texture_load_buffer(gfx_texture_t*, void*);
 function void gfx_texture_fill(gfx_texture_t*, rect_t, void*);
 
-
+// shader
 function gfx_shader_t* gfx_shader_create(str_t, str_t, gfx_shader_layout_t);
 function gfx_shader_t* gfx_shader_load(str_t, gfx_shader_layout_t);
 function void gfx_shader_release(gfx_shader_t*);
 function b8 gfx_shader_build(gfx_shader_t*, str_t);
 
-
-function DXGI_FORMAT d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format);
-function D3D11_INPUT_CLASSIFICATION d3d11_vertex_class_to_input_class(gfx_vertex_class);
-
-// font
-
-function gfx_font_t* gfx_font_open(str_t, arena_t*);
+// fonts
+function gfx_font_t* gfx_font_load(str_t, arena_t*);
 function void gfx_font_release(gfx_font_t*);
-
 function gfx_font_metrics_t gfx_font_get_metrics(gfx_font_t*, f32);
-
 function u32 gfx_font_glyph_hash(u32, f32);
 function gfx_font_glyph_t* gfx_font_get_glyph(gfx_font_t*, u32, f32);
 function gfx_font_raster_t gfx_font_glyph_raster(arena_t*, gfx_font_t*, u32, f32);
 function vec2_t gfx_font_atlas_add(gfx_font_t*, vec2_t);
+function f32 gfx_font_text_width(gfx_font_t*, f32, str_t);
+function f32 gfx_font_text_height(gfx_font_t*, f32);
+
+// enum helpers
+function DXGI_FORMAT d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format);
+function D3D11_INPUT_CLASSIFICATION d3d11_vertex_class_to_input_class(gfx_vertex_class);
 
 #endif // GFX_H

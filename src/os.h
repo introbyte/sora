@@ -7,11 +7,9 @@
 #include <windows.h>
 #include <timeapi.h>
 
-// defines
-#define arena_impl_reserve os_mem_reserve
-#define arena_impl_release os_mem_release
-#define arena_impl_commit  os_mem_commit
-#define arena_impl_decommit os_mem_decommit
+// typedefs
+
+typedef void os_window_resize_func();
 
 // enums
 
@@ -152,15 +150,22 @@ enum {
 
 struct os_window_t {
 	
+	// window list 
 	os_window_t* next;
 	os_window_t* prev;
 
+	// win32
 	HWND handle;
 	HDC hdc;
 
+	str_t title;
+
+	// sizing
 	u32 width;
 	u32 height;
-
+	WINDOWPLACEMENT last_window_placement; // for fullscreen
+	os_window_resize_func* resize_function; // resize callback
+	
 	// time
 	LARGE_INTEGER tick_current;
 	LARGE_INTEGER tick_previous;
@@ -172,12 +177,11 @@ struct os_window_t {
 	vec2_t mouse_pos_last;
 	vec2_t mouse_delta;
 
-	// fullscreen
-	WINDOWPLACEMENT last_window_placement;
-
 };
 
 struct os_event_t {
+
+	// event list
 	os_event_t* next;
 	os_event_t* prev;
 
@@ -208,7 +212,7 @@ struct os_file_t {
 
 struct os_state_t {
 
-	// arena
+	// arenas
 	arena_t* window_arena;
 	arena_t* event_list_arena;
 	arena_t* scratch_arena;
@@ -234,13 +238,11 @@ global os_state_t os_state;
 function void os_init();
 function void os_release();
 function void os_update();
-
 function b8 os_any_window_exist();
 
 // events
 
 function void os_pop_event(os_event_t*);
-
 function os_modifiers os_get_modifiers();
 function b8 os_key_press(os_window_t*, os_key, os_modifiers);
 function b8 os_key_release(os_window_t*, os_key, os_modifiers);
@@ -253,13 +255,12 @@ function vec2_t os_mouse_move(os_window_t*);
 
 function os_window_t* os_window_open(str_t, u32, u32);
 function void os_window_close(os_window_t*);
-
 function void os_window_minimize(os_window_t*);
 function void os_window_maximize(os_window_t*);
 function void os_window_restore(os_window_t*);
 function void os_window_fullscreen(os_window_t*);
-
 function void os_window_set_title(os_window_t*, str_t);
+function void os_window_set_resize_function(os_window_t*, os_window_resize_func*);
 
 // memory
 
@@ -282,6 +283,7 @@ function void os_file_delete(str_t);
 function void os_file_move(str_t, str_t);
 function void os_file_copy(str_t, str_t);
 
+// window procedure
 
 LRESULT CALLBACK window_procedure(HWND, UINT, WPARAM, LPARAM);
 

@@ -57,21 +57,23 @@
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
 
-#define stack_push(f, n) ((n)->next = (f), (f) = (n))
-#define stack_pop(f) (((f) == 0) ? 0 : ((f) = (f)->next))
+#define stack_push_n(f, n, next) ((n)->next = (f), (f) = (n))
+#define stack_pop_n(f, next) (((f) == 0) ? 0 : ((f) = (f)->next))
 
+#define stack_push(f, n) stack_push_n(f, n, next)
+#define stack_pop(f) stack_pop_n(f, next)
 
-#define dll_push_back(f, l, n)\
+#define dll_push_back_np(f, l, n, next, prev)\
 ((f)==0?\
 ((f)=(l)=(n),(n)->next=(n)->prev=0):\
 ((n)->prev=(l),(l)->next=(n),(l)=(n),(n)->next=0))
 
-#define dll_push_front(f, l, n)\
+#define dll_push_front_np(f, l, n, next, prev)\
 ((l)==0?\
 ((l)=(f)=(n),(n)->prev=(n)->next=0):\
 ((n)->next=(f),(f)->prev=(n),(f)=(n),(n)->prev=0))
 
-#define dll_remove(f, l, n)\
+#define dll_remove_np(f, l, n, next, prev)\
 ((f)==(n)?\
 ((f)==(l)?\
 ((f)=(l)=(0)):\
@@ -80,6 +82,12 @@
 ((l)=(l)->prev,(l)->next=0):\
 ((n)->next->prev=(n)->prev,\
 (n)->prev->next=(n)->next))
+
+#define dll_push_back(f, l, n) dll_push_back_np(f, l, n, next, prev)
+#define dll_push_front(f, l, n) dll_push_front_np(f, l, n, next, prev)
+#define dll_remove(f, l, n) dll_remove_np(f, l, n, next, prev)
+
+#define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 
 // typedefs
 
@@ -164,20 +172,16 @@ struct arena_t {
 
 // functions
 
-
 // arenas
 function arena_t* arena_create(u32);
 function void arena_release(arena_t*);
-
 function void* arena_malloc(arena_t*, u32);
 function void* arena_calloc(arena_t*, u32);
-
 function void arena_clear(arena_t*);
 
 // cstr
 function u32 cstr_length(cstr cstr);
 function b8 cstr_equals(cstr cstr1, cstr cstr2);
-
 function b8 char_is_whitespace(char);
 function b8 char_is_alpha(char);
 function b8 char_is_alpha_upper(char);
@@ -192,7 +196,6 @@ function char char_to_forward_slash(char);
 // unicode
 function codepoint_t utf8_decode(u8*, u32);
 function codepoint_t utf16_decode(u16*, u32);
-
 function u8 utf8_encode(codepoint_t);
 function u16 utf16_encode(codepoint_t);
 
@@ -209,34 +212,31 @@ function b8 str_match(str_t, str_t, str_match_flags);
 function u32 str_find_substr(str_t, str_t, u32, str_match_flags);
 function str_t str_get_file_name(str_t);
 function str_t str_get_file_extension(str_t);
-
 function str_t str_formatv(arena_t*, char*, va_list);
 function str_t str_format(arena_t*, char*, ...);
 
 // str16
-
 function str16_t str16(u16*);
 function str16_t str16(u16*, u32);
-
 function str16_t str_to_st16(str_t);
-
-
-// color
-function color_t color(u32);
-function color_t color(f32, f32, f32, f32);
 
 // math
 function f32 radians(f32);
 function f32 degrees(f32);
-
 function f32 remap(f32, f32, f32, f32, f32);
-
 function f32 lerp(f32, f32, f32);
+
+// color
+function color_t color(u32);
+function color_t color(f32, f32, f32, f32);
+function color_t color_add(color_t, f32);
+function color_t color_add(color_t, color_t);
+function color_t color_lerp(color_t, color_t, f32);
+
 
 // vec2 
 function vec2_t vec2(f32);
 function vec2_t vec2(f32, f32);
-
 function vec2_t vec2_add(vec2_t, f32);
 function vec2_t vec2_add(vec2_t, vec2_t);
 function vec2_t vec2_sub(vec2_t, f32);
@@ -245,7 +245,6 @@ function vec2_t vec2_mul(vec2_t, f32);
 function vec2_t vec2_mul(vec2_t, vec2_t);
 function vec2_t vec2_div(vec2_t, f32);
 function vec2_t vec2_div(vec2_t, vec2_t);
-
 function f32 vec2_dot(vec2_t, vec2_t);
 function f32 vec2_cross(vec2_t, vec2_t);
 function f32 vec2_length(vec2_t);
@@ -254,34 +253,32 @@ function f32 vec2_direction(vec2_t);
 function vec2_t vec2_rotate(vec2_t, f32);
 function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 
+// vec3
+
+function vec3_t vec3(f32);
+function vec3_t vec3(f32, f32, f32);
 
 // vec4
 
 function vec4_t vec4(f32);
 function vec4_t vec4(f32, f32, f32, f32);
 
-
 // rect
 function rect_t rect(f32, f32, f32, f32);
 function rect_t rect(vec2_t, vec2_t);
-
 function void rect_validate(rect_t&);
 function b8 rect_contains(rect_t, vec2_t);
 function b8 rect_contains(rect_t, rect_t);
 function rect_t rect_intersection(rect_t, rect_t);
-
 function f32 rect_width(rect_t);
 function f32 rect_height(rect_t);
 function vec2_t rect_center(rect_t);
-
 function rect_t rect_grow(rect_t, f32);
 function rect_t rect_grow(rect_t, vec2_t);
-
 function rect_t rect_shrink(rect_t, f32);
 function rect_t rect_shrink(rect_t, vec2_t);
-
+function rect_t rect_translate(rect_t, f32);
 function rect_t rect_translate(rect_t, vec2_t);
-
 function rect_t rect_bbox(vec2_t*, u32);
 
 #endif // BASE_H

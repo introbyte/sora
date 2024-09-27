@@ -30,13 +30,13 @@ os_init() {
 	window_class.hCursor = LoadCursorA(0, IDC_ARROW);
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	RegisterClassA(&window_class);
-
-
-
+	
 }
 
 function void 
 os_release() {
+
+	// release arenas
 	arena_release(os_state.window_arena);
 	arena_release(os_state.event_list_arena);
 	arena_release(os_state.scratch_arena);
@@ -49,11 +49,13 @@ os_update() {
 	arena_clear(os_state.event_list_arena);
 	os_state.event_list = { 0 };
 
+	// dispatch win32 messages
 	for (MSG message; PeekMessage(&message, 0, 0, 0, PM_REMOVE);) {
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}
-
+	
+	// update each window
 	for (os_window_t* window = os_state.first_window; window != 0; window = window->next) {
 		
 		// window size
@@ -84,6 +86,8 @@ function b8
 os_any_window_exist() {
 	return os_state.first_window != nullptr;
 }
+
+// event functions
 
 function void 
 os_pop_event(os_event_t* event) {
@@ -195,6 +199,7 @@ os_mouse_move(os_window_t* window) {
 	return result;
 }
 
+// window functions
 
 function os_window_t* 
 os_window_open(str_t title, u32 width, u32 height) {
@@ -225,10 +230,12 @@ os_window_open(str_t title, u32 width, u32 height) {
 	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
 	ShowWindow(window->handle, SW_SHOW);
 
+	window->title = title;
 	window->width = width;
 	window->height = height;
+	window->resize_function = nullptr;
 
-	// fullscreen
+	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
 	
 	return window;
@@ -240,11 +247,6 @@ os_window_close(os_window_t* window) {
 	stack_push(os_state.free_window, window);
 	if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
 	if (window->handle) { DestroyWindow(window->handle); }
-}
-
-function void
-os_window_update(os_window_t* window) {
-
 }
 
 function void 
@@ -295,8 +297,13 @@ os_window_set_title(os_window_t* window, str_t title) {
 	SetWindowTextA(window->handle, (char*)title.data);
 }
 
+function void 
+os_window_set_resize_function(os_window_t* window, os_window_resize_func* func) {
+	window->resize_function = func;
+}
 
-// memory 
+
+// memory functions
 
 function u32
 os_page_size() {
@@ -331,7 +338,6 @@ function void
 os_mem_decommit(void* ptr, u32 size) {
 	VirtualFree(ptr, size, MEM_DECOMMIT);
 }
-
 
 // files
 
@@ -461,8 +467,25 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 	LRESULT result = 0;
 
 	switch (msg) {
+
 		case WM_CLOSE: {
 			os_window_close(window);
+			break;
+		}
+
+		case WM_SIZE: {
+			if (window->resize_function != nullptr) {
+
+				UINT width = LOWORD(lparam);
+				UINT height = HIWORD(lparam);
+
+				window->width = width;
+				window->height = height;
+
+				window->resize_function();
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
 			break;
 		}
 
@@ -558,6 +581,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 	}
 
+	// add event to event list
 	if (event) {
 		event->modifiers = os_get_modifiers();
 		dll_push_back(os_state.event_list.first, os_state.event_list.last, event);
