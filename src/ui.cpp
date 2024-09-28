@@ -27,6 +27,8 @@ ui_init() {
 	// default resources
 	ui_state.default_palette.background = color(0x282828ff);
 	ui_state.default_palette.border = color(0x3d3d3dff);
+	ui_state.default_palette.hover = color(0x151515ff);
+	ui_state.default_palette.active = color(0x151515ff);
 	ui_state.default_palette.text = color(0xe2e2e2ff);
 
 	ui_state.default_texture = gfx_state.default_texture;
@@ -81,6 +83,9 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	arena_clear(ui_state.per_frame_arena);
 	arena_clear(ui_state.scratch_arena);
 
+	// reset event list
+	ui_state.event_list = { 0 };
+
 	// reset stacks
 	ui_stack_reset(parent);
 	ui_stack_reset(flags);
@@ -107,9 +112,38 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
 	ui_state.root = frame;
 	ui_push_parent(frame);
+	
+	// gather events
+	for (os_event_t* os_event = os_state.event_list.first; os_event != 0; os_event = os_event->next) {
+		ui_event_t ui_event = { 0 };
+		ui_event_type type = ui_event_type_null;
+
+		if (os_event->type != 0 && os_event->window == ui_state.window) {
+
+			switch (os_event->type) {
+				case os_event_type_key_press: { type = ui_event_type_key_press; break; }
+				case os_event_type_key_release: { type = ui_event_type_key_release; break; }
+				case os_event_type_mouse_press: { type = ui_event_type_mouse_press; break; }
+				case os_event_type_mouse_release: { type = ui_event_type_mouse_release; break; }
+				case os_event_type_mouse_move: { type = ui_event_type_mouse_move; break; }
+				case os_event_type_text: { type = ui_event_type_text; break; }
+				case os_event_type_mouse_scroll: { type = ui_event_type_mouse_scroll; break; }
+			}
+
+			ui_event.type = type;
+			ui_event.key = os_event->key;
+			ui_event.mouse = os_event->mouse;
+			ui_event.modifiers = os_event->modifiers;
+			ui_event.character = os_event->character;
+			ui_event.position = os_event->position;
+			ui_event.scroll = os_event->scroll;
+
+			ui_event_push(&ui_event);
+		}
+		
+	}
 
 	ui_state.build_index++;
-
 }
 
 function void
@@ -131,6 +165,16 @@ ui_end_frame() {
 		);
 	}
 
+	// animate
+	f32 fast_rate = 1.0f - powf(2.0f, -144.0f * ui_state.window->delta_time);
+	f32 slow_rate = 1.0f - powf(2.0f, -30.0f * ui_state.window->delta_time);
+	for (ui_frame_t* frame = ui_state.frame_first; frame != 0; frame = frame->hash_next) {
+		b8 is_hovered = ui_key_equals(frame->key, ui_state.hovered_frame_key);
+		b8 is_active = ui_key_equals(frame->key, ui_state.active_frame_key[os_mouse_button_left]);
+
+		frame->hover_t += fast_rate * ((f32)is_hovered - frame->hover_t);
+		frame->active_t += fast_rate * ((f32)is_active - frame->active_t);
+	}
 	
 	// draw
 	gfx_renderer_t* renderer = ui_state.renderer;
@@ -150,19 +194,22 @@ ui_end_frame() {
 			gfx_push_quad(renderer, rect_translate(frame->rect, 1.0f), shadow_params);
 
 			color_t background_color = palette->background;
+			color_t border_color = palette->border;
 
 			if (frame->flags & ui_frame_flag_draw_hover_effects) {
-				background_color = color_lerp(background_color, color_add(background_color, 0.1f), frame->hover_t);
+				background_color = color_lerp(background_color, color_add(background_color, palette->hover), frame->hover_t);
+				border_color = color_lerp(border_color, color_add(border_color, palette->hover), frame->hover_t);
 			}
-
+			
 			if (frame->flags & ui_frame_flag_draw_active_effects) {
-				background_color = color_lerp(background_color, color_add(background_color, 0.2f), frame->active_t);
+				background_color = color_lerp(background_color, color_add(background_color, palette->active), frame->active_t);
+				border_color = color_lerp(border_color, color_add(border_color, palette->active), frame->hover_t);
 			}
 
-			gfx_quad_params_t background_params = gfx_quad_params(palette->background, frame->rounding);
+			gfx_quad_params_t background_params = gfx_quad_params(background_color, frame->rounding);
 			gfx_push_quad(renderer, frame->rect, background_params);
 
-			gfx_quad_params_t border_params = gfx_quad_params(palette->border, frame->rounding, 1.0f);
+			gfx_quad_params_t border_params = gfx_quad_params(border_color, frame->rounding, 1.0f);
 			gfx_push_quad(renderer, frame->rect, border_params);
 
 		}
@@ -170,7 +217,7 @@ ui_end_frame() {
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
 			rect_t top_clip = gfx_top_clip(renderer);
-			rect_t new_clip = frame->rect;
+			rect_t new_clip = rect_shrink(frame->rect, 1.0f);
 			if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
 				new_clip = rect_intersection(new_clip, top_clip);
 			}
@@ -270,7 +317,6 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 
 // key functions
 
-
 function ui_key_t
 ui_key_from_string(ui_key_t seed, str_t string) {
 	ui_key_t key = { 0 };
@@ -321,6 +367,21 @@ ui_hash_string(str_t string) {
 	return string;
 }
 
+// event functions
+
+function void 
+ui_event_push(ui_event_t* event) {
+	ui_event_t* new_event = (ui_event_t*)arena_malloc(ui_state.per_frame_arena, sizeof(ui_event_t));
+	memcpy(new_event, event, sizeof(ui_event_t));
+	dll_push_back(ui_state.event_list.first, ui_state.event_list.last, new_event);
+	ui_state.event_list.count++;
+}
+
+function void 
+ui_event_pop(ui_event_t* event) {
+	dll_remove(ui_state.event_list.first, ui_state.event_list.last, event);
+	ui_state.event_list.count--;
+}
 
 
 // frame functions
@@ -436,6 +497,76 @@ ui_frame_rec_depth_first(ui_frame_t* frame, ui_frame_t* root, u32 sibling_member
 
 	return result;
 }
+
+function ui_interaction 
+ui_frame_interaction(ui_frame_t* frame) {
+
+	ui_interaction result = ui_interaction_none;
+
+	// calculate interaction rect
+	rect_t rect = frame->rect;
+	for (ui_frame_t* f = frame->tree_parent; f != 0; f = f->tree_parent) {
+		if (f->flags & ui_frame_flag_clip) {
+			rect = rect_intersection(rect, f->rect);
+		}
+	}
+
+	for (ui_event_t* event = ui_state.event_list.first; event != 0; event = event->next) {
+		b8 taken = false;
+		vec2_t mouse_pos = event->position;
+		b8 mouse_in_bounds = rect_contains(rect, mouse_pos);
+
+		if (frame->flags & ui_frame_flag_interactable) {
+
+			// mouse hovers
+			if (mouse_in_bounds) {
+				ui_state.hovered_frame_key = frame->key;
+			} else {
+				ui_state.hovered_frame_key = { 0 };
+			}
+
+			// we mouse press on the frame
+			if (mouse_in_bounds && event->type == ui_event_type_mouse_press) {
+				ui_state.active_frame_key[event->mouse] = frame->key;
+				result |= ui_interaction_left_pressed << event->mouse;
+				taken = true;
+			}
+
+			// we mouse release on the frame
+			if (mouse_in_bounds && event->type == ui_event_type_mouse_release) {
+				ui_state.active_frame_key[event->mouse] = { 0 };
+				result |= ui_interaction_left_released << event->mouse;
+				result |= ui_interaction_left_clicked << event->mouse;
+				taken = true;
+			}
+
+			// we mouse release off the frame
+			if (!mouse_in_bounds && event->type == ui_event_type_mouse_release) {
+				ui_state.active_frame_key[event->mouse] = {0};
+				result |= ui_interaction_left_released << event->mouse;
+				taken = true;
+			}
+
+		}
+
+		if (taken) {
+			ui_event_pop(event);
+		}
+
+	}
+
+	// mouse dragging
+	if (frame->flags & ui_frame_flag_interactable) {
+		for (i32 mouse_button = 0; mouse_button < os_mouse_button_count; mouse_button++) {
+			if (ui_key_equals(ui_state.active_frame_key[mouse_button], frame->key) || (result & ui_interaction_left_pressed << mouse_button)) {
+				result |= ui_interaction_left_dragging << mouse_button;
+			}
+		}
+	}
+
+	return result;
+}
+
 
 // stack functions
 

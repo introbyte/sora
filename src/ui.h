@@ -28,14 +28,10 @@ enum {
 	ui_frame_flag_draw_hover_effects = (1 << 3),
 	ui_frame_flag_draw_active_effects = (1 << 4),
 	ui_frame_flag_draw_custom_draw = (1 << 5),
-
-	ui_frame_flag_clickable = (1 << 6),
-
+	ui_frame_flag_interactable = (1 << 6),
 	ui_frame_flag_view_scroll = (1 << 6),
-
 	ui_frame_flag_floating_x = (1 << 7),
 	ui_frame_flag_floating_y = (1 << 8),
-
 	ui_frame_flag_floating = ui_frame_flag_floating_x | ui_frame_flag_floating_y,
 };
 
@@ -57,6 +53,50 @@ enum ui_text_alignment {
 	ui_text_alignment_right,
 };
 
+typedef u32 ui_interaction;
+enum {
+	ui_interaction_none = 0,
+	ui_interaction_left_pressed = (1 << 0),
+	ui_interaction_middle_pressed = (1 << 1),
+	ui_interaction_right_pressed = (1 << 2),
+	ui_interaction_left_dragging = (1 << 3),
+	ui_interaction_middle_dragging = (1 << 4),
+	ui_interaction_right_dragging = (1 << 5),
+	ui_interaction_left_double_dragging = (1 << 6),
+	ui_interaction_middle_double_dragging = (1 << 7),
+	ui_interaction_right_double_dragging = (1 << 8),
+	ui_interaction_left_triple_dragging = (1 << 9),
+	ui_interaction_middle_triple_dragging = (1 << 10),
+	ui_interaction_right_triple_dragging = (1 << 11),
+	ui_interaction_left_released = (1 << 12),
+	ui_interaction_middle_released = (1 << 13),
+	ui_interaction_right_released = (1 << 14),
+	ui_interaction_left_clicked = (1 << 15),
+	ui_interaction_middle_clicked = (1 << 16),
+	ui_interaction_right_clicked = (1 << 17),
+	ui_interaction_left_double_clicked = (1 << 18),
+	ui_interaction_middle_double_clicked = (1 << 19),
+	ui_interaction_right_double_clicked = (1 << 20),
+	ui_interaction_left_triple_clicked = (1 << 21),
+	ui_interaction_middle_triple_clicked = (1 << 22),
+	ui_interaction_right_triple_clicked = (1 << 23),
+	ui_interaction_keyboard_pressed = (1 << 24),
+	ui_interaction_hovered = (1 << 25),
+};
+
+enum ui_event_type {
+	ui_event_type_null,
+	ui_event_type_key_press,
+	ui_event_type_key_release,
+	ui_event_type_mouse_press,
+	ui_event_type_mouse_release,
+	ui_event_type_text,
+	ui_event_type_navigate,
+	ui_event_type_edit,
+	ui_event_type_mouse_move,
+	ui_event_type_mouse_scroll,
+};
+
 // structs
 
 struct ui_key_t {
@@ -72,8 +112,34 @@ struct ui_size_t {
 struct ui_palette_t {
 	color_t background;
 	color_t border;
+	color_t hover;
+	color_t active;
 	color_t text;
 };
+
+
+struct ui_event_t {
+	ui_event_t* next;
+	ui_event_t* prev;
+
+	ui_event_type type;
+	os_key key;
+	os_mouse_button mouse;
+	os_modifiers modifiers;
+	u32 character;
+	vec2_t position;
+	vec2_t scroll;
+	
+
+};
+
+struct ui_event_list_t {
+	ui_event_t* first;
+	ui_event_t* last;
+	u32 count;
+};
+
+
 
 struct ui_frame_t {
 
@@ -122,7 +188,6 @@ struct ui_frame_t {
 
 };
 
-// this is used for doing recursive depth first search
 struct ui_frame_rec_t {
 	ui_frame_t* next;
 	i32 push_count;
@@ -161,11 +226,18 @@ struct ui_state_t {
 	// build index
 	u64 build_index;
 
+	// event list
+	ui_event_list_t event_list;
+
 	// frame list
 	ui_frame_t* frame_first;
 	ui_frame_t* frame_last;
 	ui_frame_t* frame_free;
-
+	
+	// state
+	ui_key_t hovered_frame_key;
+	ui_key_t active_frame_key[os_mouse_button_count];
+		
 	// frame tree
 	ui_frame_t* root;
 
@@ -239,11 +311,17 @@ function b8 ui_key_equals(ui_key_t, ui_key_t);
 function str_t ui_display_string(str_t);
 function str_t ui_hash_string(str_t);
 
+// events
+function void ui_event_push(ui_event_t*);
+function void ui_event_pop(ui_event_t*);
+
+
 // frames
 function ui_frame_t* ui_frame_find(ui_key_t);
 function ui_frame_t* ui_frame_from_key(ui_key_t, ui_frame_flags = 0);
 function ui_frame_t* ui_frame_from_string(str_t, ui_frame_flags = 0);
 function ui_frame_rec_t ui_frame_rec_depth_first(ui_frame_t*, ui_frame_t*, u32, u32);
+function ui_interaction ui_frame_interaction(ui_frame_t*);
 
 // stack
 function void ui_auto_pop_stacks();

@@ -10,6 +10,7 @@
 // typedefs
 
 typedef void os_window_resize_func();
+typedef void os_window_close_func();
 
 // enums
 
@@ -109,8 +110,8 @@ enum os_key {
 
 enum os_mouse_button {
 	os_mouse_button_left,
-	os_mouse_button_right,
 	os_mouse_button_middle,
+	os_mouse_button_right,
 	os_mouse_button_count,
 };
 
@@ -164,7 +165,10 @@ struct os_window_t {
 	u32 width;
 	u32 height;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
-	os_window_resize_func* resize_function; // resize callback
+
+	// callback functions
+	os_window_resize_func* resize_function;
+	os_window_close_func* close_function;
 	
 	// time
 	LARGE_INTEGER tick_current;
@@ -187,9 +191,9 @@ struct os_event_t {
 
 	os_event_type type;
 	os_window_t* window;
-	os_modifiers modifiers;
 	os_key key;
 	os_mouse_button mouse;
+	os_modifiers modifiers;
 	u32 character;
 	vec2_t position;
 	vec2_t scroll;
@@ -198,6 +202,7 @@ struct os_event_t {
 struct os_event_list_t {
 	os_event_t* first;
 	os_event_t* last;
+	u32 count;
 };
 
 struct os_file_attributes_t {
@@ -241,8 +246,8 @@ function void os_update();
 function b8 os_any_window_exist();
 
 // events
-
-function void os_pop_event(os_event_t*);
+function void os_event_push(os_event_t*);
+function void os_event_pop(os_event_t*);
 function os_modifiers os_get_modifiers();
 function b8 os_key_press(os_window_t*, os_key, os_modifiers);
 function b8 os_key_release(os_window_t*, os_key, os_modifiers);
@@ -261,6 +266,7 @@ function void os_window_restore(os_window_t*);
 function void os_window_fullscreen(os_window_t*);
 function void os_window_set_title(os_window_t*, str_t);
 function void os_window_set_resize_function(os_window_t*, os_window_resize_func*);
+function void os_window_set_close_function(os_window_t*, os_window_close_func*);
 
 // memory
 

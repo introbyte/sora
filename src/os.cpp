@@ -50,9 +50,9 @@ os_update() {
 	os_state.event_list = { 0 };
 
 	// dispatch win32 messages
-	for (MSG message; PeekMessage(&message, 0, 0, 0, PM_REMOVE);) {
+	for (MSG message; PeekMessageA(&message, 0, 0, 0, PM_REMOVE);) {
 		TranslateMessage(&message);
-		DispatchMessage(&message);
+		DispatchMessageA(&message);
 	}
 	
 	// update each window
@@ -79,7 +79,6 @@ os_update() {
 		window->elasped_time += window->delta_time;
 	}
 
-
 }
 
 function b8 
@@ -89,10 +88,20 @@ os_any_window_exist() {
 
 // event functions
 
+function void
+os_event_push(os_event_t* event) {
+	os_event_t* new_event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+	memcpy(new_event, event, sizeof(os_event_t));
+	dll_push_back(os_state.event_list.first, os_state.event_list.last, new_event);
+	os_state.event_list.count++;
+
+
+}
+
 function void 
-os_pop_event(os_event_t* event) {
+os_event_pop(os_event_t* event) {
 	dll_remove(os_state.event_list.first, os_state.event_list.last, event);
-	event->type = os_event_type_null;
+	os_state.event_list.count--;
 }
 
 function os_modifiers
@@ -117,7 +126,7 @@ os_key_press(os_window_t* window, os_key key, os_modifiers modifiers = 0) {
 		if (e->type == os_event_type_key_press && (window == e->window) &&
 			e->key == key &&
 			((e->modifiers & modifiers) != 0 || (e->modifiers == 0 && modifiers == 0))) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = 1;
 			break;
 		}
@@ -132,7 +141,7 @@ os_key_release(os_window_t* window, os_key key, os_modifiers modifiers = 0) {
 		if (e->type == os_event_type_key_release && (window == e->window) &&
 			e->key == key &&
 			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = 1;
 			break;
 		}
@@ -147,7 +156,7 @@ os_mouse_press(os_window_t* window, os_mouse_button button, os_modifiers modifie
 		if (e->type == os_event_type_mouse_press && (window == e->window) &&
 			e->mouse == button &&
 			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = 1;
 			break;
 		}
@@ -162,7 +171,7 @@ os_mouse_release(os_window_t* window, os_mouse_button button, os_modifiers modif
 		if (e->type == os_event_type_mouse_release && (window == e->window) &&
 			e->mouse == button &&
 			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = 1;
 			break;
 		}
@@ -175,7 +184,7 @@ os_mouse_scroll(os_window_t* window) {
 	f32 result = 0.0f;
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_mouse_scroll && (window == e->window)) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = e->scroll.y;
 			break;
 		}
@@ -190,7 +199,7 @@ os_mouse_move(os_window_t* window) {
 
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_mouse_move && (window == e->window)) {
-			os_pop_event(e);
+			os_event_pop(e);
 			result = e->position;
 			break;
 		}
@@ -234,6 +243,7 @@ os_window_open(str_t title, u32 width, u32 height) {
 	window->width = width;
 	window->height = height;
 	window->resize_function = nullptr;
+	window->close_function = nullptr;
 
 	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
@@ -302,6 +312,10 @@ os_window_set_resize_function(os_window_t* window, os_window_resize_func* func) 
 	window->resize_function = func;
 }
 
+function void 
+os_window_set_close_function(os_window_t* window, os_window_close_func* func) {
+	window->close_function = func;
+}
 
 // memory functions
 
@@ -469,6 +483,9 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch (msg) {
 
 		case WM_CLOSE: {
+			if (window->close_function != nullptr) {
+				window->close_function();
+			}
 			os_window_close(window);
 			break;
 		}
@@ -492,6 +509,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
+			
 			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_press;
@@ -510,12 +528,12 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_MOUSEMOVE: {
-			f32 mouse_x = (f32)LOWORD(lparam);
-			f32 mouse_y = (f32)HIWORD(lparam);
+			//f32 mouse_x = (f32)LOWORD(lparam);
+			//f32 mouse_y = (f32)HIWORD(lparam);
 			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_move;
-			event->position = { mouse_x, mouse_y };
+			//event->position = { mouse_x, mouse_y };
 			break;
 		}
 
@@ -584,7 +602,9 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 	// add event to event list
 	if (event) {
 		event->modifiers = os_get_modifiers();
+		event->position = window->mouse_pos;
 		dll_push_back(os_state.event_list.first, os_state.event_list.last, event);
+		os_state.event_list.count++;
 	}
 
 	return result;

@@ -12,7 +12,6 @@
 #include "gfx.cpp"
 #include "ui.cpp"
 
-
 struct frame_stats_t {
 	f32 dt;
 	f32 min;
@@ -100,8 +99,82 @@ frame_stats_render() {
 	//arena_clear(scratch);
 }
 
+
+
+
+function void 
+app_init() {
+
+	// allocate arenas
+	scratch = arena_create(megabytes(1));
+
+	// init frame stats
+	frame_stats.index = frame_stats.count = frame_stats.tick = 0;
+
+}
+
+function void
+app_update_and_render() {
+
+	// update 
+	{
+		frame_stats_update(window->delta_time * 1000.0f);
+
+		// fullscreen
+		if (os_key_release(window, os_key_F11)) {
+			os_window_fullscreen(window);
+		}
+
+	}
+
+	// render
+	{
+		ui_begin_frame(renderer);
+
+		ui_set_next_fixed_width(100.0f);
+		ui_set_next_fixed_height(20.0f);
+		ui_set_next_fixed_x(200.0f);
+		ui_set_next_fixed_y(15.0f);
+		ui_set_next_rounding(2.0f);
+		ui_set_next_text_alignment(ui_text_alignment_center);
+		ui_frame_flags flags = 
+			ui_frame_flag_draw_background | 
+			ui_frame_flag_draw_hover_effects | 
+			ui_frame_flag_draw_active_effects | 
+			ui_frame_flag_draw_text | 
+			ui_frame_flag_clip | 
+			ui_frame_flag_interactable;
+		ui_frame_t* frame = ui_frame_from_string(str("This text is too long and will clip"), flags);
+		ui_interaction interaction = ui_frame_interaction(frame);
+
+		if (interaction & ui_interaction_left_pressed) { printf("left pressed\n"); }
+		if (interaction & ui_interaction_middle_pressed) { printf("middle pressed\n"); }
+		if (interaction & ui_interaction_right_pressed) { printf("right pressed\n"); }
+		if (interaction & ui_interaction_left_released) { printf("left released\n"); }
+		if (interaction & ui_interaction_middle_released) { printf("middle released\n"); }
+		if (interaction & ui_interaction_right_released) { printf("right released\n"); }
+		if (interaction & ui_interaction_left_clicked) { printf("left clicked\n"); }
+		if (interaction & ui_interaction_middle_clicked) { printf("middle clicked\n"); }
+		if (interaction & ui_interaction_right_clicked) { printf("right clicked\n"); }
+		if (interaction & ui_interaction_left_dragging) { printf("left dragging\n"); }
+		if (interaction & ui_interaction_middle_dragging) { printf("middle dragging\n"); }
+		if (interaction & ui_interaction_right_dragging) { printf("right dragging\n"); }
+
+		frame_stats_render();
+		ui_end_frame();
+	}
+
+}
+
+function void
+app_release() {
+
+}
+
+
+
 function i32
-app_main(i32 argc, char** argv) {
+app_entry_point(i32 argc, char** argv) {
 
 	// init layers
 	os_init();
@@ -112,51 +185,19 @@ app_main(i32 argc, char** argv) {
 	window = os_window_open(str("sora rendering test"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x303030ff), 8);
 
-	// load assets
-	scratch = arena_create(megabytes(1));
-	
-	// init frame stats
-	frame_stats.index = frame_stats.count = frame_stats.tick = 0;
+	// init
+	app_init();
 
+	// main loop
 	while (os_any_window_exist()) {
-
-		// update 
-		{
-			os_update();
-			frame_stats_update(window->delta_time * 1000.0f);
-
-			// fullscreen
-			if (os_key_release(window, os_key_F11)) {
-				os_window_fullscreen(window);
-			}
-
-		}
-
-		// render
-		{
-
-			gfx_renderer_begin_frame(renderer);
-			ui_begin_frame(renderer);
-
-			ui_set_next_fixed_width(100.0f );
-			ui_set_next_fixed_height(20.0f);
-			ui_set_next_fixed_x(200.0f);
-			ui_set_next_fixed_y(15.0f);
-			ui_set_next_rounding(2.0f);
-			ui_set_next_text_alignment(ui_text_alignment_center);
-			ui_frame_t* frame = ui_frame_from_string(str("This text is too long and will clip"), ui_frame_flag_draw_background | ui_frame_flag_draw_text | ui_frame_flag_clip);
-
-
-
-			frame_stats_render();
-			ui_end_frame();
-			gfx_renderer_end_frame(renderer);
-		}
-
+		os_update();
+		gfx_renderer_begin_frame(renderer);
+		app_update_and_render();
+		gfx_renderer_end_frame(renderer);
 	}
-	
-	// TODO: we automatically release windows.
-	// maybe we can automatically release renderers.
+
+	// release
+	app_release();
 	gfx_renderer_release(renderer);
 
 	// release layers
@@ -171,10 +212,10 @@ app_main(i32 argc, char** argv) {
 
 #if defined(BUILD_DEBUG)
 int main(int argc, char** argv) {
-	return app_main(argc, argv);
+	return app_entry_point(argc, argv);
 }
 #elif defined(BUILD_RELEASE)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	return app_main(__argc, __argv);
+	return app_entry_point(__argc, __argv);
 }
 #endif 

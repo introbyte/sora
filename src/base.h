@@ -51,6 +51,7 @@
 #define min(a, b) (((a)<(b)) ? (a) : (b))
 #define max(a, b) (((a)>(b)) ? (a) : (b))
 #define clamp(x, a, b) (((a)>(x))?(a):((b)<(x))?(b):(x))
+#define clamp_01(x) (((0)>(x))?(0):((1)<(x))?(1):(x))
 
 #define array_count(a) (sizeof(a) / sizeof((a)[0]))
 

@@ -545,12 +545,12 @@ color(f32 r, f32 g, f32 b, f32 a) {
 
 function color_t 
 color_add(color_t a, f32 b) {
-	return { a.r + b, a.g + b, a.b + b, a.a + b };
+	return { clamp_01(a.r + b), clamp_01(a.g + b), clamp_01(a.b + b), clamp_01(a.a + b) };
 }
 
 function color_t 
 color_add(color_t a, color_t b) {
-	return { a.r + b.r, a.g + b.g, a.b + b.b, a.a + b.a };
+	return { clamp_01(a.r + b.r), clamp_01(a.g + b.g), clamp_01(a.b + b.b), clamp_01(a.a + b.a)};
 }
 
 function color_t 
