@@ -119,6 +119,7 @@ app_main(i32 argc, char** argv) {
 			quad_params.softness = 5.0f;
 			gfx_push_quad(renderer, rect_shrink(layout, 5.0f), quad_params);
 			layout = rect_translate(layout, vec2(100.0f, 0.0f));
+
 		}
 
 		// disk

@@ -131,9 +131,6 @@ float4 ps_main(vs_out input) : SV_TARGET {
     float4 top_color = lerp(input.col00, input.col10, input.c_coord.x);
     float4 bottom_color = lerp(input.col01, input.col11, input.c_coord.x);
     float4 color = lerp(top_color, bottom_color, input.c_coord.y);
-   
-    
-    
     
     // sample texture
     float4 tex_color = color_texture.Sample(texture_sampler, input.uv);

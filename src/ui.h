@@ -3,6 +3,28 @@
 #ifndef UI_H
 #define UI_H
 
+// todo: 
+// 
+// [x] - layout pass.
+// [~] - basic widgets. 
+//     [x] - button.
+//     [x] - label.
+//     [ ] - checkbox.
+//     [ ] - expander.
+//     [ ] - slider.
+// [ ] - icon rendering.
+// [ ] - more ui events.
+//     [~] - scrolling.
+//     [ ] - keyboard.
+//     [ ] - nagivation. 
+//     [ ] - double and triple click.
+// [ ] - frame focusing.
+// [x] - more frame customization (corners).
+//     [x] - text padding.
+//     [x] - individual corner rounding.
+// [ ] - fix font rendering. issues with alignment.
+// [ ] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
+
 //defines
 
 #define ui_stack_node_decl(name, type) struct ui_##name##_node_t { ui_##name##_node_t* next; type v; };
@@ -18,21 +40,52 @@ ui_stack_push_func(name, type)\
 ui_stack_pop_func(name, type)\
 ui_stack_set_next_func(name, type)\
 
+// typedefs
+struct ui_frame_t;
+typedef void ui_frame_custom_draw_func(ui_frame_t*);
+
 // enums
 
 typedef u32 ui_frame_flags;
 enum {
 	ui_frame_flag_clip = (1 << 0),
-	ui_frame_flag_draw_text = (1 << 1),
-	ui_frame_flag_draw_background = (1 << 2),
-	ui_frame_flag_draw_hover_effects = (1 << 3),
-	ui_frame_flag_draw_active_effects = (1 << 4),
-	ui_frame_flag_draw_custom_draw = (1 << 5),
-	ui_frame_flag_interactable = (1 << 6),
-	ui_frame_flag_view_scroll = (1 << 6),
-	ui_frame_flag_floating_x = (1 << 7),
-	ui_frame_flag_floating_y = (1 << 8),
+	ui_frame_flag_clickable = (1 << 1),
+	ui_frame_flag_scroll = (1 << 2),
+
+	ui_frame_flag_draw_text = (1 << 3),
+	ui_frame_flag_draw_background = (1 << 4),
+	ui_frame_flag_draw_border = (1 << 5),
+	ui_frame_flag_draw_shadow = (1 << 6),
+	ui_frame_flag_draw_hover_effects = (1 << 7),
+	ui_frame_flag_draw_active_effects = (1 << 8),
+	ui_frame_flag_draw_custom = (1 << 9),
+
+	ui_frame_flag_view_scroll_x = (1 << 10),
+	ui_frame_flag_view_scroll_y = (1 << 11),
+	ui_frame_flag_view_clamp_x = (1 << 12),
+	ui_frame_flag_view_clamp_y = (1 << 13),
+
+	ui_frame_flag_fixed_width = (1 << 14),
+	ui_frame_flag_fixed_height = (1 << 15),
+
+	ui_frame_flag_floating_x = (1 << 16),
+	ui_frame_flag_floating_y = (1 << 17),
+
+	ui_frame_flag_overflow_x = (1 << 18),
+	ui_frame_flag_overflow_y = (1 << 19),
+
+	ui_frame_flag_draw =
+		ui_frame_flag_draw_text | ui_frame_flag_draw_background |
+		ui_frame_flag_draw_border | ui_frame_flag_draw_shadow |
+		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects,
+
+	ui_frame_flag_view_scroll = ui_frame_flag_view_scroll_x | ui_frame_flag_view_scroll_y,
+	ui_frame_flag_view_clamp = ui_frame_flag_view_clamp_x | ui_frame_flag_view_clamp_y,
+
+	ui_frame_flag_fixed_size = ui_frame_flag_fixed_width << ui_frame_flag_fixed_height,
+
 	ui_frame_flag_floating = ui_frame_flag_floating_x | ui_frame_flag_floating_y,
+	ui_frame_flag_overflow = ui_frame_flag_overflow_x | ui_frame_flag_overflow_y,
 };
 
 enum ui_size_type {
@@ -112,6 +165,7 @@ struct ui_size_t {
 struct ui_palette_t {
 	color_t background;
 	color_t border;
+	color_t shadow;
 	color_t hover;
 	color_t active;
 	color_t text;
@@ -139,15 +193,13 @@ struct ui_event_list_t {
 	u32 count;
 };
 
-
-
 struct ui_frame_t {
 
-	// list
+	// frame list
 	ui_frame_t* hash_next;
 	ui_frame_t* hash_prev;
 
-	// tree
+	// frame tree
 	ui_frame_t* tree_next;
 	ui_frame_t* tree_prev;
 	ui_frame_t* tree_parent;
@@ -161,14 +213,18 @@ struct ui_frame_t {
 	str_t string;
 	vec2_t fixed_position;
 	vec2_t fixed_size;
-	ui_size_t pref_size[2];
+	ui_size_t pref_width;
+	ui_size_t pref_height;
 	ui_text_alignment text_alignment;
+	f32 text_padding;
 	ui_layout_axis layout_axis;
-	f32 rounding;
+	vec4_t rounding;
 	ui_palette_t* palette;
 	gfx_texture_t* texture;
 	gfx_font_t* font;
 	f32 font_size;
+	ui_frame_custom_draw_func* custom_draw_func;
+	void* custom_draw_data;
 
 	// per frame layout
 	rect_t rect;
@@ -205,8 +261,12 @@ ui_stack_node_decl(fixed_height, f32)
 ui_stack_node_decl(pref_width, ui_size_t)
 ui_stack_node_decl(pref_height, ui_size_t)
 ui_stack_node_decl(text_alignment, ui_text_alignment)
+ui_stack_node_decl(text_padding, f32)
 ui_stack_node_decl(layout_axis, ui_layout_axis)
-ui_stack_node_decl(rounding, f32)
+ui_stack_node_decl(rounding_00, f32)
+ui_stack_node_decl(rounding_01, f32)
+ui_stack_node_decl(rounding_10, f32)
+ui_stack_node_decl(rounding_11, f32)
 ui_stack_node_decl(palette, ui_palette_t*)
 ui_stack_node_decl(texture, gfx_texture_t*)
 ui_stack_node_decl(font, gfx_font_t*)
@@ -256,8 +316,12 @@ struct ui_state_t {
 	ui_stack_decl_default(pref_width);
 	ui_stack_decl_default(pref_height);
 	ui_stack_decl_default(text_alignment);
+	ui_stack_decl_default(text_padding);
 	ui_stack_decl_default(layout_axis);
-	ui_stack_decl_default(rounding);
+	ui_stack_decl_default(rounding_00);
+	ui_stack_decl_default(rounding_01);
+	ui_stack_decl_default(rounding_10);
+	ui_stack_decl_default(rounding_11);
 	ui_stack_decl_default(palette);
 	ui_stack_decl_default(texture);
 	ui_stack_decl_default(font);
@@ -273,8 +337,12 @@ struct ui_state_t {
 	ui_stack_decl(pref_width);
 	ui_stack_decl(pref_height);
 	ui_stack_decl(text_alignment);
+	ui_stack_decl(text_padding);
 	ui_stack_decl(layout_axis);
-	ui_stack_decl(rounding);
+	ui_stack_decl(rounding_00);
+	ui_stack_decl(rounding_01);
+	ui_stack_decl(rounding_10);
+	ui_stack_decl(rounding_11);
 	ui_stack_decl(palette);
 	ui_stack_decl(texture);
 	ui_stack_decl(font);
@@ -294,6 +362,23 @@ function void ui_release();
 function void ui_begin_frame(gfx_renderer_t*);
 function void ui_end_frame();
 
+// widgets
+
+function ui_interaction ui_button(str_t label);
+function ui_interaction ui_buttonf(char* fmt, ...);
+
+function ui_interaction ui_label(str_t label);
+function ui_interaction ui_labelf(char* fmt, ...);
+
+// string
+function str_t ui_string_display_format(str_t);
+function str_t ui_string_hash_part(str_t);
+
+// key
+function ui_key_t ui_key_from_string(ui_key_t, str_t);
+function ui_key_t ui_key_from_stringf(ui_key_t, char*, ...);
+function b8 ui_key_equals(ui_key_t, ui_key_t);
+
 // size
 function ui_size_t ui_size(ui_size_type, f32, f32);
 function ui_size_t ui_size_pixel(f32, f32);
@@ -302,19 +387,16 @@ function ui_size_t ui_size_percent(f32);
 // alignment
 function vec2_t ui_text_align(gfx_font_t*, f32, str_t, rect_t, ui_text_alignment);
 
-// key
-function ui_key_t ui_key_from_string(ui_key_t, str_t);
-function ui_key_t ui_key_from_stringf(ui_key_t, char*, ...);
-function b8 ui_key_equals(ui_key_t, ui_key_t);
-
-// string
-function str_t ui_display_string(str_t);
-function str_t ui_hash_string(str_t);
-
 // events
 function void ui_event_push(ui_event_t*);
 function void ui_event_pop(ui_event_t*);
 
+// layout 
+function void ui_layout_solve_independent(ui_frame_t* root);
+function void ui_layout_solve_upward_dependent(ui_frame_t* root);
+function void ui_layout_solve_downward_dependent(ui_frame_t* root);
+function void ui_layout_solve_violations(ui_frame_t* root);
+function void ui_layout_solve_set_positions(ui_frame_t* root);
 
 // frames
 function ui_frame_t* ui_frame_find(ui_key_t);
@@ -322,6 +404,7 @@ function ui_frame_t* ui_frame_from_key(ui_key_t, ui_frame_flags = 0);
 function ui_frame_t* ui_frame_from_string(str_t, ui_frame_flags = 0);
 function ui_frame_rec_t ui_frame_rec_depth_first(ui_frame_t*, ui_frame_t*, u32, u32);
 function ui_interaction ui_frame_interaction(ui_frame_t*);
+function void ui_frame_set_custom_draw(ui_frame_t*, ui_frame_custom_draw_func*, void*);
 
 // stack
 function void ui_auto_pop_stacks();
@@ -334,11 +417,20 @@ ui_stack_func(fixed_height, f32)
 ui_stack_func(pref_width, ui_size_t)
 ui_stack_func(pref_height, ui_size_t)
 ui_stack_func(text_alignment, ui_text_alignment)
+ui_stack_func(text_padding, f32)
 ui_stack_func(layout_axis, ui_layout_axis)
-ui_stack_func(rounding, f32)
+ui_stack_func(rounding_00, f32)
+ui_stack_func(rounding_01, f32)
+ui_stack_func(rounding_10, f32)
+ui_stack_func(rounding_11, f32)
 ui_stack_func(palette, ui_palette_t*)
 ui_stack_func(texture, gfx_texture_t*)
 ui_stack_func(font, gfx_font_t*)
 ui_stack_func(font_size, f32)
+
+// groups
+function void ui_push_rounding(f32);
+function void ui_pop_rounding();
+function void ui_set_next_rounding(f32);
 
 #endif // UI_H
