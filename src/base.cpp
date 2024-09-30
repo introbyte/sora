@@ -36,7 +36,7 @@ arena_release(arena_t* arena) {
 }
 
 function void*
-arena_malloc(arena_t* arena, u32 size) {
+arena_alloc(arena_t* arena, u32 size) {
 
 	void* result = nullptr;
 
@@ -69,7 +69,7 @@ arena_malloc(arena_t* arena, u32 size) {
 
 function void*
 arena_calloc(arena_t* arena, u32 size) {
-	void* result = arena_malloc(arena, size);
+	void* result = arena_alloc(arena, size);
 	memset(result, 0, size);
 	return result;
 }
@@ -436,7 +436,7 @@ str_formatv(arena_t* arena, char* fmt, va_list args) {
 	va_list args2;
 	va_copy(args2, args);
 	u32 needed_bytes = vsnprintf(0, 0, fmt, args) + 1;
-	result.data = (u8*)arena_malloc(arena, sizeof(u8) * needed_bytes);
+	result.data = (u8*)arena_alloc(arena, sizeof(u8) * needed_bytes);
 	result.size = needed_bytes - 1;
 	vsnprintf((char*)result.data, needed_bytes, fmt, args2);
 	return result;
@@ -478,7 +478,7 @@ str_to_str16(arena_t* arena, str_t string) {
 
 	u32 capacity = string.size * 2;
 
-	u16* string16 = (u16*)arena_malloc(arena, sizeof(u16) * capacity + 1);
+	u16* string16 = (u16*)arena_alloc(arena, sizeof(u16) * capacity + 1);
 
 	u8* ptr = (u8*)string.data;
 	u8* opl = ptr + string.size;
@@ -529,18 +529,25 @@ lerp(f32 a, f32 b, f32 t) {
 // color functions
 
 function color_t 
-color(u32 hex) {
-	color_t result = { 0.0f };
+color(u32 hex, color_format format) {
+	color_t result = { 0 };
 	result.r = (f32)((hex & 0xff000000) >> 24) / 255.0f;
 	result.g = (f32)((hex & 0x00ff0000) >> 16) / 255.0f;
 	result.b = (f32)((hex & 0x0000ff00) >> 8) / 255.0f;
 	result.a = (f32)((hex & 0x000000ff) >> 0) / 255.0f;
+	result.format = format;
 	return result;
 }
 
 function color_t
-color(f32 r, f32 g, f32 b, f32 a) {
-	return { r, g, b, a };
+color(f32 r, f32 g, f32 b, f32 a, color_format format) {
+	color_t col;
+	col.r = r;
+	col.g = g;
+	col.b = b;
+	col.a = a;
+	col.format = format;
+	return col;
 }
 
 function color_t 
@@ -562,6 +569,87 @@ color_lerp(color_t a, color_t b, f32 t) {
 		lerp(a.a, b.a, t) 
 	};
 }
+
+function color_t
+color_rgb_to_hsv(color_t rgb) {
+	if (rgb.format == color_format_hsv) { return rgb; }
+
+	f32 c_max = max(rgb.r, max(rgb.g, rgb.b));
+	f32 c_min = min(rgb.r, min(rgb.g, rgb.b));
+	f32 delta = c_max - c_min;
+	f32 h = ((delta == 0.0f) ? 0.0f :
+		(c_max == rgb.r) ? fmodf((rgb.g - rgb.b) / delta + 6.0f, 6.0f) :
+		(c_max == rgb.g) ? (rgb.b - rgb.r) / delta + 2.0f :
+		(c_max == rgb.b) ? (rgb.r - rgb.g) / delta + 4.0f :
+		0.0f);
+	f32 s = (c_max == 0.0f) ? 0.0f : (delta / c_max);
+	f32 v = c_max;
+
+	color_t hsv_color;
+	hsv_color.h = h / 6.0f;
+	hsv_color.s = s;
+	hsv_color.v = v;
+	hsv_color.a = rgb.a;
+	hsv_color.format = color_format_hsv;
+	return hsv_color;
+
+}
+
+function color_t
+color_hsv_to_rgb(color_t hsv) {
+
+	if (hsv.format == color_format_rgb) { 
+		return hsv; 
+	}
+
+	f32 h = fmodf(hsv.h * 360.0f, 360.0f);
+	f32 s = hsv.s;
+	f32 v = hsv.v;
+
+	f32 c = v * s;
+	f32 x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+	f32 m = v - c;
+
+	f32 r = 0.0f;
+	f32 g = 0.0f;
+	f32 b = 0.0f;
+
+	if ((h >= 0.0f && h < 60.0f) || (h >= 360.0f && h < 420.0f)) {
+		r = c;
+		g = x;
+		b = 0.0f;
+	} else if (h >= 60.0f && h < 120.0f) {
+		r = x;
+		g = c;
+		b = 0.0f;
+	} else if (h >= 120.0f && h < 180.0f) {
+		r = 0.0f;
+		g = c;
+		b = x;
+	} else if (h >= 180.0f && h < 240.0f) {
+		r = 0.0f;
+		g = x;
+		b = c;
+	} else if (h >= 240.0f && h < 300.0f) {
+		r = x;
+		g = 0.0f;
+		b = c;
+	} else if ((h >= 300.0f && h <= 360.0f) || (h >= -60.0f && h <= 0.0f)) {
+		r = c;
+		g = 0.0f;
+		b = x;
+	}
+	
+	color_t rgb_color;
+	rgb_color.r = clamp_01(r + m);
+	rgb_color.g = clamp_01(g + m);
+	rgb_color.b = clamp_01(b + m);
+	rgb_color.a = hsv.a;
+	rgb_color.format = color_format_rgb;
+
+	return rgb_color;
+}
+
 
 // vec2 
 
@@ -636,9 +724,19 @@ vec2_normalize(vec2_t a) {
 	return { a.x * inv_dem , a.y * inv_dem };
 }
 
+function vec2_t 
+vec2_direction(vec2_t a, vec2_t b) {
+	return { b.x - a.x, b.y - a.y };
+}
+
 function f32
-vec2_direction(vec2_t a) {
-	return atan2(a.y, a.x);
+vec2_to_angle(vec2_t a) {
+	return atan2f(a.y, a.x);
+}
+
+function vec2_t 
+vec2_from_angle(f32 a, f32 m) {
+	return { m * cosf(a), m * sinf(a) };
 }
 
 function vec2_t
@@ -661,6 +759,11 @@ vec3(f32 a = 0.0f) {
 function vec3_t
 vec3(f32 x, f32 y, f32 z) {
 	return { x, y, z };
+}
+
+function vec3_t 
+vec3_clamp(vec3_t v, f32 a, f32 b) {
+	return { clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b) };
 }
 
 // vec4
@@ -776,5 +879,58 @@ rect_bbox(vec2_t* points, u32 count) {
 	
 	return result;
 }
+
+// misc functions
+
+function vec3_t
+barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c) {
+
+	vec2_t v0 = vec2_sub(b, a);
+	vec2_t v1 = vec2_sub(c, a);
+	vec2_t v2 = vec2_sub(p, a);
+
+	//f32 d00 = vec2_dot(v0, v0);
+	//f32 d01 = vec2_dot(v0, v1);
+	//f32 d11 = vec2_dot(v1, v1);
+	//f32 d20 = vec2_dot(v2, v0);
+	//f32 d21 = vec2_dot(v2, v1);
+
+	//f32 denom = d00 * d11 - d01 * d01;
+
+	//f32 v = (d11 * d20 - d01 * d21) / denom;
+	//f32 w = (d00 * d21 - d01 * d20) / denom;
+	//f32 u = 1.0f - v - w;
+
+	f32 denom = v0.x * v1.y - v1.x * v0.y;
+
+	f32 v = (v2.x * v1.y - v1.x * v2.y) / denom;
+	f32 w = (v0.x * v2.y - v2.x * v0.y) / denom;
+	f32 u = 1.0f - v - w;
+
+	return vec3(u, v, w);
+
+}
+
+function b8
+tri_contains(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
+
+	vec2_t v0 = vec2_sub(b, a);
+	vec2_t v1 = vec2_sub(c, a);
+	vec2_t v2 = vec2_sub(p, a);
+
+	f32 d00 = vec2_dot(v0, v0);
+	f32 d01 = vec2_dot(v0, v1);
+	f32 d11 = vec2_dot(v1, v1);
+	f32 d20 = vec2_dot(v2, v0);
+	f32 d21 = vec2_dot(v2, v1);
+
+	f32 denom = d00 * d11 - d01 * d01;
+
+	f32 u = (d11 * d20 - d01 * d21) / denom;
+	f32 v = (d00 * d21 - d01 * d20) / denom;
+
+	return (u >= 0) && (v >= 0) && (u + v <= 1);
+}
+
 
 #endif // BASE_CPP

@@ -232,6 +232,9 @@ struct os_state_t {
 
 	LARGE_INTEGER time_frequency;
 
+	// log
+	os_file_t log_file;
+
 };
 
 // global
@@ -244,6 +247,12 @@ function void os_init();
 function void os_release();
 function void os_update();
 function b8 os_any_window_exist();
+function void os_abort(u32);
+
+// logs
+
+function void os_log(str_t);
+function void os_logf(char*, ...);
 
 // events
 function void os_event_push(os_event_t*);

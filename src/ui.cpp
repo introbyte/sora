@@ -22,6 +22,7 @@ ui_init() {
 	// create arenas
 	ui_state.frame_arena = arena_create(gigabytes(1));
 	ui_state.per_frame_arena = arena_create(gigabytes(1));
+	ui_state.drag_state_arena = arena_create(megabytes(64));
 	ui_state.scratch_arena = arena_create(megabytes(64));
 
 	ui_state.window = nullptr;
@@ -34,6 +35,7 @@ ui_init() {
 	ui_state.default_palette.hover = color(0x151515ff);
 	ui_state.default_palette.active = color(0x151515ff);
 	ui_state.default_palette.text = color(0xe2e2e2ff);
+	ui_state.default_palette.accent = color(0x38a4d780);
 
 	ui_state.default_texture = gfx_state.default_texture;
 	ui_state.default_font = gfx_font_load(str("res/fonts/segoe_ui.ttf"));
@@ -75,6 +77,7 @@ ui_release() {
 	// release arenas
 	arena_release(ui_state.frame_arena);
 	arena_release(ui_state.per_frame_arena);
+	arena_release(ui_state.drag_state_arena);
 	arena_release(ui_state.scratch_arena);
 
 }
@@ -85,6 +88,10 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	// set context
 	ui_state.window = renderer->window;
 	ui_state.renderer = renderer;
+
+	// set input
+	ui_state.mouse_pos = ui_state.window->mouse_pos;
+	ui_state.mouse_delta = ui_state.window->mouse_delta;
 
 	// clear arenas
 	arena_clear(ui_state.per_frame_arena);
@@ -210,6 +217,7 @@ ui_end_frame() {
 	
 	// draw
 	gfx_renderer_t* renderer = ui_state.renderer;
+	u32 depth = 0;
 	for (ui_frame_t* frame = ui_state.root; frame != nullptr;) {
 
 		// do recursive depth first search
@@ -217,6 +225,11 @@ ui_end_frame() {
 		u32 child_member_offset = (u32)(&(((ui_frame_t*)0)->tree_child_last));
 		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame, ui_state.root, sibling_member_offset, child_member_offset);
 
+		// set depth
+		frame->depth = depth;
+		gfx_push_depth(depth);
+		
+		// grab frame info
 		ui_palette_t* palette = frame->palette;
 		
 		// background
@@ -226,11 +239,13 @@ ui_end_frame() {
 			color_t background_color = palette->background;
 			color_t border_color = palette->border;
 
+			// hover effects
 			if (frame->flags & ui_frame_flag_draw_hover_effects) {
 				background_color = color_lerp(background_color, color_add(background_color, palette->hover), frame->hover_t);
 				border_color = color_lerp(border_color, color_add(border_color, palette->hover), frame->hover_t);
 			}
 			
+			// active effects
 			if (frame->flags & ui_frame_flag_draw_active_effects) {
 				background_color = color_lerp(background_color, color_add(background_color, palette->active), frame->active_t);
 				border_color = color_lerp(border_color, color_add(border_color, palette->active), frame->hover_t);
@@ -239,30 +254,29 @@ ui_end_frame() {
 			// frame shadow
 			gfx_quad_params_t shadow_params = gfx_quad_params(palette->shadow, 0.0f, 0.0f, 0.33f);
 			shadow_params.radii = frame->rounding;
-			gfx_push_quad(renderer, rect_translate(frame->rect, 1.0f), shadow_params);
+			gfx_draw_quad(rect_translate(frame->rect, 1.0f), shadow_params);
 
 			// background
 			gfx_quad_params_t background_params = gfx_quad_params(background_color);
 			background_params.radii = frame->rounding;
-			gfx_push_quad(renderer, frame->rect, background_params);
+			gfx_draw_quad(frame->rect, background_params);
 
 			// border
 			gfx_quad_params_t border_params = gfx_quad_params(border_color, 0.0f, 1.0f);
 			border_params.radii = frame->rounding;
-			gfx_push_quad(renderer, frame->rect, border_params);
+			gfx_draw_quad(frame->rect, border_params);
 
 		}
 
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
-			rect_t top_clip = gfx_top_clip(renderer);
+			rect_t top_clip = gfx_top_clip();
 			rect_t new_clip = rect_shrink(frame->rect, 1.0f);
 			if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
 				new_clip = rect_intersection(new_clip, top_clip);
 			}
-			gfx_push_clip(renderer, new_clip);
+			gfx_push_clip(new_clip);
 		}
-
 
 		// text
 		if (frame->flags & ui_frame_flag_draw_text) {
@@ -296,15 +310,18 @@ ui_end_frame() {
 			text_pos.x = floorf(text_pos.x);
 
 			// TODO: truncate text if too long.
+			// make text appear in front
+			gfx_push_depth(depth + 1);
+			{
+				// text shadow
+				gfx_text_params_t shadow_params = gfx_text_params(palette->shadow, frame->font, frame->font_size);
+				gfx_draw_text(frame->string, vec2_add(text_pos, 1.0f), shadow_params);
 
-			// text shadow
-			gfx_text_params_t shadow_params = gfx_text_params(palette->shadow, frame->font, frame->font_size);
-			gfx_push_text(renderer, frame->string, vec2_add(text_pos, 1.0f), shadow_params);
-
-			// text
-			gfx_text_params_t text_params = gfx_text_params(palette->text, frame->font, frame->font_size);
-			gfx_push_text(renderer, frame->string, text_pos, text_params);
-
+				// text
+				gfx_text_params_t text_params = gfx_text_params(palette->text, frame->font, frame->font_size);
+				gfx_draw_text(frame->string, text_pos, text_params);
+			}
+			gfx_pop_depth();
 		}
 		
 		// custom draw
@@ -324,13 +341,19 @@ ui_end_frame() {
 			
 			// pop clips
 			if (f->flags & ui_frame_flag_clip) {
-				gfx_pop_clip(renderer);
+				gfx_pop_clip();
 			}
 		}
 
+		// pop depth
+		gfx_pop_depth();
+
+
+		depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
+		depth -= recursion.pop_count * 5;
+
 		frame = recursion.next;
 	}
-
 
 
 }
@@ -342,8 +365,7 @@ ui_button(str_t label) {
 
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
-		ui_frame_flag_draw |
-		ui_frame_flag_clip;
+		ui_frame_flag_draw;
 
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
@@ -368,8 +390,7 @@ function ui_interaction
 ui_label(str_t label) {
 
 	ui_frame_flags flags =
-		ui_frame_flag_draw_text |
-		ui_frame_flag_clip;
+		ui_frame_flag_draw_text;
 
 	ui_frame_t* frame = ui_frame_from_string(str(""), flags);
 	frame->string = ui_string_display_format(label);
@@ -391,17 +412,329 @@ ui_labelf(char* fmt, ...) {
 }
 
 function ui_interaction
-ui_color_picker(str_t label, color_t* color) {
-
+ui_slider(str_t label, f32* value, f32 min, f32 max) {
+	
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
+
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_slider_data_t* data = (ui_slider_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_slider_data_t));
+	ui_frame_set_custom_draw(frame, ui_slider_draw_function, data);
+
+	// interaction
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		f32 rel_pos = (mouse_pos.x - frame->rect.x0);
+		*value = remap(rel_pos, frame->rect.x0, frame->rect.x1, min, max);
+		*value = clamp_01(*value);
+	}
+
+	f32 percent = remap(*value, min, max, 0.0f, 1.0f);
+	data->value = percent;
+
+	return interaction;
+}
+
+function ui_interaction
+ui_color_picker(str_t label, f32 hue, f32* sat, f32* val) {
+
+	// build frame and set draw data
+	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_picker_draw_function, data);
+
+	// interaction
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		f32 frame_width = rect_width(frame->rect);
+		f32 frame_height = rect_height(frame->rect);
+
+		*sat = (mouse_pos.x - frame->rect.x0) / frame_width;
+		*val = 1.0f - (mouse_pos.y - frame->rect.y0) / frame_height;
+		*sat = clamp_01(*sat);
+		*val = clamp_01(*val);
+	}
+
+	// set data
+	data->hue = hue;
+	data->sat = *sat;
+	data->val = *val;
 
 	return interaction;
 
 }
+
+function ui_interaction
+ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
+
+	enum {
+		area_clicked_none,
+		area_clicked_hue_wheel, 
+		area_clicked_sat_val_tri,
+	};
+
+	// build frame and set custom draw data
+	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_wheel_draw_function, data);
+	
+	// calculate frame and mouse info
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	f32 outer_wheel_radius = min(frame_width, frame_height) * 0.5f;
+	f32 inner_wheel_radius = outer_wheel_radius - (outer_wheel_radius * 0.15f);
+	vec2_t mouse_pos = ui_state.mouse_pos;
+	vec2_t dir = vec2_sub(frame_center, mouse_pos);
+	f32 dist = vec2_length(dir);
+	f32 tri_dist = inner_wheel_radius * 0.9f;
+	vec2_t tri_p0 = vec2_add(frame_center, vec2_from_angle(*hue * (2.0f * f32_pi), tri_dist));
+	vec2_t tri_p1 = vec2_add(frame_center, vec2_from_angle((*hue - 0.3333f) * (2.0f * f32_pi), tri_dist));
+	vec2_t tri_p2 = vec2_add(frame_center, vec2_from_angle((*hue + 0.3333f) * (2.0f * f32_pi), tri_dist));
+
+	// interactions
+	
+	// when intially pressed figure out where we were clicked
+	if (interaction& ui_interaction_left_pressed) {
+		u32 area_clicked = area_clicked_none;
+
+		// if within ring
+		if (dist > inner_wheel_radius && dist < outer_wheel_radius) {
+			area_clicked = area_clicked_hue_wheel;
+		}
+
+		// if within circle
+		if (tri_contains(tri_p0, tri_p1, tri_p2, mouse_pos)) {
+			area_clicked = area_clicked_sat_val_tri;
+		}
+
+		// store data
+		ui_store_drag_data(&area_clicked, sizeof(area_clicked));
+	}
+
+	if (interaction & ui_interaction_left_dragging) {
+
+		// get drag data
+		u32* area_clicked = (u32*)ui_get_drag_data();
+
+		if (area_clicked != nullptr) {
+
+			// edit via hue wheel
+			if (*area_clicked == area_clicked_hue_wheel) {
+
+				// convert direction to hue
+				f32 angle = (vec2_to_angle(dir) + f32_pi) / (2.0f * f32_pi);
+				*hue = angle;
+			}
+
+			// edit via sat val tri
+			if (*area_clicked == area_clicked_sat_val_tri) {
+				
+				// convert barycentric coord to sat and val
+				vec3_t bary = barycentric(mouse_pos, tri_p0, tri_p2, tri_p1);
+				*val = clamp_01(1.0f - bary.y);
+				*sat = clamp_01(bary.x / *val);
+
+			}
+		}
+	}
+
+	// clear drag data on release
+	if (interaction & ui_interaction_left_released) {
+		ui_clear_drag_data();
+	}
+
+	data->hue = *hue;
+	data->sat = *sat;
+	data->val = *val;
+
+	return interaction;
+}
+
+
+// widget draw functions
+
+function void 
+ui_slider_draw_function(ui_frame_t* frame) {
+	
+	// get data
+	ui_slider_data_t* data = (ui_slider_data_t*)frame->custom_draw_data;
+
+	rect_t bar_rect = frame->rect;
+	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
+
+	gfx_quad_params_t params = gfx_quad_params(frame->palette->accent);
+	params.radii = frame->rounding;
+	gfx_draw_quad(bar_rect, params);
+}
+
+function void 
+ui_color_picker_draw_function(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+	
+	// unpack color
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+
+	// draw hue quad
+	gfx_quad_params_t params;
+	params.col0 = color(0xffffffff);
+	params.col1 = color(0x000000ff);
+	params.col2 = hue_col;
+	params.col3 = color(0x000000ff);
+	params.radii = frame->rounding;
+	params.thickness = 0.0f;
+	params.softness = 0.33f;
+	gfx_draw_quad(frame->rect, params);
+
+	// draw indicator
+	vec2_t indicator_pos = vec2(
+		frame->rect.x0 + (data->sat * frame_width), 
+		frame->rect.y0 + ((1.0f - data->val) * frame_height)
+	);
+	gfx_push_depth(frame->depth + 1);
+	{
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+
+
+}
+
+function void
+ui_color_wheel_draw_function(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+
+	// unpack color
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 wheel_radius = min(frame_width, frame_height) * 0.5f;
+	f32 wheel_thickness = wheel_radius * 0.15f;
+
+	// calculate tri points
+	f32 tri_dist = (wheel_radius - wheel_thickness) * 0.9f;
+	vec2_t tri_p0 = vec2_add(frame_center, vec2_from_angle(data->hue * (2.0f * f32_pi), tri_dist));
+	vec2_t tri_p1 = vec2_add(frame_center, vec2_from_angle((data->hue - 0.3333f) * (2.0f * f32_pi), tri_dist));
+	vec2_t tri_p2 = vec2_add(frame_center, vec2_from_angle((data->hue + 0.3333f) * (2.0f * f32_pi), tri_dist));
+
+	// draw hue wheel
+	{
+		// draw shadow
+		gfx_disk_params_t shadow_params = gfx_disk_params(frame->palette->shadow, wheel_radius * 0.15f);
+		gfx_draw_disk(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+
+		// draw hue bars
+		f32 step = 1.0f / 6.0f;
+		color_t segments[] = {
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+		};
+
+		for (i32 i = 0; i < 6; i++) {
+			gfx_disk_params_t disk_params;
+			disk_params.col0 = segments[i + 0];
+			disk_params.col1 = segments[i + 1];
+			disk_params.col2 = segments[i + 0];
+			disk_params.col3 = segments[i + 1];
+			disk_params.thickness = wheel_radius * 0.15f;
+			disk_params.softness = 0.33f;
+
+			f32 start_angle = ((i + 0) * step) * 360.0f;
+			f32 end_angle = ((i + 1) * step) * 360.0f;
+			gfx_draw_disk(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+		}
+	}
+	
+	// draw sat val triangle
+	{
+
+		// draw shadow
+		// TODO: there is some weird rendering artifact when I draw this shadow.
+		//gfx_tri_params_t shadow_params = gfx_tri_params(frame->palette->shadow, 0.0f, 0.33f);
+		//gfx_draw_tri(vec2_add(tri_p0, 1.0f), vec2_add(tri_p1, 1.0f), vec2_add(tri_p2, 1.0f), shadow_params);
+			
+		// draw sat val tri
+		gfx_tri_params_t tri_params;
+		tri_params.col0 = hue_col;
+		tri_params.col1 = color(0xffffffff);
+		tri_params.col2 = color(0x000000ff);
+		tri_params.thickness = 0.0f;
+		tri_params.softness = 0.1f;
+		gfx_draw_tri(tri_p0, tri_p1, tri_p2, tri_params);
+
+	}
+	
+	// draw hue indicator
+	gfx_push_depth(frame->depth + 1);
+	{
+		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius - (wheel_thickness * 0.5f)));
+
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(hue_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+
+	// draw sat val indicator
+	gfx_push_depth(frame->depth + 1);
+	{
+		vec2_t indicator_pos = vec2_lerp(vec2_lerp(tri_p1, tri_p0, clamp_01(data->sat)), tri_p2, clamp_01(1.0f - data->val));
+
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+
+}
+
 
 // string functions
 
@@ -520,7 +853,7 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 
 function void 
 ui_event_push(ui_event_t* event) {
-	ui_event_t* new_event = (ui_event_t*)arena_malloc(ui_state.per_frame_arena, sizeof(ui_event_t));
+	ui_event_t* new_event = (ui_event_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_event_t));
 	memcpy(new_event, event, sizeof(ui_event_t));
 	dll_push_back(ui_state.event_list.first, ui_state.event_list.last, new_event);
 	ui_state.event_list.count++;
@@ -530,6 +863,26 @@ function void
 ui_event_pop(ui_event_t* event) {
 	dll_remove(ui_state.event_list.first, ui_state.event_list.last, event);
 	ui_state.event_list.count--;
+}
+
+// drag state
+function void 
+ui_store_drag_data(void* data, u32 size) {
+	arena_clear(ui_state.drag_state_arena);
+	ui_state.drag_state_data = arena_alloc(ui_state.drag_state_arena, size);
+	ui_state.drag_state_size = size;
+	memcpy(ui_state.drag_state_data, data, size);
+}
+
+function void* 
+ui_get_drag_data() {
+	return ui_state.drag_state_data;
+}
+
+function void 
+ui_clear_drag_data() {
+	arena_clear(ui_state.drag_state_arena);
+	ui_state.drag_state_size = 0;
 }
 
 //  layout functions
@@ -703,7 +1056,7 @@ ui_layout_solve_violations(ui_frame_t* root) {
 			
 			// find child fixup size
 			f32 child_fixup_sum = 0.0f;
-			f32* child_fixups = (f32*)arena_malloc(ui_state.scratch_arena, sizeof(f32) * root->child_count);
+			f32* child_fixups = (f32*)arena_alloc(ui_state.scratch_arena, sizeof(f32) * root->child_count);
 			
 			u32 child_index = 0;
 			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
@@ -777,7 +1130,7 @@ ui_layout_solve_violations(ui_frame_t* root) {
 
 			// find child fixup size
 			f32 child_fixup_sum = 0.0f;
-			f32* child_fixups = (f32*)arena_malloc(ui_state.scratch_arena, sizeof(f32) * root->child_count);
+			f32* child_fixups = (f32*)arena_alloc(ui_state.scratch_arena, sizeof(f32) * root->child_count);
 
 			u32 child_index = 0;
 			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
@@ -933,7 +1286,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 		if (frame != nullptr) {
 			stack_pop_n(ui_state.frame_free, hash_next);
 		} else {
-			frame = (ui_frame_t*)arena_malloc(ui_state.frame_arena, sizeof(ui_frame_t));
+			frame = (ui_frame_t*)arena_alloc(ui_state.frame_arena, sizeof(ui_frame_t));
 		}
 		memset(frame, 0, sizeof(ui_frame_t));
 		
@@ -990,10 +1343,7 @@ ui_frame_from_string(str_t string, ui_frame_flags flags) {
 	
 	ui_key_t key = ui_key_from_string({ 0 }, string);
 	ui_frame_t* frame = ui_frame_from_key(key, flags);
-
-	if (frame->flags & ui_frame_flag_draw_text) {
-		frame->string = ui_string_display_format(string);
-	}
+	frame->string = ui_string_display_format(string);
 
 	return frame;
 
@@ -1008,7 +1358,7 @@ ui_frame_rec_depth_first(ui_frame_t* frame, ui_frame_t* root, u32 sibling_member
 	ui_frame_t** child_offset = (ui_frame_t**)((u8*)frame + child_member_offset);
 	if (*child_offset != nullptr) {
 		result.next = *child_offset;
-		result.push_count++;
+		result.push_count++; // decend into children
 	} else for (ui_frame_t* f = frame; f != 0 && f != root; f = f->tree_parent) {
 
 		ui_frame_t** sibling_offset = (ui_frame_t**)((u8*)f + sibling_member_offset);
@@ -1017,7 +1367,7 @@ ui_frame_rec_depth_first(ui_frame_t* frame, ui_frame_t* root, u32 sibling_member
 			break;
 		}
 
-		result.pop_count++;
+		result.pop_count++; // ascend from children
 	}
 
 	return result;
@@ -1183,7 +1533,7 @@ ui_##name##_node_t* node = ui_state.name##_stack.free; \
 if (node != 0) { \
 	stack_pop(ui_state.name##_stack.free); \
 } else { \
-	node = (ui_##name##_node_t*)arena_malloc(ui_state.per_frame_arena, sizeof(ui_##name##_node_t)); \
+	node = (ui_##name##_node_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_##name##_node_t)); \
 } \
 type old_value = ui_state.name##_stack.top->v; \
 node->v = v; \
@@ -1211,7 +1561,7 @@ ui_##name##_node_t* node = ui_state.name##_stack.free; \
 if (node != 0) { \
 	stack_pop(ui_state.name##_stack.free); \
 } else { \
-	node = (ui_##name##_node_t*)arena_malloc(ui_state.per_frame_arena, sizeof(ui_##name##_node_t)); \
+	node = (ui_##name##_node_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_##name##_node_t)); \
 } \
 type old_value = ui_state.name##_stack.top->v; \
 node->v = v; \

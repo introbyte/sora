@@ -120,6 +120,11 @@ enum : u32 {
 	str_match_flag_keep_empties = (1 << 4),
 };
 
+enum color_format {
+	color_format_rgb,
+	color_format_hsv,
+};
+
 
 // structs
 
@@ -161,7 +166,17 @@ struct rect_t {
 };
 
 struct color_t {
-	f32 r, g, b, a;
+	union {
+		struct {
+			union {
+				struct { f32 r, g, b; };
+				struct { f32 h, s, v; };
+			};
+			f32 a;
+		};
+		vec4_t vec;
+	};
+	color_format format;
 };
 
 struct arena_t {
@@ -176,7 +191,7 @@ struct arena_t {
 // arenas
 function arena_t* arena_create(u32);
 function void arena_release(arena_t*);
-function void* arena_malloc(arena_t*, u32);
+function void* arena_alloc(arena_t*, u32);
 function void* arena_calloc(arena_t*, u32);
 function void arena_clear(arena_t*);
 
@@ -228,12 +243,13 @@ function f32 remap(f32, f32, f32, f32, f32);
 function f32 lerp(f32, f32, f32);
 
 // color
-function color_t color(u32);
-function color_t color(f32, f32, f32, f32);
+function color_t color(u32, color_format = color_format_rgb);
+function color_t color(f32, f32, f32, f32, color_format = color_format_rgb);
 function color_t color_add(color_t, f32);
 function color_t color_add(color_t, color_t);
 function color_t color_lerp(color_t, color_t, f32);
-
+function color_t color_rgb_to_hsv(color_t);
+function color_t color_hsv_to_rgb(color_t);
 
 // vec2 
 function vec2_t vec2(f32);
@@ -250,7 +266,9 @@ function f32 vec2_dot(vec2_t, vec2_t);
 function f32 vec2_cross(vec2_t, vec2_t);
 function f32 vec2_length(vec2_t);
 function vec2_t vec2_normalize(vec2_t);
-function f32 vec2_direction(vec2_t);
+function vec2_t vec2_direction(vec2_t, vec2_t);
+function f32 vec2_to_angle(vec2_t);
+function vec2_t vec2_from_angle(f32, f32 = 1);
 function vec2_t vec2_rotate(vec2_t, f32);
 function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 
@@ -258,6 +276,7 @@ function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 
 function vec3_t vec3(f32);
 function vec3_t vec3(f32, f32, f32);
+function vec3_t vec3_clamp(vec3_t, f32, f32);
 
 // vec4
 
@@ -281,5 +300,9 @@ function rect_t rect_shrink(rect_t, vec2_t);
 function rect_t rect_translate(rect_t, f32);
 function rect_t rect_translate(rect_t, vec2_t);
 function rect_t rect_bbox(vec2_t*, u32);
+
+// misc
+function vec3_t barycentric(vec2_t, vec2_t, vec2_t, vec2_t);
+function b8 tri_contains(vec2_t, vec2_t, vec2_t, vec2_t);
 
 #endif // BASE_H

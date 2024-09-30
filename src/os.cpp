@@ -86,11 +86,32 @@ os_any_window_exist() {
 	return os_state.first_window != nullptr;
 }
 
+function void 
+os_abort(u32 exit_code) {
+
+	// write to log.
+	// TODO: write to log
+	// exit
+	ExitProcess(exit_code);
+}
+
+
+// log functions
+function void 
+os_log(str_t) {
+
+}
+
+function void 
+os_logf(char*, ...) {
+
+}
+
 // event functions
 
 function void
 os_event_push(os_event_t* event) {
-	os_event_t* new_event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+	os_event_t* new_event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 	memcpy(new_event, event, sizeof(os_event_t));
 	dll_push_back(os_state.event_list.first, os_state.event_list.last, new_event);
 	os_state.event_list.count++;
@@ -219,7 +240,7 @@ os_window_open(str_t title, u32 width, u32 height) {
 	if (window != nullptr) {
 		stack_pop(os_state.free_window);
 	} else {
-		window = (os_window_t*)arena_malloc(os_state.window_arena, sizeof(os_window_t));
+		window = (os_window_t*)arena_alloc(os_state.window_arena, sizeof(os_window_t));
 	}
 	memset(window, 0, sizeof(os_window_t));
 
@@ -416,7 +437,7 @@ os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
 	if (SetFilePointerEx(file.handle, off_li, 0, FILE_BEGIN)) {
 		u32 bytes_to_read = length;
 		u32 bytes_actually_read = 0;
-		result.data = (u8*)arena_malloc(arena, sizeof(u8) * bytes_to_read);
+		result.data = (u8*)arena_alloc(arena, sizeof(u8) * bytes_to_read);
 		result.size = 0;
 
 		u8* ptr = (u8*)result.data;
@@ -510,7 +531,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
 			
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_press;
 			event->key = (os_key)key;
@@ -520,7 +541,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_SYSKEYUP:
 		case WM_KEYUP: {
 			u32 key = (u32)wparam;
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_release;
 			event->key = (os_key)key;
@@ -530,7 +551,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_MOUSEMOVE: {
 			//f32 mouse_x = (f32)LOWORD(lparam);
 			//f32 mouse_y = (f32)HIWORD(lparam);
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_move;
 			//event->position = { mouse_x, mouse_y };
@@ -544,7 +565,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			if (key == '\r') { key = '\n'; }
 
 			if ((key >= 32 && key != 127) || key == '\t' || key == '\n') {
-				event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+				event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 				event->window = window;
 				event->type = os_event_type_text;
 				event->character = key;
@@ -555,7 +576,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_MOUSEWHEEL: {
 			f32 delta = (f32)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_scroll;
 			event->scroll = { 0.0f, delta };
@@ -566,7 +587,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_RBUTTONDOWN:
 		case WM_MBUTTONDOWN: {
 			SetCapture(handle);
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_press;
 			event->mouse = os_mouse_button_left;
@@ -581,7 +602,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_RBUTTONUP:
 		case WM_MBUTTONUP: {
 			ReleaseCapture();
-			event = (os_event_t*)arena_malloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_release;
 			event->mouse = os_mouse_button_left;

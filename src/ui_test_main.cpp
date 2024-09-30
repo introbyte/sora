@@ -109,9 +109,7 @@ app_update_and_render() {
 			ui_labelf("max: %.2f ms", frame_stats.max);
 			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
 		}
-
-
-		ui_label(str("Buttons"));
+		
 		{
 			ui_button(str("Button##1"));
 		
@@ -122,10 +120,27 @@ app_update_and_render() {
 			ui_button(str("Button##3"));
 		}
 
-		persist color_t col = color(0xff7834ff);
+		persist color_t col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
 		ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-		ui_color_picker(str("Color_picker"), &col);
+		ui_color_wheel(str("Color_wheel"), &col.h, &col.s, &col.v);
 
+		ui_set_next_pref_height(ui_size_pixel(220.0f, 1.0f));
+		ui_color_picker(str("Color_picker"), col.h, &col.s, &col.v);
+
+		color_t rgb_col = color_hsv_to_rgb(col);
+
+		ui_interaction interaction = ui_interaction_none; 
+		interaction |= ui_slider(str("red"), &rgb_col.r, 0.0f, 1.0f);
+		interaction |= ui_slider(str("green"), &rgb_col.g, 0.0f, 1.0f);
+		interaction |= ui_slider(str("blue"), &rgb_col.b, 0.0f, 1.0f);
+
+		if (interaction & ui_interaction_left_dragging) {
+			col = color_rgb_to_hsv(rgb_col);
+		}
+
+		ui_slider(str("hue"), &col.h, 0.0f, 1.0f);
+		ui_slider(str("sat"), &col.s, 0.0f, 1.0f);
+		ui_slider(str("val"), &col.v, 0.0f, 1.0f);
 
 
 
@@ -148,7 +163,7 @@ app_entry_point(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 	ui_init();
-
+	
 	// create contexts
 	window = os_window_open(str("sora rendering test"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x303030ff), 8);
@@ -161,6 +176,7 @@ app_entry_point(i32 argc, char** argv) {
 		os_update();
 		gfx_renderer_begin_frame(renderer);
 		app_update_and_render();
+
 		gfx_renderer_end_frame(renderer);
 	}
 

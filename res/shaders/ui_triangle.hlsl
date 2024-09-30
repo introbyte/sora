@@ -81,27 +81,28 @@ vs_out vs_main(vs_in input) {
 Texture2D color_texture : register(t0);
 SamplerState texture_sampler : register(s0);
 
-float4 oklab_lerp(float4 colA, float4 colB, float h) {
-    float3x3 kCONEtoLMS = float3x3(
-         0.4121656120f, 0.2118591070f, 0.0883097947f,
-         0.5362752080f, 0.6807189584f, 0.2818474174f,
-         0.0514575653f, 0.1074065790f, 0.6302613616f);
-    float3x3 kLMStoCONE = float3x3(
-         4.0767245293f, -1.2681437731f, -0.0041119885f,
-        -3.3072168827f, 2.6093323231f, -0.7034763098f,
-         0.2307590544f, -0.3411344290f, 1.7068625689f);
-                    
-
-    float3 lmsA = pow(abs(mul(kCONEtoLMS, colA.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
-    float3 lmsB = pow(abs(mul(kCONEtoLMS, colB.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
-
-    float3 lms = lerp(lmsA, lmsB, h);
-    float alpha = lerp(colA.a, colB.a, h);
+float3 barycentric(float2 p , float2 a, float2 b, float2 c) {
+    float2 v0 = b - a;
+    float2 v1 = c - a;
+    float2 v2 = p - a;
     
-    return float4(mul(kLMStoCONE, (lms * lms * lms)), alpha);
+    float d00 = dot(v0, v0);
+    float d01 = dot(v0, v1);
+    float d11 = dot(v1, v1);
+    float d20 = dot(v2, v0);
+    float d21 = dot(v2, v1);
+
+    float denom = d00 * d11 - d01 * d01;
+
+    float v = (d11 * d20 - d01 * d21) / denom;
+    float w = (d00 * d21 - d01 * d20) / denom;
+    float u = 1.0f - v - w;
+
+    return float3(u, v, w);
 }
 
 float sdf_triangle(float2 p, float2 p0, float2 p1, float2 p2) {
+    
     float2 e0 = p1 - p0;
     float2 e1 = p2 - p1;
     float2 e2 = p0 - p2;
@@ -123,7 +124,6 @@ float sdf_triangle(float2 p, float2 p0, float2 p1, float2 p2) {
 }
 
 float4 ps_main(vs_out input) : SV_TARGET {
-    
 
     // sample texture
     float4 tex_color = color_texture.Sample(texture_sampler, input.uv);
@@ -142,23 +142,11 @@ float4 ps_main(vs_out input) : SV_TARGET {
     }
     
     // blend color
-    float dist_p0 = length(sample_pos - input.p0);
-    float dist_p1 = length(sample_pos - input.p1);
-    float dist_p2 = length(sample_pos - input.p2);
-    
-    float weight_p0 = 1.0f / (dist_p0 + 0.001f);
-    float weight_p1 = 1.0f / (dist_p1 + 0.001f);
-    float weight_p2 = 1.0f / (dist_p2 + 0.001f);
-
-    float total_weight = weight_p0 + weight_p1 + weight_p2;
-    weight_p0 /= total_weight;
-    weight_p1 /= total_weight;
-    weight_p2 /= total_weight;
-    
-    float4 color = weight_p0 * input.col0 + weight_p1 * input.col1 + weight_p2 * input.col2;
+    float3 weights = barycentric(sample_pos, input.p0, input.p1, input.p2);
+    float4 color = (weights.x * input.col0) + (weights.y * input.col1) + (weights.z * input.col2);
     
     float4 final_color = tex_color;
-    final_color *= color;
+    final_color = color;
     final_color.a *= tri_t;
     final_color.a *= border_t;
     

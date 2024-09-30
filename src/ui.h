@@ -6,12 +6,18 @@
 // todo: 
 // 
 // [x] - layout pass.
+// [x] - more frame customization (corners).
+//     [x] - text padding.
+//     [x] - individual corner rounding.
 // [~] - basic widgets. 
 //     [x] - button.
 //     [x] - label.
 //     [ ] - checkbox.
 //     [ ] - expander.
 //     [ ] - slider.
+//     [x] - sat/val picker.
+//     [~] - color wheel.
+// [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
 // [ ] - icon rendering.
 // [ ] - more ui events.
 //     [~] - scrolling.
@@ -19,11 +25,8 @@
 //     [ ] - nagivation. 
 //     [ ] - double and triple click.
 // [ ] - frame focusing.
-// [x] - more frame customization (corners).
-//     [x] - text padding.
-//     [x] - individual corner rounding.
 // [ ] - fix font rendering. issues with alignment.
-// [ ] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
+// [ ] - clean up pass.
 
 //defines
 
@@ -169,8 +172,8 @@ struct ui_palette_t {
 	color_t hover;
 	color_t active;
 	color_t text;
+	color_t accent;
 };
-
 
 struct ui_event_t {
 	ui_event_t* next;
@@ -228,6 +231,7 @@ struct ui_frame_t {
 
 	// per frame layout
 	rect_t rect;
+	u32 depth;
 
 	// persistant data
 	u64 first_build_index;
@@ -241,6 +245,7 @@ struct ui_frame_t {
 	vec2_t view_offset;
 	vec2_t view_offset_target;
 	vec2_t view_bounds;
+	void* persistant_data;
 
 };
 
@@ -248,7 +253,6 @@ struct ui_frame_rec_t {
 	ui_frame_t* next;
 	i32 push_count;
 	i32 pop_count;
-
 };
 
 // stack nodes
@@ -281,6 +285,7 @@ struct ui_state_t {
 	// arenas
 	arena_t* frame_arena;
 	arena_t* per_frame_arena;
+	arena_t* drag_state_arena;
 	arena_t* scratch_arena;
 
 	// build index
@@ -288,6 +293,14 @@ struct ui_state_t {
 
 	// event list
 	ui_event_list_t event_list;
+
+	// input
+	vec2_t mouse_pos;
+	vec2_t mouse_delta;
+
+	// drag state
+	void* drag_state_data;
+	u32 drag_state_size;
 
 	// frame list
 	ui_frame_t* frame_first;
@@ -350,6 +363,20 @@ struct ui_state_t {
 
 };
 
+
+// widget structs
+
+struct ui_slider_data_t {
+	f32 value;
+};
+
+struct ui_color_data_t {
+	f32 hue;
+	f32 sat;
+	f32 val;
+};
+
+
 // globals
 
 global ui_state_t ui_state;
@@ -369,6 +396,17 @@ function ui_interaction ui_buttonf(char* fmt, ...);
 
 function ui_interaction ui_label(str_t label);
 function ui_interaction ui_labelf(char* fmt, ...);
+
+function ui_interaction ui_slider(str_t label, f32*, f32, f32);
+
+function ui_interaction ui_color_picker(str_t, f32, f32*, f32*);
+function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
+
+// widget draw functions
+function void ui_slider_draw_function(ui_frame_t*);
+
+function void ui_color_picker_draw_function(ui_frame_t*);
+function void ui_color_wheel_draw_function(ui_frame_t*);
 
 // string
 function str_t ui_string_display_format(str_t);
@@ -390,6 +428,11 @@ function vec2_t ui_text_align(gfx_font_t*, f32, str_t, rect_t, ui_text_alignment
 // events
 function void ui_event_push(ui_event_t*);
 function void ui_event_pop(ui_event_t*);
+
+// drag state
+function void ui_store_drag_data(void*, u32);
+function void* ui_get_drag_data();
+function void ui_clear_drag_data();
 
 // layout 
 function void ui_layout_solve_independent(ui_frame_t* root);
