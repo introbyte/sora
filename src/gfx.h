@@ -8,14 +8,6 @@
 #include <d3dcompiler.h>
 #include <dwrite.h>
 
-// renderer rewrite
-// 
-// render layer:
-//   - instances (rect, disk, line, etc.)
-//   - batches (data, byte_count)
-//   - batch list (instance_size)
-//   - batch group (texture, clip_mask)
-
 
 // defines
 
@@ -375,6 +367,7 @@ struct gfx_state_t {
 
 	// batch list
 	gfx_batch_list_t batch_list;
+	u32 batch_count;
 
 	// stacks
 	gfx_stack_decl(texture);

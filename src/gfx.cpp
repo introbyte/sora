@@ -421,8 +421,8 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 	gfx_state.device_context->RSSetViewports(1, &viewport);
 
 	// set samplers
-	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.point_sampler);
-	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.linear_sampler);
+	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.linear_sampler);
+	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.point_sampler);
 
 	// set buffers
 	gfx_state.device_context->VSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
@@ -473,6 +473,8 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 
 	}
 	
+	// clear batch list
+	gfx_state.batch_count = gfx_state.batch_list.count;
 
 	// present
 	renderer->swapchain->Present(1, 0);

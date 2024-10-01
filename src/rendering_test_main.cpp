@@ -26,7 +26,7 @@ app_main(i32 argc, char** argv) {
 	gfx_init();
 
 	os_window_t* window = os_window_open(str("sora rendering test"), 1280, 960);
-	gfx_renderer_t* renderer = gfx_renderer_create(window, color(0x303030ff), 8);
+	gfx_renderer_t* renderer = gfx_renderer_create(window, color(0x303030ff), 1);
 
 	arena_t* scratch = arena_create(megabytes(1));
 

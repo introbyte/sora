@@ -29,16 +29,19 @@ ui_init() {
 	ui_state.renderer = nullptr;
 
 	// default resources
-	ui_state.default_palette.background = color(0x282828ff);
-	ui_state.default_palette.border = color(0x3d3d3dff);
+	ui_state.default_palette.dark_background = color(0x282828ff);
+	ui_state.default_palette.dark_border = color(0x3d3d3dff);
+	ui_state.default_palette.light_background = color(0x3d3d3dff);
+	ui_state.default_palette.light_border = color(0x525252ff);
 	ui_state.default_palette.shadow = color(0x15151580);
 	ui_state.default_palette.hover = color(0x151515ff);
 	ui_state.default_palette.active = color(0x151515ff);
 	ui_state.default_palette.text = color(0xe2e2e2ff);
-	ui_state.default_palette.accent = color(0x38a4d780);
+	ui_state.default_palette.accent = color(0x38BAD780); // blue
 
 	ui_state.default_texture = gfx_state.default_texture;
 	ui_state.default_font = gfx_font_load(str("res/fonts/segoe_ui.ttf"));
+	ui_state.default_icon_font = gfx_font_load(str("res/fonts/icons.ttf"));
 	
 	// default stack
 	ui_default_init(parent, nullptr);
@@ -179,7 +182,9 @@ function void
 ui_end_frame() {
 
 	// remove untouched frames
-	for (ui_frame_t* frame = ui_state.frame_first; frame != 0; frame = frame->hash_next) {
+	ui_frame_t* next = nullptr;
+	for (ui_frame_t* frame = ui_state.frame_first; frame != 0; frame = next) {
+		next = frame->hash_next;
 		if (frame->last_build_index != ui_state.build_index || ui_key_equals(frame->key, {0})) {
 			dll_remove_np(ui_state.frame_first, ui_state.frame_last, frame, hash_next, hash_prev);
 			stack_push_n(ui_state.frame_free, frame, hash_next);
@@ -228,16 +233,31 @@ ui_end_frame() {
 		// set depth
 		frame->depth = depth;
 		gfx_push_depth(depth);
-		
+
 		// grab frame info
 		ui_palette_t* palette = frame->palette;
-		
-		// background
-		if (frame->flags & ui_frame_flag_draw_background) {
 
-			// determine color
-			color_t background_color = palette->background;
-			color_t border_color = palette->border;
+		// frame shadow
+		if (frame->flags & ui_frame_flag_draw_shadow) {
+			gfx_quad_params_t shadow_params = gfx_quad_params(palette->shadow, 0.0f, 0.0f, 0.33f);
+			shadow_params.radii = frame->rounding;
+			gfx_draw_quad(rect_translate(frame->rect, 1.0f), shadow_params);
+		}
+
+		// determine color
+		color_t background_color = palette->dark_background;
+		color_t border_color = palette->dark_border;
+
+		if (frame->flags & ui_frame_flag_draw_background_light) {
+			background_color = palette->light_background;
+		}
+
+		if (frame->flags & ui_frame_flag_draw_border_light) {
+			border_color = palette->light_border;
+		}
+
+		// background
+		if (frame->flags & (ui_frame_flag_draw_background_light | ui_frame_flag_draw_background_dark)) {
 
 			// hover effects
 			if (frame->flags & ui_frame_flag_draw_hover_effects) {
@@ -246,28 +266,27 @@ ui_end_frame() {
 			}
 			
 			// active effects
-			if (frame->flags & ui_frame_flag_draw_active_effects) {
+			if (frame->flags & (ui_frame_flag_draw_active_effects)) {
 				background_color = color_lerp(background_color, color_add(background_color, palette->active), frame->active_t);
 				border_color = color_lerp(border_color, color_add(border_color, palette->active), frame->hover_t);
 			}
-
-			// frame shadow
-			gfx_quad_params_t shadow_params = gfx_quad_params(palette->shadow, 0.0f, 0.0f, 0.33f);
-			shadow_params.radii = frame->rounding;
-			gfx_draw_quad(rect_translate(frame->rect, 1.0f), shadow_params);
 
 			// background
 			gfx_quad_params_t background_params = gfx_quad_params(background_color);
 			background_params.radii = frame->rounding;
 			gfx_draw_quad(frame->rect, background_params);
 
-			// border
+		}
+
+		// border
+		if (frame->flags & (ui_frame_flag_draw_border_light | ui_frame_flag_draw_border_dark)) {
+			gfx_push_depth(depth + 1);
 			gfx_quad_params_t border_params = gfx_quad_params(border_color, 0.0f, 1.0f);
 			border_params.radii = frame->rounding;
 			gfx_draw_quad(frame->rect, border_params);
-
+			gfx_pop_depth();
 		}
-
+		
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
 			rect_t top_clip = gfx_top_clip();
@@ -285,7 +304,7 @@ ui_end_frame() {
 			vec2_t text_pos;
 
 			gfx_font_metrics_t font_metrics = gfx_font_get_metrics(frame->font, frame->font_size);
-			text_pos.y = roundf((frame->rect.y0 + frame->rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent);
+			text_pos.y = roundf((frame->rect.y0 + frame->rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent) + 2.0f;
 			switch (frame->text_alignment) {
 				default: 
 				case ui_text_alignment_left:{
@@ -348,9 +367,10 @@ ui_end_frame() {
 		// pop depth
 		gfx_pop_depth();
 
-
-		depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
-		depth -= recursion.pop_count * 5;
+		if (!frame->is_transient) {
+			depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
+			depth -= recursion.pop_count * 5;
+		}
 
 		frame = recursion.next;
 	}
@@ -418,7 +438,10 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
 
+	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	str_t text = str_format(ui_state.per_frame_arena, "%.2f", *value);
+	ui_frame_set_display_text(frame, text);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_slider_data_t* data = (ui_slider_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_slider_data_t));
 	ui_frame_set_custom_draw(frame, ui_slider_draw_function, data);
@@ -426,8 +449,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 	// interaction
 	if (interaction & ui_interaction_left_dragging) {
 		vec2_t mouse_pos = ui_state.mouse_pos;
-		f32 rel_pos = (mouse_pos.x - frame->rect.x0);
-		*value = remap(rel_pos, frame->rect.x0, frame->rect.x1, min, max);
+		*value = remap(mouse_pos.x, frame->rect.x0, frame->rect.x1, min, max);
 		*value = clamp_01(*value);
 	}
 
@@ -438,14 +460,54 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 }
 
 function ui_interaction
-ui_color_picker(str_t label, f32 hue, f32* sat, f32* val) {
+ui_expander(str_t label, b8* is_expanded) {
+
+	// build parent frame
+	ui_set_next_layout_axis(ui_layout_axis_x);
+
+	u32 flags = 
+		ui_frame_flag_clickable | ui_frame_flag_draw_background_light | 
+		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
+		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_light;
+	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
+
+	ui_push_parent(parent_frame);
+	{
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_set_next_font(ui_state.default_icon_font);
+		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
+		if (*is_expanded) {
+			ui_frame_set_display_text(icon_frame, str(">"));
+		} else {
+			ui_frame_set_display_text(icon_frame, str("v"));
+		}
+
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(label);
+	}
+	ui_pop_parent();
+
+	ui_interaction interaction = ui_frame_interaction(parent_frame);
+
+	if (interaction & ui_interaction_left_released) {
+		*is_expanded = !*is_expanded;
+	}
+
+	return interaction;
+}
+
+
+
+function ui_interaction
+ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val) {
 
 	// build frame and set draw data
-	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
-	ui_frame_set_custom_draw(frame, ui_color_picker_draw_function, data);
+	ui_frame_set_custom_draw(frame, ui_color_sat_val_quad_draw_function, data);
 
 	// interaction
 	if (interaction & ui_interaction_left_dragging) {
@@ -466,6 +528,30 @@ ui_color_picker(str_t label, f32 hue, f32* sat, f32* val) {
 
 	return interaction;
 
+}
+
+function ui_interaction 
+ui_color_hue_bar(str_t label, f32* hue, f32 sat, f32 val) {
+
+	// build frame and set draw data
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_hue_bar, data);
+
+	// interaction
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		*hue = remap(mouse_pos.x, frame->rect.x0, frame->rect.x1, 0.0f, 1.0f);
+		*hue = clamp_01(*hue);
+	}
+
+	data->hue = *hue;
+	data->sat = sat;
+	data->val = val;
+
+	return interaction;
 }
 
 function ui_interaction
@@ -557,6 +643,95 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 	return interaction;
 }
 
+function ui_interaction 
+ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
+
+	enum {
+		area_clicked_none,
+		area_clicked_hue_sat_circle,
+	};
+
+	// build frame and set custom draw data
+	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_hue_sat_circle_draw_function, data);
+
+	// calculate frame and mouse info
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	f32 outer_wheel_radius = min(frame_width, frame_height) * 0.5f;
+	vec2_t mouse_pos = ui_state.mouse_pos;
+	vec2_t dir = vec2_sub(frame_center, mouse_pos);
+	f32 dist = vec2_length(dir);
+
+	if (interaction & ui_interaction_left_pressed) {
+		u32 area_clicked = area_clicked_none;
+
+		// if within ring
+		if (dist < outer_wheel_radius) {
+			area_clicked = area_clicked_hue_sat_circle;
+		}
+
+		// store data
+		ui_store_drag_data(&area_clicked, sizeof(area_clicked));
+	}
+
+	if (interaction & ui_interaction_left_dragging) {
+
+		// get drag data
+		u32* area_clicked = (u32*)ui_get_drag_data();
+
+		// edit via hue wheel
+		if (*area_clicked == area_clicked_hue_sat_circle) {
+			
+			// convert direction to hue
+			f32 angle = (vec2_to_angle(dir) + f32_pi) / (2.0f * f32_pi);
+			*hue = angle;
+
+			// convert distance to sat
+			*sat = clamp_01(dist / outer_wheel_radius);
+		}
+	}
+
+	// clear drag data on release
+	if (interaction & ui_interaction_left_released) {
+		ui_clear_drag_data();
+	}
+
+	data->hue = *hue;
+	data->sat = *sat;
+	data->val = val;
+
+	return interaction;
+
+}
+
+function ui_interaction 
+ui_color_val_bar(str_t label, f32 hue, f32 sat, f32* val) {
+
+	// build frame and set draw data
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_val_bar_draw_function, data);
+
+	// interaction
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		*val = remap(mouse_pos.x, frame->rect.x0, frame->rect.x1, 0.0f, 1.0f);
+		*val = clamp_01(*val);
+	}
+
+	data->hue = hue;
+	data->sat = sat;
+	data->val = *val;
+
+	return interaction;
+}
 
 // widget draw functions
 
@@ -572,10 +747,86 @@ ui_slider_draw_function(ui_frame_t* frame) {
 	gfx_quad_params_t params = gfx_quad_params(frame->palette->accent);
 	params.radii = frame->rounding;
 	gfx_draw_quad(bar_rect, params);
+	
 }
 
 function void 
-ui_color_picker_draw_function(ui_frame_t* frame) {
+ui_color_hue_bar(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+
+	// unpack color
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	
+	// draw hue bars
+	{
+		f32 step = 1.0f / 6.0f;
+		color_t segments[] = {
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+		};
+
+		for (i32 i = 0; i < 6; i++)  {
+			gfx_quad_params_t quad_params;
+			quad_params.col0 = segments[i + 0];
+			quad_params.col1 = segments[i + 0];
+			quad_params.col2 = segments[i + 1];
+			quad_params.col3 = segments[i + 1];
+			quad_params.radii = { 0.0f, 0.0f, 0.0f, 0.0f };
+			quad_params.thickness = 0.0f;
+			quad_params.softness = 0.33f;
+
+			// TODO: this is a hack and looks ugly. find a better way to fix this.
+			f32 fix = 0.0f;
+
+			// frame rounding
+			if (i == 0) {
+				quad_params.radii = { 0.0f, 0.0f, frame->rounding.z, frame->rounding.w };
+			} else if (i == 5) {
+				quad_params.radii = { frame->rounding.x, frame->rounding.y, 0.0f, 0.0f };
+			} else {
+				fix = 1.0f;
+			}
+
+			f32 x0 = roundf(frame->rect.x0 + (step *( i + 0)) * frame_width) - fix;
+			f32 x1 = roundf(frame->rect.x0 + (step * (i + 1)) * frame_width) + fix;
+			rect_t segment = rect(x0, frame->rect.y0, x1, frame->rect.y1);
+			gfx_draw_quad(segment, quad_params);
+		}
+
+	}
+
+	// draw hue indicator
+	gfx_push_depth(frame->depth + 2);
+	{
+		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
+
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(hue_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+}
+
+function void 
+ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 
 	// get data
 	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
@@ -604,7 +855,7 @@ ui_color_picker_draw_function(ui_frame_t* frame) {
 		frame->rect.x0 + (data->sat * frame_width), 
 		frame->rect.y0 + ((1.0f - data->val) * frame_height)
 	);
-	gfx_push_depth(frame->depth + 1);
+	gfx_push_depth(frame->depth + 2);
 	{
 		// border
 		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
@@ -651,7 +902,7 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		gfx_disk_params_t shadow_params = gfx_disk_params(frame->palette->shadow, wheel_radius * 0.15f);
 		gfx_draw_disk(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
 
-		// draw hue bars
+		// draw hue arcs
 		f32 step = 1.0f / 6.0f;
 		color_t segments[] = {
 			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
@@ -692,13 +943,13 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		tri_params.col1 = color(0xffffffff);
 		tri_params.col2 = color(0x000000ff);
 		tri_params.thickness = 0.0f;
-		tri_params.softness = 0.1f;
+		tri_params.softness = 0.33f;
 		gfx_draw_tri(tri_p0, tri_p1, tri_p2, tri_params);
 
 	}
 	
 	// draw hue indicator
-	gfx_push_depth(frame->depth + 1);
+	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius - (wheel_thickness * 0.5f)));
 
@@ -716,7 +967,7 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 	gfx_pop_depth();
 
 	// draw sat val indicator
-	gfx_push_depth(frame->depth + 1);
+	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2_lerp(vec2_lerp(tri_p1, tri_p0, clamp_01(data->sat)), tri_p2, clamp_01(1.0f - data->val));
 
@@ -735,6 +986,124 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 
 }
 
+function void 
+ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+
+	// unpack color
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 wheel_radius = min(frame_width, frame_height) * 0.5f;
+	f32 wheel_thickness = wheel_radius * 0.15f;
+
+	// draw hue sat circle
+	{
+		// draw shadow
+		gfx_disk_params_t shadow_params = gfx_disk_params(frame->palette->shadow, 0.0f);
+		gfx_draw_disk(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+
+		// draw hue bars
+		f32 step = 1.0f / 6.0f;
+		color_t segments[] = {
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+		};
+
+		for (i32 i = 0; i < 6; i++) {
+			gfx_disk_params_t disk_params;
+			disk_params.col0 = color(0xffffffff);
+			disk_params.col1 = color(0xffffffff);
+			disk_params.col2 = segments[i + 0];
+			disk_params.col3 = segments[i + 1];
+			disk_params.thickness = 0.0f;
+			disk_params.softness = 0.33f;
+
+			f32 start_angle = ((i + 0) * step) * 360.0f;
+			f32 end_angle = ((i + 1) * step) * 360.0f;
+			gfx_draw_disk(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+		}
+	}
+
+	// draw hue sat indicator
+	gfx_push_depth(frame->depth + 2);
+	{
+		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
+
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(hue_sat_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+
+}
+
+function void
+ui_color_val_bar_draw_function(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+
+	// unpack color
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+
+	// draw val bar
+	{
+		gfx_quad_params_t quad_params;
+		quad_params.col0 = color(0x000000ff);
+		quad_params.col1 = color(0x000000ff);
+		quad_params.col2 = hue_sat_col;
+		quad_params.col3 = hue_sat_col;
+		quad_params.radii = frame->rounding;
+		quad_params.thickness = 0.0f;
+		quad_params.softness = 0.33f;
+
+		gfx_draw_quad(frame->rect, quad_params);
+	}
+
+	// draw hue indicator
+	gfx_push_depth(frame->depth + 2);
+	{
+		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
+
+		// border
+		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+
+		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+
+		// color
+		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+	}
+	gfx_pop_depth();
+
+}
 
 // string functions
 
@@ -812,6 +1181,16 @@ ui_size_percent(f32 value) {
 	return { ui_size_type_percent, value, 0.0f };
 }
 
+function ui_size_t
+ui_size_by_child(f32 strictness) {
+	return { ui_size_type_by_children, 0.0f, strictness };
+}
+
+function ui_size_t 
+ui_size_em(f32 value, f32 strictness) {
+	return { ui_size_type_pixel, ui_top_font_size() * value, strictness };
+}
+
 // alignment functions
 
 function vec2_t
@@ -820,7 +1199,7 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 	vec2_t result = { 0 };
 
 	gfx_font_metrics_t font_metrics = gfx_font_get_metrics(font, size);
-	result.y = roundf((rect.y0 + rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent);
+	result.y = roundf((rect.y0 + rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent) + 2.0f; // temp fix
 
 	switch (alignment) {
 		default:
@@ -1190,8 +1569,8 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 			child->fixed_position.x = layout_position;
 
 			if (root->layout_axis == ui_layout_axis_x) {
-				layout_position += child->fixed_size.x;
-				bounds += child->fixed_size.x;
+				layout_position += child->fixed_size.x + 1.0f;
+				bounds += child->fixed_size.x + 1.0f;
 			} else {
 				bounds = max(bounds, child->fixed_size.x);
 			}
@@ -1219,8 +1598,8 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 			child->fixed_position.y = layout_position;
 
 			if (root->layout_axis == ui_layout_axis_y) {
-				layout_position += child->fixed_size.y;
-				bounds += child->fixed_size.y;
+				layout_position += child->fixed_size.y + 1.0f;
+				bounds += child->fixed_size.y + 1.0f;
 			} else {
 				bounds = max(bounds, child->fixed_size.y);
 			}
@@ -1240,6 +1619,38 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 		ui_layout_solve_set_positions(child);
 	}
 }
+
+
+function ui_frame_t*
+ui_row_begin() {
+	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
+	ui_push_parent(frame);
+	return frame;
+}
+
+function ui_interaction
+ui_row_end() {
+	ui_frame_t* frame = ui_pop_parent();
+	ui_interaction interaction = ui_frame_interaction(frame);
+	return interaction;
+}
+
+function ui_frame_t*
+ui_column_begin() {
+	ui_set_next_layout_axis(ui_layout_axis_y);
+	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
+	ui_push_parent(frame);
+	return frame;
+}
+
+function ui_interaction
+ui_column_end() {
+	ui_frame_t* frame = ui_pop_parent();
+	ui_interaction interaction = ui_frame_interaction(frame);
+	return interaction;
+}
+
 
 // frame functions
 
@@ -1267,10 +1678,10 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 
 	// check if frame existed last frame
 	ui_frame_t* frame = ui_frame_find(key);
-	b8 frame_is_new = frame == nullptr;
+	b8 frame_is_new = (frame == nullptr);
 
 	// duplicate
-	if (!frame_is_new && frame->last_build_index == ui_state.build_index) {
+	if (!frame_is_new && (frame->last_build_index == ui_state.build_index)) {
 		frame = nullptr;
 		key = { 0 };
 		frame_is_new = true;
@@ -1281,7 +1692,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 
 	// if it didn't, grab from free list, or create one
 	if (frame_is_new) {
-		frame = !frame_is_transient ? ui_state.frame_free : 0;
+		frame = !frame_is_transient ? ui_state.frame_free : nullptr;
 
 		if (frame != nullptr) {
 			stack_pop_n(ui_state.frame_free, hash_next);
@@ -1292,29 +1703,34 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 		
 	}
 
+	frame->tree_child_first = frame->tree_child_last = frame->tree_next = frame->tree_prev = frame->tree_parent = nullptr;
+	frame->child_count = 0;
+	frame->flags = 0;
+
+	// add to ui_state list
 	if (frame_is_new && !frame_is_transient) {
-
-		// add to list
 		dll_push_back_np(ui_state.frame_first, ui_state.frame_last, frame, hash_next, hash_prev);
-
-		// set first build index
-		frame->first_build_index = ui_state.build_index;
-
 	}
+
 
 	// add to tree and set parent
 	ui_frame_t* parent = ui_top_parent();
 	if (parent != nullptr) {
-		parent->child_count++;
-		frame->tree_parent = parent;
-		
 		dll_push_back_np(parent->tree_child_first, parent->tree_child_last, frame, tree_next, tree_prev);
+		frame->tree_parent = parent;
+		parent->child_count++;
 	}
+
+	// set build index
+	if (frame_is_new) {
+		frame->first_build_index = ui_state.build_index;
+	}
+	frame->last_build_index = ui_state.build_index;
 
 	// fill struct
 	frame->key = key;
+	frame->is_transient = frame_is_transient;
 	frame->flags = flags | ui_top_flags();
-	frame->last_build_index = ui_state.build_index;
 	frame->fixed_position.x = ui_top_fixed_x();
 	frame->fixed_position.y = ui_top_fixed_y();
 	frame->fixed_size.x = ui_top_fixed_width();
@@ -1395,7 +1811,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 
 		// clicking
 		if (frame->flags & ui_frame_flag_clickable) {
-
+			
 			// we mouse press on the frame
 			if (mouse_in_bounds && event->type == ui_event_type_mouse_press) {
 				ui_state.active_frame_key[event->mouse] = frame->key;
@@ -1404,19 +1820,20 @@ ui_frame_interaction(ui_frame_t* frame) {
 			}
 
 			// we mouse release on the frame
-			if (mouse_in_bounds && event->type == ui_event_type_mouse_release) {
+			if (event->type == ui_event_type_mouse_release && ui_key_equals(ui_state.active_frame_key[event->mouse], frame->key)) {
+
+				if (mouse_in_bounds) {
+					result |= ui_interaction_left_clicked << event->mouse;
+				}
+				ui_state.active_frame_key[event->mouse] = { 0 };
+				result |= ui_interaction_left_released << event->mouse;
+
 				ui_state.active_frame_key[event->mouse] = { 0 };
 				result |= ui_interaction_left_released << event->mouse;
 				result |= ui_interaction_left_clicked << event->mouse;
 				taken = true;
 			}
 
-			// we mouse release off the frame
-			if (!mouse_in_bounds && event->type == ui_event_type_mouse_release) {
-				ui_state.active_frame_key[event->mouse] = {0};
-				result |= ui_interaction_left_released << event->mouse;
-				taken = true;
-			}
 		}
 		
 		// scrolling
@@ -1507,6 +1924,11 @@ ui_frame_interaction(ui_frame_t* frame) {
 	}
 
 	return result;
+}
+
+function void
+ui_frame_set_display_text(ui_frame_t* frame, str_t text) {
+	frame->string = text;
 }
 
 function void

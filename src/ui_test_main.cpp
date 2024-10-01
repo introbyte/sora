@@ -97,6 +97,7 @@ app_update_and_render() {
 
 	// render
 	{
+
 		ui_begin_frame(renderer);
 
 		ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
@@ -108,9 +109,13 @@ app_update_and_render() {
 			ui_labelf("min: %.2f ms", frame_stats.min);
 			ui_labelf("max: %.2f ms", frame_stats.max);
 			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
+			//ui_labelf("gfx_batches: %u", gfx_state.batch_count);
 		}
 		
-		{
+		// buttons
+		persist b8 button_group = false;
+		ui_expander(str("Button Widgets"), &button_group);
+		if (button_group) {
 			ui_button(str("Button##1"));
 		
 			ui_set_next_text_alignment(ui_text_alignment_center);
@@ -120,28 +125,82 @@ app_update_and_render() {
 			ui_button(str("Button##3"));
 		}
 
-		persist color_t col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
-		ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-		ui_color_wheel(str("Color_wheel"), &col.h, &col.s, &col.v);
+		// sliders
+		persist b8 slider_group = false;
+		ui_expander(str("Slider Widgets"), &slider_group);
+		if (slider_group) {
 
-		ui_set_next_pref_height(ui_size_pixel(220.0f, 1.0f));
-		ui_color_picker(str("Color_picker"), col.h, &col.s, &col.v);
+			persist f32 slider_1_value = 0.75f;
+			ui_slider(str("Slider"), &slider_1_value, 0.0f, 1.0f);
 
-		color_t rgb_col = color_hsv_to_rgb(col);
-
-		ui_interaction interaction = ui_interaction_none; 
-		interaction |= ui_slider(str("red"), &rgb_col.r, 0.0f, 1.0f);
-		interaction |= ui_slider(str("green"), &rgb_col.g, 0.0f, 1.0f);
-		interaction |= ui_slider(str("blue"), &rgb_col.b, 0.0f, 1.0f);
-
-		if (interaction & ui_interaction_left_dragging) {
-			col = color_rgb_to_hsv(rgb_col);
 		}
 
-		ui_slider(str("hue"), &col.h, 0.0f, 1.0f);
-		ui_slider(str("sat"), &col.s, 0.0f, 1.0f);
-		ui_slider(str("val"), &col.v, 0.0f, 1.0f);
+		persist color_t hsv_col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
 
+		persist b8 color_picker_group = false;
+		ui_expander(str("Color Picker Widgets"), &color_picker_group);
+		if (color_picker_group) {
+			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+			ui_color_wheel(str("color_wheel"), &hsv_col.h, &hsv_col.s, &hsv_col.v);
+
+			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+			ui_color_hue_sat_circle(str("color_circle"), &hsv_col.h, &hsv_col.s, hsv_col.v);
+
+			ui_color_val_bar(str("color_hue_bar"), hsv_col.h, hsv_col.s, &hsv_col.v);
+
+			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+			ui_color_sat_val_quad(str("color_quad"), hsv_col.h, &hsv_col.s, &hsv_col.v);
+
+			ui_color_hue_bar(str("color_val_bar"), &hsv_col.h, hsv_col.s, hsv_col.v);
+
+			color_t rgb_col = color_hsv_to_rgb(hsv_col);
+
+			ui_interaction interaction = ui_interaction_none; 
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("red:")); 
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			interaction |= ui_slider(str("slider_red"), &rgb_col.r, 0.0f, 1.0f);
+			ui_row_end();
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("green:"));
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			interaction |= ui_slider(str("slider_green"), &rgb_col.g, 0.0f, 1.0f);
+			ui_row_end();
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("blue:"));
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			interaction |= ui_slider(str("slider_blue"), &rgb_col.b, 0.0f, 1.0f);
+			ui_row_end();
+		
+			if (interaction & ui_interaction_left_dragging) {
+				hsv_col = color_rgb_to_hsv(rgb_col);
+			}
+
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("hue:"));
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			ui_slider(str("slider_hue"), &hsv_col.h, 0.0f, 1.0f);
+			ui_row_end();
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("sat:"));
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			ui_slider(str("slider_sat"), &hsv_col.s, 0.0f, 1.0f);
+			ui_row_end();
+			ui_row_begin();
+			ui_set_next_pref_width(ui_size_percent(0.25f));
+			ui_label(str("val:"));
+			ui_set_next_pref_width(ui_size_percent(0.75f));
+			ui_slider(str("slider_val"), &hsv_col.v, 0.0f, 1.0f);
+			ui_row_end();
+		}
+		
+		ui_pop_pref_width();
+		ui_pop_pref_height();
 
 
 		ui_end_frame();
@@ -165,8 +224,8 @@ app_entry_point(i32 argc, char** argv) {
 	ui_init();
 	
 	// create contexts
-	window = os_window_open(str("sora rendering test"), 1280, 960);
-	renderer = gfx_renderer_create(window, color(0x303030ff), 8);
+	window = os_window_open(str("sora ui test"), 1280, 960);
+	renderer = gfx_renderer_create(window, color(0x303030ff), 1);
 
 	// init
 	app_init();

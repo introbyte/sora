@@ -64,29 +64,15 @@
 #define stack_push(f, n) stack_push_n(f, n, next)
 #define stack_pop(f) stack_pop_n(f, next)
 
-#define dll_push_back_np(f, l, n, next, prev)\
-((f)==0?\
-((f)=(l)=(n),(n)->next=(n)->prev=0):\
-((n)->prev=(l),(l)->next=(n),(l)=(n),(n)->next=0))
+#define dll_insert_np(f,l,p,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((p) == 0 || (p) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((p) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((p) == 0 || (p) == 0) && (((p)->next) == 0 || ((p)->next) == 0)) ? (0) : ((p)->next->prev = (n))), ((n)->next = (p)->next), ((p)->next = (n)), ((n)->prev = (p))))
+#define dll_push_back_np(f,l,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((l) == 0 || (l) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((l) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((l) == 0 || (l) == 0) && (((l)->next) == 0 || ((l)->next) == 0)) ? (0) : ((l)->next->prev = (n))), ((n)->next = (l)->next), ((l)->next = (n)), ((n)->prev = (l))))
+#define dll_push_front_np(f,l,n,next,prev) (((l) == 0 || (l) == 0) ? ((l) = (f) = (n), (((n)->prev) = 0), (((n)->next) = 0)) : ((f) == 0 || (f) == 0) ? ((n)->prev = (l), (l)->next = (n), (l) = (n), (((n)->next) = 0)) : ((f) == (f)) ? ((f)->prev = (n), (n)->next = (f), (f) = (n), (((n)->prev) = 0)) : (((!((f) == 0 || (f) == 0) && (((f)->prev) == 0 || ((f)->prev) == 0)) ? (0) : ((f)->prev->next = (n))), ((n)->prev = (f)->prev), ((f)->prev = (n)), ((n)->next = (f))))
+#define dll_remove_np(f,l,n,next,prev) (((n) == (f) ? (f) = (n)->next : (0)), ((n) == (l) ? (l) = (l)->prev : (0)), ((((n)->prev) == 0 || ((n)->prev) == 0) ? (0) : ((n)->prev->next = (n)->next)), ((((n)->next) == 0 || ((n)->next) == 0) ? (0) : ((n)->next->prev = (n)->prev)))
 
-#define dll_push_front_np(f, l, n, next, prev)\
-((l)==0?\
-((l)=(f)=(n),(n)->prev=(n)->next=0):\
-((n)->next=(f),(f)->prev=(n),(f)=(n),(n)->prev=0))
-
-#define dll_remove_np(f, l, n, next, prev)\
-((f)==(n)?\
-((f)==(l)?\
-((f)=(l)=(0)):\
-((f)=(f)->next,(f)->prev=0)):\
-(l)==(n)?\
-((l)=(l)->prev,(l)->next=0):\
-((n)->next->prev=(n)->prev,\
-(n)->prev->next=(n)->next))
-
-#define dll_push_back(f, l, n) dll_push_back_np(f, l, n, next, prev)
-#define dll_push_front(f, l, n) dll_push_front_np(f, l, n, next, prev)
-#define dll_remove(f, l, n) dll_remove_np(f, l, n, next, prev)
+#define dll_insert(f,l,p,n) dll_insert_np(f,l,p,n,next,prev)
+#define dll_push_back(f,l,n) dll_push_back_np(f,l,n,next,prev)
+#define dll_push_front(f,l,n) dll_push_front_np(f,l,n,next,prev)
+#define dll_remove(f,l,n) dll_remove_np(f,l,n,next,prev)
 
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 

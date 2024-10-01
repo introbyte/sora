@@ -67,13 +67,6 @@ vs_out vs_main(vs_in input) {
         float2(1.0f, 0.0f),
     };
     
-    //float vertex_radii[] = {
-    //    input.radii.x,
-    //    input.radii.y,
-    //    input.radii.z,
-    //    input.radii.w
-    //};
-    
     // fill output
     output.pos = float4(vertex_pos[input.vertex_id] * 2.0f / window_size - 1.0f, 0.0f, 1.0f);
     output.pos.y = -output.pos.y;
@@ -84,7 +77,6 @@ vs_out vs_main(vs_in input) {
     output.col01 = input.col01;
     output.col11 = input.col11;
     output.col10 = input.col10;
-    //output.radius = vertex_radii[input.vertex_id];
     output.radius = input.radii;
     output.thickness = thickness;
     output.softness = softness;
@@ -95,24 +87,24 @@ vs_out vs_main(vs_in input) {
 Texture2D color_texture : register(t0);
 SamplerState texture_sampler : register(s0);
 
-float4 oklab_lerp(float4 colA, float4 colB, float h) {
-    float3x3 kCONEtoLMS = float3x3(
+float4 oklab_lerp(float4 col_a, float4 col_b, float h) {
+    float3x3 k_cone_to_lms = float3x3(
          0.4121656120f, 0.2118591070f, 0.0883097947f,
          0.5362752080f, 0.6807189584f, 0.2818474174f,
          0.0514575653f, 0.1074065790f, 0.6302613616f);
-    float3x3 kLMStoCONE = float3x3(
+    float3x3 k_lms_to_cone = float3x3(
          4.0767245293f, -1.2681437731f, -0.0041119885f,
         -3.3072168827f, 2.6093323231f, -0.7034763098f,
          0.2307590544f, -0.3411344290f, 1.7068625689f);
                     
 
-    float3 lmsA = pow(abs(mul(kCONEtoLMS, colA.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
-    float3 lmsB = pow(abs(mul(kCONEtoLMS, colB.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
+    float3 lms_a = pow(abs(mul(k_cone_to_lms, col_a.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
+    float3 lms_b = pow(abs(mul(k_cone_to_lms, col_b.rgb)), float3(0.3333f, 0.3333f, 0.3333f));
 
-    float3 lms = lerp(lmsA, lmsB, h);
-    float alpha = lerp(colA.a, colB.a, h);
+    float3 lms = lerp(lms_a, lms_b, h);
+    float alpha = lerp(col_a.a, col_b.a, h);
     
-    return float4(mul(kLMStoCONE, (lms * lms * lms)), alpha);
+    return float4(mul(k_lms_to_cone, (lms * lms * lms)), alpha);
 }
 
 float sdf_quad(float2 sample_pos, float2 rect_half_size, float4 r) {
@@ -121,8 +113,6 @@ float sdf_quad(float2 sample_pos, float2 rect_half_size, float4 r) {
     r.x = (sample_pos.y > 0.0f) ? r.x : r.y;
     float2 q = abs(sample_pos) - rect_half_size + r.x;
     return min(max(q.x, q.y), 0.0f) + length(max(q, 0.0f)) - r.x;
-    
-    //return length(max(abs(sample_pos) - rect_half_size + r, 0.0f)) - r;
 }
 
 float4 ps_main(vs_out input) : SV_TARGET {

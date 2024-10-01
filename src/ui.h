@@ -13,12 +13,13 @@
 //     [x] - button.
 //     [x] - label.
 //     [ ] - checkbox.
-//     [ ] - expander.
-//     [ ] - slider.
+//     [x] - expander.
+//     [x] - slider.
 //     [x] - sat/val picker.
 //     [~] - color wheel.
 // [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
-// [ ] - icon rendering.
+// [x] - icon rendering.
+// [ ] - look into depth ordering. maybe come up with something better.
 // [ ] - more ui events.
 //     [~] - scrolling.
 //     [ ] - keyboard.
@@ -43,6 +44,60 @@ ui_stack_push_func(name, type)\
 ui_stack_pop_func(name, type)\
 ui_stack_set_next_func(name, type)\
 
+
+// icons enum
+enum {
+	icon_null          = ' ',
+	icon_check         = 'X',
+	icon_filledcircle  = '.',
+	icon_filledstar    = '*',
+	icon_hollowstar    = '8',
+	icon_plus          = '+',
+	icon_pencil        = 'e',
+	icon_trashcan      = '3',
+	icon_closedfolder  = 'M',
+	icon_openfolder    = 'N',
+	icon_fileplain     = 'f',
+	icon_filecopy      = 'F',
+	icon_filetxt       = 't',
+	icon_fileimg       = 'i',
+	icon_filesound     = ')',
+	icon_filearchive   = 'z',
+	icon_gears         = '@',
+	icon_sound0        = 's',
+	icon_sound1        = 'S',
+	icon_sound2        = 'Z',
+	icon_downtri       = 'd',
+	icon_uptri         = 'u',
+	icon_lefttri       = 'l',
+	icon_righttri      = 'r',
+	icon_leftcaret     = '<',
+	icon_rightcaret    = '>',
+	icon_upcaret       = '^',
+	icon_downcaret     = 'v',
+	icon_refresh       = 'R',
+	icon_undo          = '{',
+	icon_redo          = '}',
+	icon_machine       = 'm',
+	icon_x             = 'x',
+	icon_maximize      = 'w',
+	icon_restore       = 'b',
+	icon_minimize      = 'g',
+	icon_lock          = 'p',
+	icon_unlock        = 'q',
+	icon_tag           = 'T',
+	icon_save          = 'D',
+	icon_gamepad       = 'G',
+	icon_keyboard      = 'k',
+	icon_unfilledcheck = '!',
+	icon_filledcheck   = '1',
+	icon_warning       = 'W',
+	icon_question      = '?',
+	icon_info          = 'I',
+	icon_eye           = 'V',
+	icon_eyecovered    = 'H',
+};
+
 // typedefs
 struct ui_frame_t;
 typedef void ui_frame_custom_draw_func(ui_frame_t*);
@@ -56,30 +111,32 @@ enum {
 	ui_frame_flag_scroll = (1 << 2),
 
 	ui_frame_flag_draw_text = (1 << 3),
-	ui_frame_flag_draw_background = (1 << 4),
-	ui_frame_flag_draw_border = (1 << 5),
-	ui_frame_flag_draw_shadow = (1 << 6),
-	ui_frame_flag_draw_hover_effects = (1 << 7),
-	ui_frame_flag_draw_active_effects = (1 << 8),
-	ui_frame_flag_draw_custom = (1 << 9),
+	ui_frame_flag_draw_background_light = (1 << 4),
+	ui_frame_flag_draw_background_dark = (1 << 5),
+	ui_frame_flag_draw_border_light = (1 << 6),
+	ui_frame_flag_draw_border_dark = (1 << 7),
+	ui_frame_flag_draw_shadow = (1 << 8),
+	ui_frame_flag_draw_hover_effects = (1 << 9),
+	ui_frame_flag_draw_active_effects = (1 << 10),
+	ui_frame_flag_draw_custom = (1 << 11),
 
-	ui_frame_flag_view_scroll_x = (1 << 10),
-	ui_frame_flag_view_scroll_y = (1 << 11),
-	ui_frame_flag_view_clamp_x = (1 << 12),
-	ui_frame_flag_view_clamp_y = (1 << 13),
+	ui_frame_flag_view_scroll_x = (1 << 12),
+	ui_frame_flag_view_scroll_y = (1 << 13),
+	ui_frame_flag_view_clamp_x = (1 << 14),
+	ui_frame_flag_view_clamp_y = (1 << 15),
 
-	ui_frame_flag_fixed_width = (1 << 14),
-	ui_frame_flag_fixed_height = (1 << 15),
+	ui_frame_flag_fixed_width = (1 << 16),
+	ui_frame_flag_fixed_height = (1 << 17),
 
-	ui_frame_flag_floating_x = (1 << 16),
-	ui_frame_flag_floating_y = (1 << 17),
+	ui_frame_flag_floating_x = (1 << 18),
+	ui_frame_flag_floating_y = (1 << 19),
 
-	ui_frame_flag_overflow_x = (1 << 18),
-	ui_frame_flag_overflow_y = (1 << 19),
+	ui_frame_flag_overflow_x = (1 << 20),
+	ui_frame_flag_overflow_y = (1 << 21),
 
 	ui_frame_flag_draw =
-		ui_frame_flag_draw_text | ui_frame_flag_draw_background |
-		ui_frame_flag_draw_border | ui_frame_flag_draw_shadow |
+		ui_frame_flag_draw_text | ui_frame_flag_draw_background_dark |
+	    ui_frame_flag_draw_border_dark | ui_frame_flag_draw_shadow |
 		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects,
 
 	ui_frame_flag_view_scroll = ui_frame_flag_view_scroll_x | ui_frame_flag_view_scroll_y,
@@ -165,9 +222,12 @@ struct ui_size_t {
 	f32 strictness;
 };
 
+// TODO: come up with better naming system for colors.
 struct ui_palette_t {
-	color_t background;
-	color_t border;
+	color_t dark_background;
+	color_t dark_border;
+	color_t light_background;
+	color_t light_border;
 	color_t shadow;
 	color_t hover;
 	color_t active;
@@ -232,6 +292,7 @@ struct ui_frame_t {
 	// per frame layout
 	rect_t rect;
 	u32 depth;
+	b8 is_transient;
 
 	// persistant data
 	u64 first_build_index;
@@ -318,6 +379,7 @@ struct ui_state_t {
 	ui_palette_t default_palette;
 	gfx_texture_t* default_texture;
 	gfx_font_t* default_font;
+	gfx_font_t* default_icon_font;
 
 	// stack defaults
 	ui_stack_decl_default(parent);
@@ -391,22 +453,31 @@ function void ui_end_frame();
 
 // widgets
 
-function ui_interaction ui_button(str_t label);
-function ui_interaction ui_buttonf(char* fmt, ...);
+function ui_interaction ui_button(str_t);
+function ui_interaction ui_buttonf(char*, ...);
 
-function ui_interaction ui_label(str_t label);
-function ui_interaction ui_labelf(char* fmt, ...);
+function ui_interaction ui_label(str_t);
+function ui_interaction ui_labelf(char*, ...);
 
-function ui_interaction ui_slider(str_t label, f32*, f32, f32);
+function ui_interaction ui_slider(str_t, f32*, f32, f32);
 
-function ui_interaction ui_color_picker(str_t, f32, f32*, f32*);
+function ui_interaction ui_expander(str_t, b8*);
+
+function ui_interaction ui_color_sat_val_quad(str_t, f32, f32*, f32*);
+function ui_interaction ui_color_hue_bar(str_t, f32*, f32, f32);
 function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
+function ui_interaction ui_color_hue_sat_circle(str_t, f32*, f32*, f32*);
+function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
+
 
 // widget draw functions
 function void ui_slider_draw_function(ui_frame_t*);
 
-function void ui_color_picker_draw_function(ui_frame_t*);
+function void ui_color_hue_bar(ui_frame_t*);
+function void ui_color_sat_val_quad_draw_function(ui_frame_t*);
 function void ui_color_wheel_draw_function(ui_frame_t*);
+function void ui_color_hue_sat_circle_draw_function(ui_frame_t*);
+function void ui_color_val_bar_draw_function(ui_frame_t*);
 
 // string
 function str_t ui_string_display_format(str_t);
@@ -421,6 +492,8 @@ function b8 ui_key_equals(ui_key_t, ui_key_t);
 function ui_size_t ui_size(ui_size_type, f32, f32);
 function ui_size_t ui_size_pixel(f32, f32);
 function ui_size_t ui_size_percent(f32);
+function ui_size_t ui_size_by_child(f32);
+function ui_size_t ui_size_em(f32, f32);
 
 // alignment
 function vec2_t ui_text_align(gfx_font_t*, f32, str_t, rect_t, ui_text_alignment);
@@ -435,11 +508,16 @@ function void* ui_get_drag_data();
 function void ui_clear_drag_data();
 
 // layout 
-function void ui_layout_solve_independent(ui_frame_t* root);
-function void ui_layout_solve_upward_dependent(ui_frame_t* root);
-function void ui_layout_solve_downward_dependent(ui_frame_t* root);
-function void ui_layout_solve_violations(ui_frame_t* root);
-function void ui_layout_solve_set_positions(ui_frame_t* root);
+function void ui_layout_solve_independent(ui_frame_t*);
+function void ui_layout_solve_upward_dependent(ui_frame_t*);
+function void ui_layout_solve_downward_dependent(ui_frame_t*);
+function void ui_layout_solve_violations(ui_frame_t*);
+function void ui_layout_solve_set_positions(ui_frame_t*);
+
+function ui_frame_t* ui_row_begin();
+function ui_interaction ui_row_end();
+function ui_frame_t* ui_column_begin();
+function ui_interaction ui_column_end();
 
 // frames
 function ui_frame_t* ui_frame_find(ui_key_t);
@@ -447,6 +525,7 @@ function ui_frame_t* ui_frame_from_key(ui_key_t, ui_frame_flags = 0);
 function ui_frame_t* ui_frame_from_string(str_t, ui_frame_flags = 0);
 function ui_frame_rec_t ui_frame_rec_depth_first(ui_frame_t*, ui_frame_t*, u32, u32);
 function ui_interaction ui_frame_interaction(ui_frame_t*);
+function void ui_frame_set_display_text(ui_frame_t*, str_t);
 function void ui_frame_set_custom_draw(ui_frame_t*, ui_frame_custom_draw_func*, void*);
 
 // stack
