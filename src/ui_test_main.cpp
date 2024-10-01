@@ -123,6 +123,9 @@ app_update_and_render() {
 
 			ui_set_next_text_alignment(ui_text_alignment_right);
 			ui_button(str("Button##3"));
+
+			persist b8 checkbox_value = false;
+			ui_checkbox(str("Checkbox"), &checkbox_value);
 		}
 
 		// sliders
@@ -202,6 +205,17 @@ app_update_and_render() {
 		ui_pop_pref_width();
 		ui_pop_pref_height();
 
+		persist vec2_t pos = vec2(300.0f, 150.0f);
+		ui_set_next_fixed_x(pos.x);
+		ui_set_next_fixed_y(pos.y);
+		ui_set_next_pref_width(ui_size_pixel(100.0f, 1.0f));
+		ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
+		ui_frame_t* frame = ui_frame_from_string(str("node"), ui_frame_flag_floating | ui_frame_flag_draw | ui_frame_flag_clickable);
+		ui_interaction interaction = ui_frame_interaction(frame);
+		if (interaction & ui_interaction_left_dragging) {
+			pos = vec2_add(pos, window->mouse_delta);
+		}
+		
 
 		ui_end_frame();
 	}

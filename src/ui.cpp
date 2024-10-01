@@ -460,6 +460,49 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 }
 
 function ui_interaction
+ui_checkbox(str_t label, b8* value) {
+
+	// build parent frame
+	ui_set_next_layout_axis(ui_layout_axis_x);
+
+	u32 flags = ui_frame_flag_clickable;
+	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
+
+	ui_push_parent(parent_frame);
+	{
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_set_next_font(ui_state.default_icon_font);
+
+		u32 flag_frame_flags = 
+			ui_frame_flag_draw_text | ui_frame_flag_draw_background_dark |
+			ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
+			ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
+
+		ui_frame_t* icon_frame = ui_frame_from_string(str(""), flag_frame_flags);
+		icon_frame->active_t = parent_frame->active_t;
+		icon_frame->hover_t = parent_frame->hover_t;
+		if (*value) {
+			ui_frame_set_display_text(icon_frame, str("X"));
+		}
+
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(label);
+	}
+	ui_pop_parent();
+
+	ui_interaction interaction = ui_frame_interaction(parent_frame);
+
+	if (interaction & ui_interaction_left_released) {
+		*value = !*value;
+	}
+
+	return interaction;
+
+
+}
+
+function ui_interaction
 ui_expander(str_t label, b8* is_expanded) {
 
 	// build parent frame

@@ -20,6 +20,8 @@
 // [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
 // [x] - icon rendering.
 // [ ] - look into depth ordering. maybe come up with something better.
+// [ ] - render more things
+//     [ ] - bezier curves.
 // [ ] - more ui events.
 //     [~] - scrolling.
 //     [ ] - keyboard.
@@ -455,14 +457,11 @@ function void ui_end_frame();
 
 function ui_interaction ui_button(str_t);
 function ui_interaction ui_buttonf(char*, ...);
-
 function ui_interaction ui_label(str_t);
 function ui_interaction ui_labelf(char*, ...);
-
 function ui_interaction ui_slider(str_t, f32*, f32, f32);
-
+function ui_interaction ui_checkbox(str_t, b8*);
 function ui_interaction ui_expander(str_t, b8*);
-
 function ui_interaction ui_color_sat_val_quad(str_t, f32, f32*, f32*);
 function ui_interaction ui_color_hue_bar(str_t, f32*, f32, f32);
 function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
