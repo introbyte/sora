@@ -147,6 +147,19 @@ enum {
 	os_file_access_flag_attribute = (1 << 6),
 };
 
+enum os_cursor {
+	os_cursor_pointer,
+	os_cursor_I_beam,
+	os_cursor_resize_EW,
+	os_cursor_resize_NS,
+	os_cursor_resize_NWSE,
+	os_cursor_resize_NESW,
+	os_cursor_resize_all,
+	os_cursor_hand_point,
+	os_cursor_disabled,
+	os_cursor_count,
+};
+
 // structs
 
 struct os_window_t {
@@ -230,7 +243,12 @@ struct os_state_t {
 	// event list
 	os_event_list_t event_list;
 
+	// time
 	LARGE_INTEGER time_frequency;
+
+	// cursor
+	HCURSOR cursors[os_cursor_count];
+
 
 	// log
 	os_file_t log_file;
@@ -248,6 +266,8 @@ function void os_release();
 function void os_update();
 function b8 os_any_window_exist();
 function void os_abort(u32);
+
+function void os_set_cursor(os_cursor);
 
 // logs
 

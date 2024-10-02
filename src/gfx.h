@@ -431,7 +431,7 @@ function void gfx_draw_text(str_t, vec2_t, gfx_text_params_t);
 function void gfx_draw_text(str16_t, vec2_t, gfx_text_params_t);
 function void gfx_draw_disk(vec2_t, f32, f32, f32, gfx_disk_params_t);
 function void gfx_draw_tri(vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
-
+function void gfx_draw_bezier(vec2_t, vec2_t, vec2_t, vec2_t, gfx_line_params_t);
 
 // batch
 function i32 gfx_batch_compare_depth(const void*, const void*);

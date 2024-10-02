@@ -421,8 +421,8 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 	gfx_state.device_context->RSSetViewports(1, &viewport);
 
 	// set samplers
-	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.linear_sampler);
-	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.point_sampler);
+	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.point_sampler);
+	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.linear_sampler);
 
 	// set buffers
 	gfx_state.device_context->VSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
@@ -663,6 +663,33 @@ gfx_draw_tri(vec2_t p0, vec2_t p1, vec2_t p2, gfx_tri_params_t params) {
 	instance->p1 = c_p1;
 	instance->p2 = c_p2;
 	instance->style = { params.thickness, params.softness };
+}
+
+function void
+gfx_draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1, gfx_line_params_t params) {
+
+	// this uses seiler's interpolation by Cem Yuksel
+
+	const i32 res = 32;
+	vec2_t points[res];
+
+	vec2_t s0 = vec2_sub(vec2_sub(vec2_mul(c0, 3.0f), p0), p1);
+	vec2_t s1 = vec2_sub(vec2_sub(vec2_mul(c1, 3.0f), p1), p0);
+
+	for (i32 i = 0; i < res; i++) {
+
+		f32 t = (f32)i / (f32)(res - 1);
+
+		vec2_t p = vec2_lerp(p0, p1, t);
+		vec2_t s = vec2_lerp(s0, s1, t);
+
+		points[i] = vec2_lerp(p, s, (1.0f - t) * t);
+	}
+
+	for (i32 i = 0; i < res - 1; i++) {
+		gfx_draw_line(points[i], points[i + 1], params);
+	}
+
 }
 
 // batch functions

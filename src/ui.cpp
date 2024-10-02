@@ -54,6 +54,7 @@ ui_init() {
 	ui_default_init(pref_height, ui_size(ui_size_type_null, 0.0f, 0.0f));
 	ui_default_init(text_alignment, ui_text_alignment_left);
 	ui_default_init(text_padding, 4.0f);
+	ui_default_init(hover_cursor, os_cursor_pointer);
 	ui_default_init(layout_axis, ui_layout_axis_y);
 	ui_default_init(rounding_00, 2.0f);
 	ui_default_init(rounding_01, 2.0f);
@@ -114,6 +115,7 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_stack_reset(pref_height);
 	ui_stack_reset(text_alignment);
 	ui_stack_reset(text_padding);
+	ui_stack_reset(hover_cursor);
 	ui_stack_reset(layout_axis);
 	ui_stack_reset(rounding_00);
 	ui_stack_reset(rounding_01);
@@ -219,6 +221,20 @@ ui_end_frame() {
 
 		frame->view_offset_target = vec2_add(frame->view_offset_target, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), fast_rate));
 	}
+
+	// hover cursor
+	{
+
+		ui_frame_t* hovered_frame = ui_frame_find(ui_state.hovered_frame_key);
+		ui_frame_t* active_frame = ui_frame_find(ui_state.active_frame_key[os_mouse_button_left]);
+
+		if (hovered_frame != nullptr && !(hovered_frame->flags & ui_frame_flag_custom_hover_cursor)) {
+			os_cursor cursor = hovered_frame->hover_cursor;
+			os_set_cursor(cursor);
+		}
+
+	}
+
 	
 	// draw
 	gfx_renderer_t* renderer = ui_state.renderer;
@@ -350,6 +366,27 @@ ui_end_frame() {
 			}
 		}
 
+		// debug draw
+		if (0) {
+
+			if (!frame->is_transient) {
+				gfx_push_depth(depth + 5);
+				// draw rect
+				gfx_quad_params_t quad_params = gfx_quad_params(color(0xff1515ff), 0.0f, 1.0f, 0.0f);
+				gfx_draw_quad(frame->rect, quad_params);
+
+				gfx_text_params_t shadow_text_params = gfx_text_params(color(0x151515ff), ui_state.default_font, 9.0f);
+				gfx_text_params_t text_params = gfx_text_params(color(0xff1515ff), ui_state.default_font, 9.0f);
+
+				str_t text = str_format(ui_state.per_frame_arena, "depth: %u", frame->depth);
+				gfx_draw_text(text, vec2(frame->rect.x0 + 1, frame->rect.y0 + 1), shadow_text_params);
+				gfx_draw_text(text, vec2(frame->rect.x0, frame->rect.y0), text_params);
+
+				gfx_pop_depth();
+			}
+		}
+
+		
 		// pop
 		i32 pop_index = 0;
 		for (ui_frame_t* f = frame; f != nullptr && pop_index <= recursion.pop_count; f = f->tree_parent) {
@@ -367,10 +404,10 @@ ui_end_frame() {
 		// pop depth
 		gfx_pop_depth();
 
-		if (!frame->is_transient) {
-			depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
-			depth -= recursion.pop_count * 5;
-		}
+		//if (!frame->is_transient) {
+		depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
+		depth -= recursion.pop_count * 5;
+		//}
 
 		frame = recursion.next;
 	}
@@ -387,6 +424,7 @@ ui_button(str_t label) {
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
 
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 
@@ -438,6 +476,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
 
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	str_t text = str_format(ui_state.per_frame_arena, "%.2f", *value);
@@ -463,6 +502,7 @@ function ui_interaction
 ui_checkbox(str_t label, b8* value) {
 
 	// build parent frame
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_layout_axis(ui_layout_axis_x);
 
 	u32 flags = ui_frame_flag_clickable;
@@ -506,6 +546,7 @@ function ui_interaction
 ui_expander(str_t label, b8* is_expanded) {
 
 	// build parent frame
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_layout_axis(ui_layout_axis_x);
 
 	u32 flags = 
@@ -540,12 +581,11 @@ ui_expander(str_t label, b8* is_expanded) {
 	return interaction;
 }
 
-
-
 function ui_interaction
 ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val) {
 
 	// build frame and set draw data
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
@@ -577,6 +617,7 @@ function ui_interaction
 ui_color_hue_bar(str_t label, f32* hue, f32 sat, f32 val) {
 
 	// build frame and set draw data
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
@@ -607,7 +648,7 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 	};
 
 	// build frame and set custom draw data
-	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_custom_hover_cursor;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
@@ -628,7 +669,15 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 	vec2_t tri_p2 = vec2_add(frame_center, vec2_from_angle((*hue + 0.3333f) * (2.0f * f32_pi), tri_dist));
 
 	// interactions
-	
+
+	// custom hover cursor 
+	if (interaction & ui_interaction_hovered) {
+		// if within ring or tri
+		if (dist > inner_wheel_radius && dist < outer_wheel_radius || tri_contains(tri_p0, tri_p1, tri_p2, mouse_pos)) {
+			os_set_cursor(os_cursor_hand_point);
+		}
+	}
+
 	// when intially pressed figure out where we were clicked
 	if (interaction& ui_interaction_left_pressed) {
 		u32 area_clicked = area_clicked_none;
@@ -695,7 +744,7 @@ ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
 	};
 
 	// build frame and set custom draw data
-	ui_frame_flags flags = ui_frame_flag_clickable;
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_custom_hover_cursor;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_color_data_t));
@@ -709,6 +758,14 @@ ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
 	vec2_t mouse_pos = ui_state.mouse_pos;
 	vec2_t dir = vec2_sub(frame_center, mouse_pos);
 	f32 dist = vec2_length(dir);
+
+	// custom hover cursor 
+	if (interaction & ui_interaction_hovered) {
+		// if within ring or tri
+		if (dist < outer_wheel_radius) {
+			os_set_cursor(os_cursor_hand_point);
+		}
+	}
 
 	if (interaction & ui_interaction_left_pressed) {
 		u32 area_clicked = area_clicked_none;
@@ -756,6 +813,7 @@ function ui_interaction
 ui_color_val_bar(str_t label, f32 hue, f32 sat, f32* val) {
 
 	// build frame and set draw data
+	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_dark;
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
@@ -1782,6 +1840,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 	frame->pref_height = ui_top_pref_height();
 	frame->text_alignment = ui_top_text_alignment();
 	frame->text_padding = ui_top_text_padding();
+	frame->hover_cursor = ui_top_hover_cursor();
 	frame->layout_axis = ui_top_layout_axis();
 	frame->rounding.x = ui_top_rounding_00();
 	frame->rounding.y = ui_top_rounding_01();
@@ -2057,6 +2116,7 @@ ui_auto_pop_stacks() {
 	ui_stack_auto_pop_impl(pref_height);
 	ui_stack_auto_pop_impl(text_alignment);
 	ui_stack_auto_pop_impl(text_padding);
+	ui_stack_auto_pop_impl(hover_cursor);
 	ui_stack_auto_pop_impl(layout_axis);
 	ui_stack_auto_pop_impl(rounding_00);
 	ui_stack_auto_pop_impl(rounding_01);
@@ -2079,6 +2139,7 @@ ui_stack_impl(pref_width, ui_size_t)
 ui_stack_impl(pref_height, ui_size_t)
 ui_stack_impl(text_alignment, ui_text_alignment)
 ui_stack_impl(text_padding, f32)
+ui_stack_impl(hover_cursor, os_cursor)
 ui_stack_impl(layout_axis, ui_layout_axis)
 ui_stack_impl(rounding_00, f32)
 ui_stack_impl(rounding_01, f32)

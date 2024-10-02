@@ -111,11 +111,11 @@ app_update_and_render() {
 			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
 			//ui_labelf("gfx_batches: %u", gfx_state.batch_count);
 		}
-		
-		// buttons
-		persist b8 button_group = false;
-		ui_expander(str("Button Widgets"), &button_group);
-		if (button_group) {
+
+		// basic widgets
+		persist b8 basic_widgets_group = true;
+		ui_expander(str("Basic Widgets"), &basic_widgets_group);
+		if (basic_widgets_group) {
 			ui_button(str("Button##1"));
 		
 			ui_set_next_text_alignment(ui_text_alignment_center);
@@ -129,9 +129,9 @@ app_update_and_render() {
 		}
 
 		// sliders
-		persist b8 slider_group = false;
-		ui_expander(str("Slider Widgets"), &slider_group);
-		if (slider_group) {
+		persist b8 slider_widget_group = false;
+		ui_expander(str("Slider Widgets"), &slider_widget_group);
+		if (slider_widget_group) {
 
 			persist f32 slider_1_value = 0.75f;
 			ui_slider(str("Slider"), &slider_1_value, 0.0f, 1.0f);
@@ -205,18 +205,18 @@ app_update_and_render() {
 		ui_pop_pref_width();
 		ui_pop_pref_height();
 
-		persist vec2_t pos = vec2(300.0f, 150.0f);
-		ui_set_next_fixed_x(pos.x);
-		ui_set_next_fixed_y(pos.y);
-		ui_set_next_pref_width(ui_size_pixel(100.0f, 1.0f));
-		ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
-		ui_frame_t* frame = ui_frame_from_string(str("node"), ui_frame_flag_floating | ui_frame_flag_draw | ui_frame_flag_clickable);
+		// custom movable widget
+		persist vec2_t position = vec2(300.0f, 50.0f);
+		ui_set_next_fixed_x(position.x);
+		ui_set_next_fixed_y(position.y);
+		ui_set_next_pref_width(ui_size_pixel(150.0f, 1.0f));
+		ui_set_next_pref_height(ui_size_pixel(20.0f, 1.0f));
+		ui_frame_t* frame = ui_frame_from_string(str("widget"), ui_frame_flag_draw | ui_frame_flag_clickable | ui_frame_flag_floating);
 		ui_interaction interaction = ui_frame_interaction(frame);
 		if (interaction & ui_interaction_left_dragging) {
-			pos = vec2_add(pos, window->mouse_delta);
+			position = vec2_add(position, window->mouse_delta);
 		}
 		
-
 		ui_end_frame();
 	}
 

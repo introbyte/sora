@@ -31,6 +31,17 @@ os_init() {
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	RegisterClassA(&window_class);
 	
+	// load cursors
+	os_state.cursors[os_cursor_pointer] = LoadCursorA(NULL, IDC_ARROW);
+	os_state.cursors[os_cursor_I_beam] = LoadCursorA(NULL, IDC_IBEAM);
+	os_state.cursors[os_cursor_resize_EW] = LoadCursorA(NULL, IDC_SIZEWE);
+	os_state.cursors[os_cursor_resize_NS] = LoadCursorA(NULL, IDC_SIZENS);
+	os_state.cursors[os_cursor_resize_NWSE] = LoadCursorA(NULL, IDC_SIZENWSE);
+	os_state.cursors[os_cursor_resize_NESW] = LoadCursorA(NULL, IDC_SIZENESW);
+	os_state.cursors[os_cursor_resize_all] = LoadCursorA(NULL, IDC_SIZEALL);
+	os_state.cursors[os_cursor_hand_point] = LoadCursorA(NULL, IDC_HAND);
+	os_state.cursors[os_cursor_disabled] = LoadCursorA(NULL, IDC_NO);
+
 }
 
 function void 
@@ -93,6 +104,12 @@ os_abort(u32 exit_code) {
 	// TODO: write to log
 	// exit
 	ExitProcess(exit_code);
+}
+
+function void
+os_set_cursor(os_cursor cursor) {
+	HCURSOR hcursor = os_state.cursors[cursor];
+	SetCursor(hcursor);
 }
 
 
@@ -336,6 +353,11 @@ os_window_set_resize_function(os_window_t* window, os_window_resize_func* func) 
 function void 
 os_window_set_close_function(os_window_t* window, os_window_close_func* func) {
 	window->close_function = func;
+}
+
+function u32
+os_window_get_dpi(os_window_t* window) {
+	return GetDpiForWindow(window->handle);
 }
 
 // memory functions

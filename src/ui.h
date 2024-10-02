@@ -9,19 +9,20 @@
 // [x] - more frame customization (corners).
 //     [x] - text padding.
 //     [x] - individual corner rounding.
-// [~] - basic widgets. 
+// [x] - basic widgets. 
 //     [x] - button.
 //     [x] - label.
-//     [ ] - checkbox.
+//     [x] - checkbox.
 //     [x] - expander.
 //     [x] - slider.
 //     [x] - sat/val picker.
 //     [~] - color wheel.
 // [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
 // [x] - icon rendering.
-// [ ] - look into depth ordering. maybe come up with something better.
-// [ ] - render more things
-//     [ ] - bezier curves.
+// [x] - look into depth ordering. maybe come up with something better.
+// [x] - render more things
+//     [x] - bezier curves.
+// [ ] - change mouse cursor on hover.
 // [ ] - more ui events.
 //     [~] - scrolling.
 //     [ ] - keyboard.
@@ -135,6 +136,8 @@ enum {
 
 	ui_frame_flag_overflow_x = (1 << 20),
 	ui_frame_flag_overflow_y = (1 << 21),
+
+	ui_frame_flag_custom_hover_cursor = (1 << 22),
 
 	ui_frame_flag_draw =
 		ui_frame_flag_draw_text | ui_frame_flag_draw_background_dark |
@@ -282,6 +285,7 @@ struct ui_frame_t {
 	ui_size_t pref_height;
 	ui_text_alignment text_alignment;
 	f32 text_padding;
+	os_cursor hover_cursor;
 	ui_layout_axis layout_axis;
 	vec4_t rounding;
 	ui_palette_t* palette;
@@ -329,6 +333,7 @@ ui_stack_node_decl(pref_width, ui_size_t)
 ui_stack_node_decl(pref_height, ui_size_t)
 ui_stack_node_decl(text_alignment, ui_text_alignment)
 ui_stack_node_decl(text_padding, f32)
+ui_stack_node_decl(hover_cursor, os_cursor)
 ui_stack_node_decl(layout_axis, ui_layout_axis)
 ui_stack_node_decl(rounding_00, f32)
 ui_stack_node_decl(rounding_01, f32)
@@ -394,6 +399,7 @@ struct ui_state_t {
 	ui_stack_decl_default(pref_height);
 	ui_stack_decl_default(text_alignment);
 	ui_stack_decl_default(text_padding);
+	ui_stack_decl_default(hover_cursor);
 	ui_stack_decl_default(layout_axis);
 	ui_stack_decl_default(rounding_00);
 	ui_stack_decl_default(rounding_01);
@@ -415,6 +421,7 @@ struct ui_state_t {
 	ui_stack_decl(pref_height);
 	ui_stack_decl(text_alignment);
 	ui_stack_decl(text_padding);
+	ui_stack_decl(hover_cursor);
 	ui_stack_decl(layout_axis);
 	ui_stack_decl(rounding_00);
 	ui_stack_decl(rounding_01);
@@ -539,6 +546,7 @@ ui_stack_func(pref_width, ui_size_t)
 ui_stack_func(pref_height, ui_size_t)
 ui_stack_func(text_alignment, ui_text_alignment)
 ui_stack_func(text_padding, f32)
+ui_stack_func(hover_cursor, os_cursor)
 ui_stack_func(layout_axis, ui_layout_axis)
 ui_stack_func(rounding_00, f32)
 ui_stack_func(rounding_01, f32)
