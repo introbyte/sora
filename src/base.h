@@ -138,6 +138,14 @@ struct vec2_t {
 	f32 x, y;
 };
 
+struct ivec2_t {
+	i32 x, y;
+};
+
+struct uvec2_t {
+	u32 x, y;
+};
+
 struct vec3_t {
 	f32 x, y, z;
 };
@@ -204,6 +212,7 @@ function u16 utf16_encode(codepoint_t);
 // str
 function str_t str(char*);
 function str_t str(char*, u32);
+function str_t str_copy(arena_t*, str_t);
 function str_t str_substr(str_t, u32, u32);
 function str_t str_range(u8*, u8*);
 function str_t str_skip(str_t, u32);
@@ -257,6 +266,14 @@ function f32 vec2_to_angle(vec2_t);
 function vec2_t vec2_from_angle(f32, f32 = 1);
 function vec2_t vec2_rotate(vec2_t, f32);
 function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
+
+// ivec2
+function ivec2_t ivec2(i32);
+function ivec2_t ivec2(i32, i32);
+
+// uvec2
+function uvec2_t uvec2(u32);
+function uvec2_t uvec2(u32, u32);
 
 // vec3
 

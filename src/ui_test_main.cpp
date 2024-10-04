@@ -6,11 +6,13 @@
 #include "os.h"
 #include "gfx.h"
 #include "ui.h"
+#include "node.h"
 
 #include "base.cpp"
 #include "os.cpp"
 #include "gfx.cpp"
 #include "ui.cpp"
+#include "node.cpp"
 
 struct frame_stats_t {
 	f32 dt;
@@ -92,15 +94,24 @@ app_update_and_render() {
 		if (os_key_release(window, os_key_F11)) {
 			os_window_fullscreen(window);
 		}
-
+		
 	}
 
 	// render
 	{
+		persist char buffer[128] = "Hello World this is a textbox";
+		persist u32 string_size = 29;
+		persist b8 basic_widgets_group = true;
+		persist b8 slider_widget_group = false;
+		persist b8 color_picker_group = false;
+		persist b8 checkbox_value = false;
+		persist f32 slider_1_value = 0.75f;
+		persist color_t hsv_col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
+
 
 		ui_begin_frame(renderer);
 
-		ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
+		ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
 		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
 		// frame stats
@@ -109,11 +120,11 @@ app_update_and_render() {
 			ui_labelf("min: %.2f ms", frame_stats.min);
 			ui_labelf("max: %.2f ms", frame_stats.max);
 			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
-			//ui_labelf("gfx_batches: %u", gfx_state.batch_count);
 		}
 
+		ui_text_edit(str("text_edit"), buffer, 128, &string_size);
+
 		// basic widgets
-		persist b8 basic_widgets_group = true;
 		ui_expander(str("Basic Widgets"), &basic_widgets_group);
 		if (basic_widgets_group) {
 			ui_button(str("Button##1"));
@@ -124,23 +135,15 @@ app_update_and_render() {
 			ui_set_next_text_alignment(ui_text_alignment_right);
 			ui_button(str("Button##3"));
 
-			persist b8 checkbox_value = false;
 			ui_checkbox(str("Checkbox"), &checkbox_value);
 		}
 
 		// sliders
-		persist b8 slider_widget_group = false;
 		ui_expander(str("Slider Widgets"), &slider_widget_group);
 		if (slider_widget_group) {
-
-			persist f32 slider_1_value = 0.75f;
 			ui_slider(str("Slider"), &slider_1_value, 0.0f, 1.0f);
-
 		}
 
-		persist color_t hsv_col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
-
-		persist b8 color_picker_group = false;
 		ui_expander(str("Color Picker Widgets"), &color_picker_group);
 		if (color_picker_group) {
 			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
@@ -205,18 +208,6 @@ app_update_and_render() {
 		ui_pop_pref_width();
 		ui_pop_pref_height();
 
-		// custom movable widget
-		persist vec2_t position = vec2(300.0f, 50.0f);
-		ui_set_next_fixed_x(position.x);
-		ui_set_next_fixed_y(position.y);
-		ui_set_next_pref_width(ui_size_pixel(150.0f, 1.0f));
-		ui_set_next_pref_height(ui_size_pixel(20.0f, 1.0f));
-		ui_frame_t* frame = ui_frame_from_string(str("widget"), ui_frame_flag_draw | ui_frame_flag_clickable | ui_frame_flag_floating);
-		ui_interaction interaction = ui_frame_interaction(frame);
-		if (interaction & ui_interaction_left_dragging) {
-			position = vec2_add(position, window->mouse_delta);
-		}
-		
 		ui_end_frame();
 	}
 
@@ -227,8 +218,6 @@ app_release() {
 
 }
 
-
-
 function i32
 app_entry_point(i32 argc, char** argv) {
 
@@ -236,7 +225,7 @@ app_entry_point(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 	ui_init();
-	
+
 	// create contexts
 	window = os_window_open(str("sora ui test"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x303030ff), 1);
@@ -249,7 +238,6 @@ app_entry_point(i32 argc, char** argv) {
 		os_update();
 		gfx_renderer_begin_frame(renderer);
 		app_update_and_render();
-
 		gfx_renderer_end_frame(renderer);
 	}
 

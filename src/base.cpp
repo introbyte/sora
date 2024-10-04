@@ -308,6 +308,14 @@ str(char* cstr, u32 size) {
 	return string;
 }
 
+function str_t 
+str_copy(arena_t* arena, str_t string) {
+	char* data = (char*)arena_alloc(arena, sizeof(char) * string.size);
+	memcpy(data, string.data, sizeof(char) * string.size);
+	str_t result = str(data, string.size);
+	return result;
+}
+
 function str_t
 str_substr(str_t string, u32 min_pos, u32 max_pos) {
 	u32 min = min_pos;
@@ -749,11 +757,38 @@ vec2_lerp(vec2_t a, vec2_t b, f32 t) {
 	return { lerp(a.x, b.x, t), lerp(a.y, b.y, t) };
 }
 
+// ivec2
+function ivec2_t 
+ivec2(i32 v = 0) {
+	return { v, v };
+}
+
+function ivec2_t 
+ivec2(i32 x, i32 y) {
+	return { x, y };
+}
+
+// uvec2
+function uvec2_t 
+uvec2(u32 v = 0) {
+	return { v, v };
+}
+
+function uvec2_t 
+uvec2(u32 x, u32 y) {
+	return { x, y };
+}
+
+
+
+
+
+
 // vec3
 
 function vec3_t
 vec3(f32 a = 0.0f) {
-	return {a, a, a };
+	return { a, a, a };
 }
 
 function vec3_t

@@ -209,7 +209,7 @@ struct gfx_text_params_t {
 	f32 font_size;
 };
 
-struct gfx_disk_params_t {
+struct gfx_radial_params_t {
 	color_t col0;
 	color_t col1;
 	color_t col2;
@@ -247,7 +247,7 @@ struct gfx_line_instance_t {
 	vec4_t style; // (thickness, softness, unused, unused)
 };
 
-struct gfx_disk_instance_t {
+struct gfx_radial_instance_t {
 	rect_t pos;
 	vec4_t col0;
 	vec4_t col1;
@@ -429,7 +429,7 @@ function void gfx_draw_quad(rect_t, gfx_quad_params_t);
 function void gfx_draw_line(vec2_t, vec2_t, gfx_line_params_t);
 function void gfx_draw_text(str_t, vec2_t, gfx_text_params_t);
 function void gfx_draw_text(str16_t, vec2_t, gfx_text_params_t);
-function void gfx_draw_disk(vec2_t, f32, f32, f32, gfx_disk_params_t);
+function void gfx_draw_radial(vec2_t, f32, f32, f32, gfx_radial_params_t);
 function void gfx_draw_tri(vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
 function void gfx_draw_bezier(vec2_t, vec2_t, vec2_t, vec2_t, gfx_line_params_t);
 
@@ -443,7 +443,7 @@ function gfx_batch_array_t gfx_batch_list_to_batch_array(gfx_batch_list_t);
 function gfx_quad_params_t gfx_quad_params(color_t, f32, f32, f32);
 function gfx_line_params_t gfx_line_params(color_t, f32, f32);
 function gfx_text_params_t gfx_text_params(color_t, gfx_font_t*, f32);
-function gfx_disk_params_t gfx_disk_params(color_t, f32, f32);
+function gfx_radial_params_t gfx_radial_params(color_t, f32, f32);
 function gfx_tri_params_t gfx_tri_params(color_t, f32, f32);
 
 // buffer

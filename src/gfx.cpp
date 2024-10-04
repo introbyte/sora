@@ -608,17 +608,17 @@ gfx_draw_text(str16_t string, vec2_t pos, gfx_text_params_t params) {
 }
 
 function void
-gfx_draw_disk(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_disk_params_t params) {
+gfx_draw_radial(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_radial_params_t params) {
 
 	// get instance
 	gfx_batch_state_t state;
 	state.shader = gfx_state.disk_shader;
-	state.instance_size = sizeof(gfx_disk_instance_t);
+	state.instance_size = sizeof(gfx_radial_instance_t);
 	state.texture = gfx_top_texture();
 	state.clip_mask = gfx_top_clip();
 	state.depth = gfx_top_depth();
 	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, 1);
-	gfx_disk_instance_t* instance = &((gfx_disk_instance_t*)batch->data)[batch->instance_count++];
+	gfx_radial_instance_t* instance = &((gfx_radial_instance_t*)batch->data)[batch->instance_count++];
 
 	instance->pos = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
 	instance->col0 = params.col0.vec;
@@ -803,9 +803,9 @@ gfx_text_params(color_t color, gfx_font_t* font, f32 font_size) {
 	return params;
 }
 
-function gfx_disk_params_t
-gfx_disk_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
-	gfx_disk_params_t params;
+function gfx_radial_params_t
+gfx_radial_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
+	gfx_radial_params_t params;
 	params.col0 = params.col1 = params.col2 = params.col3 = color;
 	params.thickness = thickness;
 	params.softness = softness;

@@ -553,7 +553,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
 			
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_press;
 			event->key = (os_key)key;
@@ -563,7 +563,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_SYSKEYUP:
 		case WM_KEYUP: {
 			u32 key = (u32)wparam;
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_release;
 			event->key = (os_key)key;
@@ -573,7 +573,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_MOUSEMOVE: {
 			//f32 mouse_x = (f32)LOWORD(lparam);
 			//f32 mouse_y = (f32)HIWORD(lparam);
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_move;
 			//event->position = { mouse_x, mouse_y };
@@ -587,7 +587,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			if (key == '\r') { key = '\n'; }
 
 			if ((key >= 32 && key != 127) || key == '\t' || key == '\n') {
-				event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+				event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 				event->window = window;
 				event->type = os_event_type_text;
 				event->character = key;
@@ -598,7 +598,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_MOUSEWHEEL: {
 			f32 delta = (f32)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_scroll;
 			event->scroll = { 0.0f, delta };
@@ -609,7 +609,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_RBUTTONDOWN:
 		case WM_MBUTTONDOWN: {
 			SetCapture(handle);
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_press;
 			event->mouse = os_mouse_button_left;
@@ -624,7 +624,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_RBUTTONUP:
 		case WM_MBUTTONUP: {
 			ReleaseCapture();
-			event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_release;
 			event->mouse = os_mouse_button_left;

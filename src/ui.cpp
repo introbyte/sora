@@ -22,11 +22,54 @@ ui_init() {
 	// create arenas
 	ui_state.frame_arena = arena_create(gigabytes(1));
 	ui_state.per_frame_arena = arena_create(gigabytes(1));
+	ui_state.event_arena = arena_create(megabytes(2));
 	ui_state.drag_state_arena = arena_create(megabytes(64));
 	ui_state.scratch_arena = arena_create(megabytes(64));
 
+	// set context to nullptr
 	ui_state.window = nullptr;
 	ui_state.renderer = nullptr;
+
+	// set event bindings
+	// no clue if this is a decent way of doing this, but don't care because it works.
+	ui_state.event_bindings[0] =  { os_key_left,      0, ui_event_type_navigate, 0, ui_event_delta_unit_char, {-1,  0 } };
+	ui_state.event_bindings[1] =  { os_key_right,     0, ui_event_type_navigate, 0, ui_event_delta_unit_char, {+1,  0 } };
+	ui_state.event_bindings[2] =  { os_key_up,        0, ui_event_type_navigate, 0, ui_event_delta_unit_char, { 0, -1 } };
+	ui_state.event_bindings[3] =  { os_key_down,      0, ui_event_type_navigate, 0, ui_event_delta_unit_char, { 0, +1 } };
+												      
+	ui_state.event_bindings[4] =  { os_key_left,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, {-1,  0 } };
+	ui_state.event_bindings[5] =  { os_key_right,     os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, {+1,  0 } };
+	ui_state.event_bindings[6] =  { os_key_up,        os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, { 0, -1 } };
+	ui_state.event_bindings[7] =  { os_key_down,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, { 0, +1 } };
+												      
+	ui_state.event_bindings[8] =  { os_key_left,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, {-1,  0 } };
+	ui_state.event_bindings[9] =  { os_key_right,     os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, {+1,  0 } };
+	ui_state.event_bindings[10] = { os_key_up,        os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, { 0, -1 } };
+	ui_state.event_bindings[11] = { os_key_down,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, { 0, +1 } };
+												      
+	ui_state.event_bindings[12] = { os_key_left,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, {-1,  0 } };
+	ui_state.event_bindings[13] = { os_key_right,     os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, {+1,  0 } };
+	ui_state.event_bindings[14] = { os_key_up,        os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, { 0, -1 } };
+	ui_state.event_bindings[15] = { os_key_down,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, { 0, +1 } };
+												      
+	ui_state.event_bindings[16] = { os_key_home,      0, ui_event_type_navigate, 0, ui_event_delta_unit_line, { -1, 0 } };
+	ui_state.event_bindings[17] = { os_key_end,       0, ui_event_type_navigate, 0, ui_event_delta_unit_line, { +1, 0 } };
+	ui_state.event_bindings[18] = { os_key_home,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_line, { -1, 0 } };
+	ui_state.event_bindings[19] = { os_key_end,       os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_line, { +1, 0 } };
+												      
+	ui_state.event_bindings[20] = { os_key_home,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_whole, { -1, 0 } };
+	ui_state.event_bindings[21] = { os_key_end,       os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_whole, { +1, 0 } };
+	ui_state.event_bindings[22] = { os_key_home,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_whole, { -1, 0 } };
+	ui_state.event_bindings[23] = { os_key_end,       os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_whole, { +1, 0 } };
+
+	ui_state.event_bindings[24] = { os_key_delete,    0, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { +1, 0 } };
+	ui_state.event_bindings[25] = { os_key_backspace, 0, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { -1, 0 } };
+	ui_state.event_bindings[26] = { os_key_delete,    os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { +1, 0 } };
+	ui_state.event_bindings[27] = { os_key_backspace, os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { -1, 0 } };
+
+	// text point
+	ui_state.cursor = { 1, 1 };
+	ui_state.mark = { 1, 1 };
 
 	// default resources
 	ui_state.default_palette.dark_background = color(0x282828ff);
@@ -37,7 +80,7 @@ ui_init() {
 	ui_state.default_palette.hover = color(0x151515ff);
 	ui_state.default_palette.active = color(0x151515ff);
 	ui_state.default_palette.text = color(0xe2e2e2ff);
-	ui_state.default_palette.accent = color(0x38BAD780); // blue
+	ui_state.default_palette.accent = color(0x5bd9ffff); // blue
 
 	ui_state.default_texture = gfx_state.default_texture;
 	ui_state.default_font = gfx_font_load(str("res/fonts/segoe_ui.ttf"));
@@ -64,6 +107,15 @@ ui_init() {
 	ui_default_init(texture, ui_state.default_texture);
 	ui_default_init(font, ui_state.default_font);
 	ui_default_init(font_size, 9.0f);
+	ui_default_init(focus_hot, ui_focus_type_null);
+	ui_default_init(focus_active, ui_focus_type_null);
+
+	// set keys to zero
+	ui_state.hovered_frame_key = { 0 };
+	ui_state.active_frame_key[0] = {0};
+	ui_state.active_frame_key[1] = {0};
+	ui_state.active_frame_key[2] = {0};
+	ui_state.focused_frame_key = { 0 };
 
 	// build state
 	ui_state.build_index = 0;
@@ -81,6 +133,7 @@ ui_release() {
 	// release arenas
 	arena_release(ui_state.frame_arena);
 	arena_release(ui_state.per_frame_arena);
+	arena_release(ui_state.event_arena);
 	arena_release(ui_state.drag_state_arena);
 	arena_release(ui_state.scratch_arena);
 
@@ -93,16 +146,68 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_state.window = renderer->window;
 	ui_state.renderer = renderer;
 
-	// set input
-	ui_state.mouse_pos = ui_state.window->mouse_pos;
-	ui_state.mouse_delta = ui_state.window->mouse_delta;
-
 	// clear arenas
 	arena_clear(ui_state.per_frame_arena);
+	arena_clear(ui_state.event_arena);
 	arena_clear(ui_state.scratch_arena);
 
 	// reset event list
 	ui_state.event_list = { 0 };
+
+	// gather events
+	for (os_event_t* os_event = os_state.event_list.first; os_event != 0; os_event = os_event->next) {
+		ui_event_t ui_event = { 0 };
+
+		// start with default
+		ui_event.type = ui_event_type_null;
+		ui_event.flags = 0;
+		ui_event.delta_unit = ui_event_delta_unit_null;
+		ui_event.key = os_event->key;
+		ui_event.mouse = os_event->mouse;
+		ui_event.modifiers = os_event->modifiers;
+		ui_event.character = os_event->character;
+		ui_event.position = os_event->position;
+		ui_event.scroll = os_event->scroll;
+		ui_event.delta = ivec2(0);
+
+		if (os_event->type != 0 && os_event->window == ui_state.window) {
+
+			switch (os_event->type) {
+
+				// key pressed
+				case os_event_type_key_press:
+				{
+					ui_event.type = ui_event_type_key_press;
+
+					// check for bindings
+					ui_event_binding_t* binding = ui_event_get_binding(os_event->key, os_event->modifiers);
+
+					if (binding != nullptr) {
+						ui_event.type = binding->result_type;
+						ui_event.flags = binding->result_flags;
+						ui_event.delta_unit = binding->result_delta_unit;
+						ui_event.delta = binding->result_delta;
+					}
+
+					break;
+				}
+
+				case os_event_type_key_release: { ui_event.type = ui_event_type_key_release; break; }
+				case os_event_type_mouse_press: { ui_event.type = ui_event_type_mouse_press; break; }
+				case os_event_type_mouse_release: { ui_event.type = ui_event_type_mouse_release; break; }
+				case os_event_type_mouse_move: { ui_event.type = ui_event_type_mouse_move; break; }
+				case os_event_type_text: { ui_event.type = ui_event_type_text; break; }
+				case os_event_type_mouse_scroll: { ui_event.type = ui_event_type_mouse_scroll; break; }
+			}
+
+			ui_event_push(&ui_event);
+		}
+
+	}
+
+	// set input
+	ui_state.mouse_pos = ui_state.window->mouse_pos;
+	ui_state.mouse_delta = ui_state.window->mouse_delta;
 
 	// reset stacks
 	ui_stack_reset(parent);
@@ -125,6 +230,17 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_stack_reset(texture);
 	ui_stack_reset(font);
 	ui_stack_reset(font_size);
+	ui_stack_reset(focus_hot);
+	ui_stack_reset(focus_active);
+
+	// do navigation
+
+
+	// set to next nav keys
+	for (ui_frame_t* frame = ui_state.frame_first; frame != nullptr; frame = frame->hash_next) {
+		frame->nav_focus_hot_key = frame->nav_focus_next_hot_key;
+		frame->nav_focus_active_key = frame->nav_focus_next_active_key;
+	}
 
 	// add root frame
 	str_t root_string = str_format(ui_state.scratch_arena, "%.*s_root_frame", ui_state.window->title.size, ui_state.window->title.data);
@@ -134,7 +250,6 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
 	ui_state.root = frame;
 	ui_push_parent(frame);
-	
 
 	// reset hovered key
 	b8 has_active = false;
@@ -145,36 +260,6 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	}
 	if (!has_active) {
 		ui_state.hovered_frame_key = { 0 };
-	}
-
-	// gather events
-	for (os_event_t* os_event = os_state.event_list.first; os_event != 0; os_event = os_event->next) {
-		ui_event_t ui_event = { 0 };
-		ui_event_type type = ui_event_type_null;
-
-		if (os_event->type != 0 && os_event->window == ui_state.window) {
-
-			switch (os_event->type) {
-				case os_event_type_key_press: { type = ui_event_type_key_press; break; }
-				case os_event_type_key_release: { type = ui_event_type_key_release; break; }
-				case os_event_type_mouse_press: { type = ui_event_type_mouse_press; break; }
-				case os_event_type_mouse_release: { type = ui_event_type_mouse_release; break; }
-				case os_event_type_mouse_move: { type = ui_event_type_mouse_move; break; }
-				case os_event_type_text: { type = ui_event_type_text; break; }
-				case os_event_type_mouse_scroll: { type = ui_event_type_mouse_scroll; break; }
-			}
-
-			ui_event.type = type;
-			ui_event.key = os_event->key;
-			ui_event.mouse = os_event->mouse;
-			ui_event.modifiers = os_event->modifiers;
-			ui_event.character = os_event->character;
-			ui_event.position = os_event->position;
-			ui_event.scroll = os_event->scroll;
-
-			ui_event_push(&ui_event);
-		}
-		
 	}
 
 	ui_state.build_index++;
@@ -193,6 +278,13 @@ ui_end_frame() {
 		}
 	}
 
+	// remove focus
+	for (ui_event_t* event = ui_state.event_list.first; event != nullptr; event = event->next) {
+		if (event->type == ui_event_type_mouse_release) {
+			ui_state.focused_frame_key = { 0 };
+		}
+	}
+
 	// layout pass
 	ui_layout_solve_independent(ui_state.root);
 	ui_layout_solve_upward_dependent(ui_state.root);
@@ -201,25 +293,32 @@ ui_end_frame() {
 	ui_layout_solve_set_positions(ui_state.root);
 
 	// animate
-	f32 fast_rate = 1.0f - powf(2.0f, -50.0f * ui_state.window->delta_time);
-	f32 slow_rate = 1.0f - powf(2.0f, -30.0f * ui_state.window->delta_time);
-	for (ui_frame_t* frame = ui_state.frame_first; frame != 0; frame = frame->hash_next) {
-		b8 is_hovered = ui_key_equals(frame->key, ui_state.hovered_frame_key);
-		b8 is_active = ui_key_equals(frame->key, ui_state.active_frame_key[os_mouse_button_left]);
+	{
+		// animate frames
+		f32 fast_rate = 1.0f - powf(2.0f, -50.0f * ui_state.window->delta_time);
+		f32 slow_rate = 1.0f - powf(2.0f, -30.0f * ui_state.window->delta_time);
+		for (ui_frame_t* frame = ui_state.frame_first; frame != 0; frame = frame->hash_next) {
+			b8 is_hovered = ui_key_equals(frame->key, ui_state.hovered_frame_key);
+			b8 is_active = ui_key_equals(frame->key, ui_state.active_frame_key[os_mouse_button_left]);
 
-		frame->hover_t += fast_rate * ((f32)is_hovered - frame->hover_t);
-		frame->active_t += fast_rate * ((f32)is_active - frame->active_t);
+			frame->hover_t += fast_rate * ((f32)is_hovered - frame->hover_t);
+			frame->active_t += fast_rate * ((f32)is_active - frame->active_t);
 
-		if (frame->flags & ui_frame_flag_view_clamp) {
-			vec2_t max_view_offset_target = vec2(
-				max(0.0f, frame->view_bounds.x - frame->fixed_size.x),
-				max(0.0f, frame->view_bounds.y - frame->fixed_size.y)
-			);
-			if (frame->flags & ui_frame_flag_view_clamp_x) { frame->view_offset_target.x = clamp(frame->view_offset_target.x, 0.0f, max_view_offset_target.x); }
-			if (frame->flags & ui_frame_flag_view_clamp_y) { frame->view_offset_target.y = clamp(frame->view_offset_target.y, 0.0f, max_view_offset_target.y); }
+			if (frame->flags & ui_frame_flag_view_clamp) {
+				vec2_t max_view_offset_target = vec2(
+					max(0.0f, frame->view_bounds.x - frame->fixed_size.x),
+					max(0.0f, frame->view_bounds.y - frame->fixed_size.y)
+				);
+				if (frame->flags & ui_frame_flag_view_clamp_x) { frame->view_offset_target.x = clamp(frame->view_offset_target.x, 0.0f, max_view_offset_target.x); }
+				if (frame->flags & ui_frame_flag_view_clamp_y) { frame->view_offset_target.y = clamp(frame->view_offset_target.y, 0.0f, max_view_offset_target.y); }
+			}
+
+			frame->view_offset_target = vec2_add(frame->view_offset_target, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), fast_rate));
 		}
 
-		frame->view_offset_target = vec2_add(frame->view_offset_target, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), fast_rate));
+		// animate cursor
+		ui_state.cursor_pos.x += (ui_state.cursor_target_pos.x - ui_state.cursor_pos.x) * fast_rate;
+		ui_state.mark_pos.x += (ui_state.mark_target_pos.x - ui_state.mark_pos.x) * fast_rate;
 	}
 
 	// hover cursor
@@ -234,7 +333,6 @@ ui_end_frame() {
 		}
 
 	}
-
 	
 	// draw
 	gfx_renderer_t* renderer = ui_state.renderer;
@@ -248,7 +346,7 @@ ui_end_frame() {
 
 		// set depth
 		frame->depth = depth;
-		gfx_push_depth(depth);
+		gfx_push_depth(frame->depth);
 
 		// grab frame info
 		ui_palette_t* palette = frame->palette;
@@ -296,13 +394,22 @@ ui_end_frame() {
 
 		// border
 		if (frame->flags & (ui_frame_flag_draw_border_light | ui_frame_flag_draw_border_dark)) {
-			gfx_push_depth(depth + 1);
+			gfx_push_depth(frame->depth + 1);
 			gfx_quad_params_t border_params = gfx_quad_params(border_color, 0.0f, 1.0f);
 			border_params.radii = frame->rounding;
 			gfx_draw_quad(frame->rect, border_params);
 			gfx_pop_depth();
 		}
 		
+		// debug focus
+		if (ui_key_equals(ui_state.focused_frame_key, frame->key) && !frame->is_transient) {
+			gfx_push_depth(frame->depth + 1);
+			gfx_quad_params_t border_params = gfx_quad_params(color(0xffff78ff), 0.0f, 1.0f);
+			border_params.radii = frame->rounding;
+			gfx_draw_quad(frame->rect, border_params);
+			gfx_pop_depth();
+		}
+
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
 			rect_t top_clip = gfx_top_clip();
@@ -346,7 +453,7 @@ ui_end_frame() {
 
 			// TODO: truncate text if too long.
 			// make text appear in front
-			gfx_push_depth(depth + 1);
+			gfx_push_depth(frame->depth + 1);
 			{
 				// text shadow
 				gfx_text_params_t shadow_params = gfx_text_params(palette->shadow, frame->font, frame->font_size);
@@ -370,7 +477,7 @@ ui_end_frame() {
 		if (0) {
 
 			if (!frame->is_transient) {
-				gfx_push_depth(depth + 5);
+				gfx_push_depth(frame->depth + 5);
 				// draw rect
 				gfx_quad_params_t quad_params = gfx_quad_params(color(0xff1515ff), 0.0f, 1.0f, 0.0f);
 				gfx_draw_quad(frame->rect, quad_params);
@@ -834,6 +941,89 @@ ui_color_val_bar(str_t label, f32 hue, f32 sat, f32* val) {
 	return interaction;
 }
 
+function ui_interaction
+ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
+
+	ui_key_t key = ui_key_from_string({0}, label);
+	ui_frame_flags flags =
+		ui_frame_flag_draw_text | 
+		ui_frame_flag_draw_shadow | 
+		ui_frame_flag_draw_background_dark |
+		ui_frame_flag_draw_border_dark |
+		ui_frame_flag_clickable;
+
+	// if focused already, don't do hover effects
+	b8 frame_focused = ui_key_equals(ui_state.focused_frame_key, key);
+	if (frame_focused) {
+		flags |= ui_frame_flag_draw_hover_effects;
+	}
+
+	ui_set_next_hover_cursor(os_cursor_I_beam);
+	ui_frame_t* frame = ui_frame_from_key(key, flags);
+	ui_frame_set_custom_draw(frame, ui_text_edit_draw_function, nullptr);
+
+
+	if (frame_focused) {
+
+		// loop through events
+		ui_event_t* next = nullptr;
+		for (ui_event_t* event = ui_state.event_list.first; event != nullptr; event = next) {
+			str_t edit_string = str(buffer, *out_size);
+			next = event->next;
+
+			// skip if not text input events
+			if (event->type != ui_event_type_edit && event->type != ui_event_type_navigate && event->type != ui_event_type_text) {
+				continue;
+			}
+
+			// get text op
+			ui_text_op_t text_op = ui_event_to_text_op(ui_state.scratch_arena, event, edit_string, ui_state.cursor, ui_state.mark);
+
+			// skip if invalid
+			if (text_op.flags & ui_text_op_flag_invalid) {
+				continue;
+			}
+
+			// replace range
+			if (!ui_text_point_equals(text_op.range.min, text_op.range.max) || text_op.replace.size != 0) {
+				if (event->type == ui_event_type_navigate) {
+					printf("range: %d, %d, replace_size: %u\n", text_op.range.min.column, text_op.range.max.column, text_op.replace.size);
+				}
+				str_t new_string = ui_string_replace_range(ui_state.scratch_arena, edit_string, text_op.range, text_op.replace);
+				new_string.size = min(buffer_size, new_string.size);
+				memcpy(buffer, new_string.data, new_string.size);
+				*out_size = new_string.size;
+			}
+
+			// update cursor
+			ui_state.cursor = text_op.cursor;
+			ui_state.mark = text_op.mark;
+
+			// pop event
+			ui_event_pop(event);
+		}
+	}
+
+	frame->string = str(buffer, *out_size);
+
+	ui_interaction interaction = ui_frame_interaction(frame);
+
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t text_align_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		vec2_t rel_pos = vec2_sub(mouse_pos, text_align_pos);
+		u32 index = ui_text_index_from_offset(frame->font, frame->font_size, frame->string, rel_pos.x);
+		if (interaction & ui_interaction_left_pressed) {
+			ui_state.mark.column = index;
+		}
+		ui_state.cursor.column = index;
+	}
+
+
+
+	return interaction;
+}
+
 // widget draw functions
 
 function void 
@@ -845,7 +1035,9 @@ ui_slider_draw_function(ui_frame_t* frame) {
 	rect_t bar_rect = frame->rect;
 	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
 
-	gfx_quad_params_t params = gfx_quad_params(frame->palette->accent);
+	color_t color = frame->palette->accent;
+	color.a = 0.6f;
+	gfx_quad_params_t params = gfx_quad_params(color);
 	params.radii = frame->rounding;
 	gfx_draw_quad(bar_rect, params);
 	
@@ -913,15 +1105,15 @@ ui_color_hue_bar(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(hue_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(hue_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 }
@@ -959,15 +1151,15 @@ ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 	gfx_push_depth(frame->depth + 2);
 	{
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 
@@ -1000,8 +1192,8 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 	// draw hue wheel
 	{
 		// draw shadow
-		gfx_disk_params_t shadow_params = gfx_disk_params(frame->palette->shadow, wheel_radius * 0.15f);
-		gfx_draw_disk(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+		gfx_radial_params_t shadow_params = gfx_radial_params(frame->palette->shadow, wheel_radius * 0.15f);
+		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
 
 		// draw hue arcs
 		f32 step = 1.0f / 6.0f;
@@ -1016,7 +1208,7 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_disk_params_t disk_params;
+			gfx_radial_params_t disk_params;
 			disk_params.col0 = segments[i + 0];
 			disk_params.col1 = segments[i + 1];
 			disk_params.col2 = segments[i + 0];
@@ -1026,7 +1218,7 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_disk(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle, disk_params);
 		}
 	}
 	
@@ -1055,15 +1247,15 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius - (wheel_thickness * 0.5f)));
 
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(hue_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(hue_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 
@@ -1073,15 +1265,15 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_lerp(vec2_lerp(tri_p1, tri_p0, clamp_01(data->sat)), tri_p2, clamp_01(1.0f - data->val));
 
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 
@@ -1108,8 +1300,8 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 	// draw hue sat circle
 	{
 		// draw shadow
-		gfx_disk_params_t shadow_params = gfx_disk_params(frame->palette->shadow, 0.0f);
-		gfx_draw_disk(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+		gfx_radial_params_t shadow_params = gfx_radial_params(frame->palette->shadow, 0.0f);
+		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
 
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
@@ -1124,7 +1316,7 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_disk_params_t disk_params;
+			gfx_radial_params_t disk_params;
 			disk_params.col0 = color(0xffffffff);
 			disk_params.col1 = color(0xffffffff);
 			disk_params.col2 = segments[i + 0];
@@ -1134,7 +1326,7 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_disk(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle, disk_params);
 		}
 	}
 
@@ -1144,15 +1336,15 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
 
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(hue_sat_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(hue_sat_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 
@@ -1192,19 +1384,72 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		// border
-		gfx_disk_params_t outer_border_params = gfx_disk_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_disk_params_t inner_border_params = gfx_disk_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
 
 		// color
-		gfx_disk_params_t disk_params = gfx_disk_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_disk(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
 	}
 	gfx_pop_depth();
 
 }
+
+function void
+ui_text_edit_draw_function(ui_frame_t* frame) {
+
+	if (ui_key_equals(ui_state.focused_frame_key, frame->key)) {
+		
+		gfx_push_depth(frame->depth + 1);
+
+		// get offsets
+		f32 cursor_offset = ui_text_offset_from_index(frame->font, frame->font_size, frame->string, ui_state.cursor.column);
+		f32 mark_offset = ui_text_offset_from_index(frame->font, frame->font_size, frame->string, ui_state.mark.column);
+		vec2_t text_start = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
+		ui_state.cursor_target_pos.x = cursor_offset;
+		ui_state.mark_target_pos.x = mark_offset;
+
+		// draw cursor
+		gfx_quad_params_t cursor_params = gfx_quad_params(frame->palette->accent, 0.5f, 0.0f);
+
+		f32 left = ui_state.cursor_pos.x;
+		f32 right = cursor_offset;
+		// swap
+		if (left > right) {
+			f32 temp = left;
+			left = right;
+			right = temp;
+		}
+
+		rect_t cursor_rect = rect(
+			frame->rect.x0 + text_start.x + left - 1.0f,
+			frame->rect.y0 + 2.0f,
+			frame->rect.x0 + text_start.x + right + 1.0f,
+			frame->rect.y1 - 2.0f
+		);
+		gfx_draw_quad(cursor_rect, cursor_params);
+
+		// draw mark
+		color_t mark_color = frame->palette->accent;
+		mark_color.a = 0.3f;
+		gfx_quad_params_t mark_params = gfx_quad_params(mark_color, 1.0f, 0.0f);
+		rect_t mark_rect = rect(
+			frame->rect.x0 + text_start.x + cursor_offset, 
+			frame->rect.y0 + 2.0f,
+			frame->rect.x0 + text_start.x + mark_offset + 2.0f,
+			frame->rect.y1 - 2.0f
+		);
+		gfx_draw_quad(mark_rect, mark_params);
+
+		gfx_pop_depth();
+
+	}
+
+}
+
 
 // string functions
 
@@ -1224,6 +1469,51 @@ ui_string_hash_format(str_t string) {
 		string = str_skip(string, pos);
 	}
 	return string;
+}
+
+function str_t 
+ui_string_replace_range(arena_t* arena, str_t string, ui_text_range_t range, str_t replace) {
+
+	// get range
+	i32 min = range.min.column;
+	i32 max = range.max.column;
+
+	// clamp range
+	if (min > string.size) {
+		min = 0;
+	}
+	if (max > string.size) {
+		max = string.size;
+	}
+
+	// calculate new size
+	u32 old_size = string.size;
+	u32 new_size = old_size - (max - min) + replace.size;
+
+	u8* new_string_data = (u8*)arena_alloc(arena, sizeof(u8) * new_size);
+	memcpy(new_string_data, string.data, min);
+	memcpy(new_string_data + min + replace.size, string.data + max, string.size - max);
+	if (replace.data != 0) {
+		memcpy(new_string_data + min, replace.data, replace.size);
+	}
+
+	str_t result = str((char*)new_string_data, new_size);
+	return result;
+}
+
+function i32
+ui_string_find_word_index(str_t string, i32 start_index, i32 delta) {
+
+	if (delta == 1) {
+		while (start_index < string.size && !char_is_whitespace(string.data[start_index])) { start_index++; }
+		while (start_index < string.size && char_is_whitespace(string.data[start_index])) { start_index++; }
+	} else if (delta == -1) {
+		start_index--;
+		while (start_index > 0 && char_is_whitespace(string.data[start_index])) { start_index--; }
+		while (start_index > 0 && !char_is_whitespace(string.data[start_index - 1])) { start_index--; }
+	}
+
+	return start_index;
 }
 
 // key functions
@@ -1329,11 +1619,124 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 
 }
 
+function f32
+ui_text_offset_from_index(gfx_font_t* font, f32 font_size, str_t string, u32 index) {
+	f32 width = 0.0f;
+	for (u32 offset = 0; offset < index; offset++) {
+		char c = *(string.data + offset);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, (u8)c, font_size);
+		width += glyph->advance;
+	}
+	return width;
+}
+
+function u32 
+ui_text_index_from_offset(gfx_font_t* font, f32 font_size, str_t string, f32 offset) {
+	u32 result = 0;
+	f32 advance = 0.0f;
+
+	for (u32 index = 0; index < string.size; index++) {
+		char c = *(string.data + index);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, (u8)c, font_size);
+		if (offset < advance + (glyph->advance * 0.5f)) {
+			result = index;
+			break;
+		}
+		if (offset >= advance + (glyph->advance * 0.5f)) {
+			result = index + 1;
+		}
+		advance += glyph->advance;
+	}
+
+	return result;
+}
+
+// text point
+
+function ui_text_point_t
+ui_text_point(i32 line, i32 column) {
+	return { line, column };
+}
+
+function b8
+ui_text_point_equals(ui_text_point_t a, ui_text_point_t b) {
+	return a.line == b.line && a.column == b.column;
+}
+
+function b8
+ui_text_point_less_than(ui_text_point_t a, ui_text_point_t b) {
+	b8 result = 0;
+	if (a.line < b.line) {
+		result = 1;
+	} else if (a.line == b.line) {
+		result = a.column < b.column;
+	}
+	return result;
+}
+
+function ui_text_point_t
+ui_text_point_min(ui_text_point_t a, ui_text_point_t b) {
+	ui_text_point_t result = b;
+	if (ui_text_point_less_than(a, b)) {
+		result = a;
+	}
+	return result;
+}
+
+function ui_text_point_t
+ui_text_point_max(ui_text_point_t a, ui_text_point_t b) {
+	ui_text_point_t result = a;
+	if (ui_text_point_less_than(a, b)) {
+		result = b;
+	}
+	return result;
+}
+
+// text range
+
+function ui_text_range_t
+ui_text_range(ui_text_point_t min, ui_text_point_t max) {
+	ui_text_range_t range = { 0 };
+	if (ui_text_point_less_than(min, max)) {
+		range.min = min;
+		range.max = max;
+	} else {
+		range.min = max;
+		range.max = min;
+	}
+	return range;
+}
+
+function ui_text_range_t
+ui_text_range_intersects(ui_text_range_t a, ui_text_range_t b) {
+	ui_text_range_t result = { 0 };
+	result.min = ui_text_point_max(a.min, b.min);
+	result.max = ui_text_point_min(a.max, b.max);
+	if (ui_text_point_less_than(result.max, result.min)) {
+		memset(&result, 0, sizeof(ui_text_range_t));
+	}
+	return result;
+}
+
+function ui_text_range_t
+ui_text_range_union(ui_text_range_t a, ui_text_range_t b) {
+	ui_text_range_t result = { 0 };
+	result.min = ui_text_point_min(a.min, b.min);
+	result.max = ui_text_point_max(a.max, b.max);
+	return result;
+}
+
+function b8
+ui_text_range_contains(ui_text_range_t r, ui_text_point_t pt) {
+	b8 result = ((ui_text_point_less_than(r.min, pt) || ui_text_point_equals(r.min, pt)) && ui_text_point_less_than(pt, r.max));
+	return result;
+}
+
 // event functions
 
 function void 
 ui_event_push(ui_event_t* event) {
-	ui_event_t* new_event = (ui_event_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_event_t));
+	ui_event_t* new_event = (ui_event_t*)arena_calloc(ui_state.event_arena, sizeof(ui_event_t));
 	memcpy(new_event, event, sizeof(ui_event_t));
 	dll_push_back(ui_state.event_list.first, ui_state.event_list.last, new_event);
 	ui_state.event_list.count++;
@@ -1343,6 +1746,138 @@ function void
 ui_event_pop(ui_event_t* event) {
 	dll_remove(ui_state.event_list.first, ui_state.event_list.last, event);
 	ui_state.event_list.count--;
+}
+
+function b8 
+ui_key_pressed(os_key key, os_modifiers modifiers) {
+	b8 result = false;
+	for (ui_event_t* event = ui_state.event_list.first; event != nullptr; event = event->next) {
+		if (event->type == ui_event_type_key_press && event->key == key && event->modifiers == modifiers) {
+			result = true;
+			ui_event_pop(event);
+			break;
+		}
+	}
+	return result;
+}
+
+function b8 
+ui_key_released(os_key key, os_modifiers modifiers) {
+	b8 result = false;
+	for (ui_event_t* event = ui_state.event_list.first; event != nullptr; event = event->next) {
+		if (event->type == ui_event_type_key_release && event->key == key && event->modifiers == modifiers) {
+			result = true;
+			ui_event_pop(event);
+			break;
+		}
+	}
+	return result;
+}
+
+function b8 
+ui_text(u32 codepoint) {
+	b8 result = false;
+	for (ui_event_t* event = ui_state.event_list.first; event != nullptr; event = event->next) {
+		if (event->type == ui_event_type_text && event->character == codepoint) {
+			result = true;
+			ui_event_pop(event);
+			break;
+		}
+	}
+	return result;
+}
+
+function ui_event_binding_t* 
+ui_event_get_binding(os_key key, os_modifiers modifiers) {
+
+	for (i32 i = 0; i < 64; i++) {
+		ui_event_binding_t* binding = &ui_state.event_bindings[i];
+
+		if (key == binding->key && modifiers == binding->modifiers) {
+			return binding;
+		}
+	}
+
+	return nullptr;
+}
+
+function ui_text_op_t
+ui_event_to_text_op(arena_t* arena, ui_event_t* event, str_t string, ui_text_point_t cursor, ui_text_point_t mark) {
+
+	ui_text_point_t next_cursor = cursor;
+	ui_text_point_t next_mark = mark;
+	ui_text_range_t range = { 0 };
+	str_t replace = { 0 };
+	str_t copy = { 0 };
+	ivec2_t delta = event->delta;
+	ivec2_t original_delta = delta;
+	ui_text_op_flags flags = 0;
+
+	switch (event->delta_unit) {
+
+		case ui_event_delta_unit_char: {
+			break;
+		}
+
+		case ui_event_delta_unit_word: {
+			i32 dst_index = ui_string_find_word_index(string, cursor.column, (delta.x > 0) ? 1 : -1);
+			delta.x = dst_index - cursor.column;
+			break;
+		}
+
+		case ui_event_delta_unit_line:
+		case ui_event_delta_unit_page:
+		case ui_event_delta_unit_whole: {
+			i32 dst_column = (delta.x > 0) ? (i32)string.size : 0;
+			delta.x = dst_column - cursor.column;
+			break;
+		}
+	}
+	
+	// zero delta
+	if (!ui_text_point_equals(cursor, mark) && (event->flags & ui_event_flag_zero_delta)) {
+		delta = ivec2(0);
+	}
+
+	// push next cursor
+	if (ui_text_point_equals(cursor, mark) || !(event->flags & ui_event_flag_zero_delta)) {
+		next_cursor.column += delta.x;
+	}
+
+	// deletion
+	if (event->flags & ui_event_flag_delete) {
+		ui_text_point_t new_pos = ui_text_point_min(next_cursor, next_mark);
+		range = ui_text_range(next_cursor, next_mark);
+		replace = str("");
+		next_cursor = next_mark = new_pos;
+	}
+	
+	// update mark
+	if (!(event->flags & ui_event_flag_keep_mark)) {
+		next_mark = next_cursor;
+	}
+
+	// insert
+	if (event->character != 0) {
+		range = ui_text_range(cursor, mark);
+		replace = str_copy(arena, str((char*)(&event->character), 1));
+		next_cursor = next_mark = ui_text_point(range.min.line, range.min.column + 1);
+	}
+	
+	if (next_cursor.column > string.size + 1 || 0 > next_cursor.column || event->delta.y != 0) {
+		flags |= ui_text_op_flag_invalid;
+	}
+	next_cursor.column = clamp(next_cursor.column, 0, string.size + replace.size);
+	next_mark.column = clamp(next_mark.column, 0, string.size + replace.size);
+
+	ui_text_op_t text_op = { 0 };
+	text_op.flags = flags;
+	text_op.replace = replace;
+	text_op.copy = copy;
+	text_op.range = range;
+	text_op.cursor = next_cursor;
+	text_op.mark = next_mark;
+	return text_op;
 }
 
 // drag state
@@ -1670,8 +2205,8 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 			child->fixed_position.x = layout_position;
 
 			if (root->layout_axis == ui_layout_axis_x) {
-				layout_position += child->fixed_size.x + 1.0f;
-				bounds += child->fixed_size.x + 1.0f;
+				layout_position += child->fixed_size.x;
+				bounds += child->fixed_size.x;
 			} else {
 				bounds = max(bounds, child->fixed_size.x);
 			}
@@ -1699,8 +2234,8 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 			child->fixed_position.y = layout_position;
 
 			if (root->layout_axis == ui_layout_axis_y) {
-				layout_position += child->fixed_size.y + 1.0f;
-				bounds += child->fixed_size.y + 1.0f;
+				layout_position += child->fixed_size.y;
+				bounds += child->fixed_size.y;
 			} else {
 				bounds = max(bounds, child->fixed_size.y);
 			}
@@ -1917,6 +2452,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 			// we mouse press on the frame
 			if (mouse_in_bounds && event->type == ui_event_type_mouse_press) {
 				ui_state.active_frame_key[event->mouse] = frame->key;
+				ui_state.focused_frame_key = frame->key;
 				result |= ui_interaction_left_pressed << event->mouse;
 				taken = true;
 			}
@@ -2040,6 +2576,17 @@ ui_frame_set_custom_draw(ui_frame_t* frame, ui_frame_custom_draw_func* func, voi
 	frame->flags |= ui_frame_flag_draw_custom;
 }
 
+// frame list
+
+function void 
+ui_frame_list_push(arena_t* arena, ui_frame_list_t* frame_list, ui_frame_t* frame) {
+	ui_frame_node_t* frame_node = (ui_frame_node_t*)arena_alloc(arena, sizeof(ui_frame_node_t));
+	frame_node->frame = frame;
+	dll_push_back(frame_list->first, frame_list->last, frame_node);
+	frame_list->count++;
+}
+
+
 // stack functions
 
 // macro magic >:)
@@ -2126,6 +2673,8 @@ ui_auto_pop_stacks() {
 	ui_stack_auto_pop_impl(texture);
 	ui_stack_auto_pop_impl(font);
 	ui_stack_auto_pop_impl(font_size);
+	ui_stack_auto_pop_impl(focus_hot);
+	ui_stack_auto_pop_impl(focus_active);
 
 }
 
@@ -2149,6 +2698,8 @@ ui_stack_impl(palette, ui_palette_t*)
 ui_stack_impl(texture, gfx_texture_t*)
 ui_stack_impl(font, gfx_font_t*)
 ui_stack_impl(font_size, f32)
+ui_stack_impl(focus_hot, ui_focus_type)
+ui_stack_impl(focus_active, ui_focus_type)
 
 // groups
 function void

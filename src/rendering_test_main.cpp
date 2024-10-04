@@ -127,7 +127,7 @@ app_main(i32 argc, char** argv) {
 
 			vec2_t pos = vec2(50.0f, 270.0f);
 
-			gfx_disk_params_t disk_params;
+			gfx_radial_params_t disk_params;
 			disk_params.col0 = disk_params.col1 = disk_params.col2 = disk_params.col3 = color(0xe16e1cff);
 			disk_params.thickness = 0.0f;
 			disk_params.softness = 0.33f;
