@@ -20,6 +20,10 @@
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
 //         [ ] - mouse controls.
+//     [ ] - tree list.
+//     [ ] - tool tips.
+//     [ ] - list box.
+//     [ ] - combo box.
 // [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
 // [x] - icon rendering.
 // [x] - look into depth ordering. maybe come up with something better.
@@ -27,11 +31,11 @@
 //     [x] - bezier curves.
 // [x] - change mouse cursor on hover.
 // [~] - more ui events.
-//     [~] - scrolling. // done but haven't tested
+//     [x] - scrolling.
 //     [x] - keyboard.
 //     [x] - text ops
 //     [ ] - nagivation. 
-//     [ ] - double and triple click.
+//     [x] - double and triple click.
 // [ ] - frame focusing.
 // [ ] - deal with tabs in fonts correctly.
 // [ ] - better depth sorting.
@@ -371,7 +375,6 @@ struct ui_frame_t {
 
 	// per frame layout
 	rect_t rect;
-	u32 depth;
 	b8 is_transient;
 
 	// persistant data
@@ -460,6 +463,10 @@ struct ui_state_t {
 	// input
 	vec2_t mouse_pos;
 	vec2_t mouse_delta;
+
+	u32 click_counter[3];
+	u64 last_click_time[3];
+	u32 last_click_index[3];
 
 	// text cursor and mark
 	ui_text_point_t cursor;
@@ -599,6 +606,7 @@ function str_t ui_string_display_format(str_t);
 function str_t ui_string_hash_part(str_t);
 function str_t ui_string_replace_range(arena_t*, str_t, ui_text_range_t, str_t);
 function i32   ui_string_find_word_index(str_t, i32, i32);
+function void  ui_string_find_word_boundaries(str_t, i32, i32*, i32*);
 
 // key
 function ui_key_t ui_key_from_string(ui_key_t, str_t);

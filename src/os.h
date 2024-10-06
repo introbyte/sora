@@ -175,8 +175,7 @@ struct os_window_t {
 	str_t title;
 
 	// sizing
-	u32 width;
-	u32 height;
+	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
 
 	// callback functions
@@ -245,11 +244,12 @@ struct os_state_t {
 
 	// time
 	LARGE_INTEGER time_frequency;
+	UINT blink_time;
+	UINT double_click_time;
 
 	// cursor
 	HCURSOR cursors[os_cursor_count];
-
-
+	
 	// log
 	os_file_t log_file;
 
@@ -266,13 +266,8 @@ function void os_release();
 function void os_update();
 function b8 os_any_window_exist();
 function void os_abort(u32);
-
+function u64 os_time_microseconds();
 function void os_set_cursor(os_cursor);
-
-// logs
-
-function void os_log(str_t);
-function void os_logf(char*, ...);
 
 // events
 function void os_event_push(os_event_t*);
@@ -284,7 +279,6 @@ function b8 os_mouse_press(os_window_t*, os_mouse_button, os_modifiers);
 function b8 os_mouse_release(os_window_t*, os_mouse_button, os_modifiers);
 function f32 os_mouse_scroll(os_window_t*);
 function vec2_t os_mouse_move(os_window_t*);
-
 // window
 
 function os_window_t* os_window_open(str_t, u32, u32);

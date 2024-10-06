@@ -6,13 +6,11 @@
 #include "os.h"
 #include "gfx.h"
 #include "ui.h"
-#include "node.h"
 
 #include "base.cpp"
 #include "os.cpp"
 #include "gfx.cpp"
 #include "ui.cpp"
-#include "node.cpp"
 
 struct frame_stats_t {
 	f32 dt;
@@ -101,18 +99,16 @@ app_update_and_render() {
 	{
 		persist char buffer[128] = "Hello World this is a textbox";
 		persist u32 string_size = 29;
-		persist b8 basic_widgets_group = true;
-		persist b8 slider_widget_group = false;
+		persist b8 basic_widgets_group = false;
 		persist b8 color_picker_group = false;
+		persist b8 scroll_group = false;
 		persist b8 checkbox_value = false;
 		persist f32 slider_1_value = 0.75f;
 		persist color_t hsv_col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
-
-
+		
 		ui_begin_frame(renderer);
-
 		ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
-		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+		ui_push_pref_height(ui_size_pixel(21.0f, 1.0f));
 
 		// frame stats
 		{
@@ -127,8 +123,8 @@ app_update_and_render() {
 		// basic widgets
 		ui_expander(str("Basic Widgets"), &basic_widgets_group);
 		if (basic_widgets_group) {
-			ui_button(str("Button##1"));
-		
+			ui_interaction interaction = ui_button(str("Button##1"));
+			
 			ui_set_next_text_alignment(ui_text_alignment_center);
 			ui_button(str("Button##2"));
 
@@ -136,11 +132,7 @@ app_update_and_render() {
 			ui_button(str("Button##3"));
 
 			ui_checkbox(str("Checkbox"), &checkbox_value);
-		}
 
-		// sliders
-		ui_expander(str("Slider Widgets"), &slider_widget_group);
-		if (slider_widget_group) {
 			ui_slider(str("Slider"), &slider_1_value, 0.0f, 1.0f);
 		}
 
@@ -204,6 +196,23 @@ app_update_and_render() {
 			ui_slider(str("slider_val"), &hsv_col.v, 0.0f, 1.0f);
 			ui_row_end();
 		}
+
+
+		ui_expander(str("Scroll Regions"), &scroll_group);
+		if (scroll_group) {
+			ui_set_next_pref_height(ui_size_pixel(210.0f, 1.0f));
+			ui_frame_t* holder = ui_frame_from_string(str("scroll_holder"), ui_frame_flag_draw_background_dark | ui_frame_flag_view_scroll | ui_frame_flag_view_clamp | ui_frame_flag_clip);
+			ui_interaction interaction = ui_frame_interaction(holder);
+		
+			ui_push_parent(holder);
+
+			for (i32 i = 0; i < 25; i++) {
+				ui_buttonf("Test Button %u", i);
+			}
+
+			ui_pop_parent();
+		}
+
 		
 		ui_pop_pref_width();
 		ui_pop_pref_height();
@@ -228,14 +237,18 @@ app_entry_point(i32 argc, char** argv) {
 
 	// create contexts
 	window = os_window_open(str("sora ui test"), 1280, 960);
-	renderer = gfx_renderer_create(window, color(0x303030ff), 1);
+	renderer = gfx_renderer_create(window, { color(0x303030ff), 1 });
 
 	// init
 	app_init();
 
 	// main loop
 	while (os_any_window_exist()) {
+
+		// update layers
 		os_update();
+		gfx_update();
+
 		gfx_renderer_begin_frame(renderer);
 		app_update_and_render();
 		gfx_renderer_end_frame(renderer);

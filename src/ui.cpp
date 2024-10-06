@@ -24,7 +24,7 @@ ui_init() {
 	ui_state.per_frame_arena = arena_create(gigabytes(1));
 	ui_state.event_arena = arena_create(megabytes(2));
 	ui_state.drag_state_arena = arena_create(megabytes(64));
-	ui_state.scratch_arena = arena_create(megabytes(64));
+	ui_state.scratch_arena = arena_create(gigabytes(1));
 
 	// set context to nullptr
 	ui_state.window = nullptr;
@@ -66,6 +66,11 @@ ui_init() {
 	ui_state.event_bindings[25] = { os_key_backspace, 0, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { -1, 0 } };
 	ui_state.event_bindings[26] = { os_key_delete,    os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { +1, 0 } };
 	ui_state.event_bindings[27] = { os_key_backspace, os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { -1, 0 } };
+
+	// last click time
+	ui_state.last_click_time[0] = 0;
+	ui_state.last_click_time[1] = 0;
+	ui_state.last_click_time[2] = 0;
 
 	// text point
 	ui_state.cursor = { 1, 1 };
@@ -153,6 +158,15 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 
 	// reset event list
 	ui_state.event_list = { 0 };
+	
+	// reset mouse clicks
+	u64 time_now = (os_time_microseconds() / 1000);
+	for (i32 i = 0; i < 3; i++) {
+		u32 time_since = time_now - ui_state.last_click_time[i];
+		if (time_since > os_state.double_click_time) {
+			ui_state.click_counter[i] = 0;
+		}
+	}
 
 	// gather events
 	for (os_event_t* os_event = os_state.event_list.first; os_event != 0; os_event = os_event->next) {
@@ -175,8 +189,7 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 			switch (os_event->type) {
 
 				// key pressed
-				case os_event_type_key_press:
-				{
+				case os_event_type_key_press: {
 					ui_event.type = ui_event_type_key_press;
 
 					// check for bindings
@@ -193,16 +206,20 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 				}
 
 				case os_event_type_key_release: { ui_event.type = ui_event_type_key_release; break; }
-				case os_event_type_mouse_press: { ui_event.type = ui_event_type_mouse_press; break; }
+				case os_event_type_mouse_press: { 
+					
+					ui_event.type = ui_event_type_mouse_press; 
+					ui_state.click_counter[os_event->mouse]++;
+					ui_state.last_click_time[os_event->mouse] = (os_time_microseconds() / 1000);
+					break;
+				}
 				case os_event_type_mouse_release: { ui_event.type = ui_event_type_mouse_release; break; }
 				case os_event_type_mouse_move: { ui_event.type = ui_event_type_mouse_move; break; }
 				case os_event_type_text: { ui_event.type = ui_event_type_text; break; }
 				case os_event_type_mouse_scroll: { ui_event.type = ui_event_type_mouse_scroll; break; }
 			}
-
 			ui_event_push(&ui_event);
 		}
-
 	}
 
 	// set input
@@ -244,8 +261,8 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 
 	// add root frame
 	str_t root_string = str_format(ui_state.scratch_arena, "%.*s_root_frame", ui_state.window->title.size, ui_state.window->title.data);
-	ui_set_next_fixed_width((f32)ui_state.window->width);
-	ui_set_next_fixed_height((f32)ui_state.window->height);
+	ui_set_next_fixed_width((f32)ui_state.window->resolution.x);
+	ui_set_next_fixed_height((f32)ui_state.window->resolution.y);
 	ui_set_next_layout_axis(ui_layout_axis_y);
 	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
 	ui_state.root = frame;
@@ -312,8 +329,8 @@ ui_end_frame() {
 				if (frame->flags & ui_frame_flag_view_clamp_x) { frame->view_offset_target.x = clamp(frame->view_offset_target.x, 0.0f, max_view_offset_target.x); }
 				if (frame->flags & ui_frame_flag_view_clamp_y) { frame->view_offset_target.y = clamp(frame->view_offset_target.y, 0.0f, max_view_offset_target.y); }
 			}
-
-			frame->view_offset_target = vec2_add(frame->view_offset_target, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), fast_rate));
+			
+			frame->view_offset = vec2_add(frame->view_offset, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), fast_rate));
 		}
 
 		// animate cursor
@@ -344,18 +361,14 @@ ui_end_frame() {
 		u32 child_member_offset = (u32)(&(((ui_frame_t*)0)->tree_child_last));
 		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame, ui_state.root, sibling_member_offset, child_member_offset);
 
-		// set depth
-		frame->depth = depth;
-		gfx_push_depth(frame->depth);
-
 		// grab frame info
 		ui_palette_t* palette = frame->palette;
 
 		// frame shadow
 		if (frame->flags & ui_frame_flag_draw_shadow) {
-			gfx_quad_params_t shadow_params = gfx_quad_params(palette->shadow, 0.0f, 0.0f, 0.33f);
-			shadow_params.radii = frame->rounding;
-			gfx_draw_quad(rect_translate(frame->rect, 1.0f), shadow_params);
+			gfx_set_next_color(palette->shadow);
+			gfx_set_next_radii(frame->rounding);
+			gfx_draw_quad(rect_translate(frame->rect, 1.0f));
 		}
 
 		// determine color
@@ -386,28 +399,27 @@ ui_end_frame() {
 			}
 
 			// background
-			gfx_quad_params_t background_params = gfx_quad_params(background_color);
-			background_params.radii = frame->rounding;
-			gfx_draw_quad(frame->rect, background_params);
+			gfx_set_next_color(background_color);
+			gfx_set_next_radii(frame->rounding);
+			gfx_draw_quad(frame->rect);
 
 		}
 
 		// border
 		if (frame->flags & (ui_frame_flag_draw_border_light | ui_frame_flag_draw_border_dark)) {
-			gfx_push_depth(frame->depth + 1);
-			gfx_quad_params_t border_params = gfx_quad_params(border_color, 0.0f, 1.0f);
-			border_params.radii = frame->rounding;
-			gfx_draw_quad(frame->rect, border_params);
-			gfx_pop_depth();
+			gfx_set_next_color(border_color);
+			gfx_set_next_radii(frame->rounding);
+			gfx_set_next_thickness(1.0f);
+			gfx_draw_quad(frame->rect);
 		}
 		
 		// debug focus
-		if (ui_key_equals(ui_state.focused_frame_key, frame->key) && !frame->is_transient) {
-			gfx_push_depth(frame->depth + 1);
-			gfx_quad_params_t border_params = gfx_quad_params(color(0xffff78ff), 0.0f, 1.0f);
-			border_params.radii = frame->rounding;
-			gfx_draw_quad(frame->rect, border_params);
-			gfx_pop_depth();
+		if (0) {
+			if (ui_key_equals(ui_state.focused_frame_key, frame->key) && !frame->is_transient) {
+				gfx_set_next_color(color(0xffff78ff));
+				gfx_set_next_radii(frame->rounding);
+				gfx_draw_quad(frame->rect);
+			}
 		}
 
 		// clip
@@ -453,17 +465,15 @@ ui_end_frame() {
 
 			// TODO: truncate text if too long.
 			// make text appear in front
-			gfx_push_depth(frame->depth + 1);
 			{
 				// text shadow
-				gfx_text_params_t shadow_params = gfx_text_params(palette->shadow, frame->font, frame->font_size);
-				gfx_draw_text(frame->string, vec2_add(text_pos, 1.0f), shadow_params);
+				gfx_set_next_color(palette->shadow);
+				gfx_draw_text(frame->string, vec2_add(text_pos, 1.0f), frame->font, frame->font_size);
 
 				// text
-				gfx_text_params_t text_params = gfx_text_params(palette->text, frame->font, frame->font_size);
-				gfx_draw_text(frame->string, text_pos, text_params);
+				gfx_set_next_color(palette->text);
+				gfx_draw_text(frame->string, text_pos, frame->font, frame->font_size);
 			}
-			gfx_pop_depth();
 		}
 		
 		// custom draw
@@ -477,19 +487,11 @@ ui_end_frame() {
 		if (0) {
 
 			if (!frame->is_transient) {
-				gfx_push_depth(frame->depth + 5);
 				// draw rect
-				gfx_quad_params_t quad_params = gfx_quad_params(color(0xff1515ff), 0.0f, 1.0f, 0.0f);
-				gfx_draw_quad(frame->rect, quad_params);
-
-				gfx_text_params_t shadow_text_params = gfx_text_params(color(0x151515ff), ui_state.default_font, 9.0f);
-				gfx_text_params_t text_params = gfx_text_params(color(0xff1515ff), ui_state.default_font, 9.0f);
-
-				str_t text = str_format(ui_state.per_frame_arena, "depth: %u", frame->depth);
-				gfx_draw_text(text, vec2(frame->rect.x0 + 1, frame->rect.y0 + 1), shadow_text_params);
-				gfx_draw_text(text, vec2(frame->rect.x0, frame->rect.y0), text_params);
-
-				gfx_pop_depth();
+				gfx_set_next_color(color(0xff1515ff));
+				gfx_set_next_thickness(1.0f);
+				gfx_set_next_softness(0.0f);
+				gfx_draw_quad(frame->rect);
 			}
 		}
 
@@ -507,14 +509,6 @@ ui_end_frame() {
 				gfx_pop_clip();
 			}
 		}
-
-		// pop depth
-		gfx_pop_depth();
-
-		//if (!frame->is_transient) {
-		depth += recursion.push_count * 5; // each 'layer' of nodes gets 5 layers.
-		depth -= recursion.pop_count * 5;
-		//}
 
 		frame = recursion.next;
 	}
@@ -546,8 +540,7 @@ ui_buttonf(char* fmt, ...) {
 	va_end(args);
 
 	ui_interaction interaction = ui_button(display_string);
-
-	arena_clear(ui_state.scratch_arena);
+	
 	return interaction;
 }
 
@@ -766,7 +759,7 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 	f32 frame_width = rect_width(frame->rect);
 	f32 frame_height = rect_height(frame->rect);
 	f32 outer_wheel_radius = min(frame_width, frame_height) * 0.5f;
-	f32 inner_wheel_radius = outer_wheel_radius - (outer_wheel_radius * 0.15f);
+	f32 inner_wheel_radius = outer_wheel_radius - (20.0f);
 	vec2_t mouse_pos = ui_state.mouse_pos;
 	vec2_t dir = vec2_sub(frame_center, mouse_pos);
 	f32 dist = vec2_length(dir);
@@ -954,14 +947,13 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 
 	// if focused already, don't do hover effects
 	b8 frame_focused = ui_key_equals(ui_state.focused_frame_key, key);
-	if (frame_focused) {
+	if (!frame_focused) {
 		flags |= ui_frame_flag_draw_hover_effects;
 	}
 
 	ui_set_next_hover_cursor(os_cursor_I_beam);
 	ui_frame_t* frame = ui_frame_from_key(key, flags);
 	ui_frame_set_custom_draw(frame, ui_text_edit_draw_function, nullptr);
-
 
 	if (frame_focused) {
 
@@ -986,9 +978,6 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 
 			// replace range
 			if (!ui_text_point_equals(text_op.range.min, text_op.range.max) || text_op.replace.size != 0) {
-				if (event->type == ui_event_type_navigate) {
-					printf("range: %d, %d, replace_size: %u\n", text_op.range.min.column, text_op.range.max.column, text_op.replace.size);
-				}
 				str_t new_string = ui_string_replace_range(ui_state.scratch_arena, edit_string, text_op.range, text_op.replace);
 				new_string.size = min(buffer_size, new_string.size);
 				memcpy(buffer, new_string.data, new_string.size);
@@ -1006,20 +995,22 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 
 	frame->string = str(buffer, *out_size);
 
+	// mouse interaction
 	ui_interaction interaction = ui_frame_interaction(frame);
+	u32 delta_unit = 0;
+	vec2_t text_align_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
+	vec2_t mouse_pos = ui_state.mouse_pos;
+	vec2_t rel_pos = vec2_sub(mouse_pos, text_align_pos);
+	u32 index = ui_text_index_from_offset(frame->font, frame->font_size, frame->string, rel_pos.x);
 
+	if (interaction & ui_interaction_left_pressed) {
+		ui_state.mark.column = index;
+		ui_state.last_click_index[0] = index;
+	}
+	
 	if (interaction & ui_interaction_left_dragging) {
-		vec2_t text_align_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
-		vec2_t mouse_pos = ui_state.mouse_pos;
-		vec2_t rel_pos = vec2_sub(mouse_pos, text_align_pos);
-		u32 index = ui_text_index_from_offset(frame->font, frame->font_size, frame->string, rel_pos.x);
-		if (interaction & ui_interaction_left_pressed) {
-			ui_state.mark.column = index;
-		}
 		ui_state.cursor.column = index;
 	}
-
-
 
 	return interaction;
 }
@@ -1037,9 +1028,9 @@ ui_slider_draw_function(ui_frame_t* frame) {
 
 	color_t color = frame->palette->accent;
 	color.a = 0.6f;
-	gfx_quad_params_t params = gfx_quad_params(color);
-	params.radii = frame->rounding;
-	gfx_draw_quad(bar_rect, params);
+	gfx_set_next_color(color);
+	gfx_set_next_radii(frame->rounding);
+	gfx_draw_quad(bar_rect);
 	
 }
 
@@ -1070,23 +1061,21 @@ ui_color_hue_bar(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++)  {
-			gfx_quad_params_t quad_params;
-			quad_params.col0 = segments[i + 0];
-			quad_params.col1 = segments[i + 0];
-			quad_params.col2 = segments[i + 1];
-			quad_params.col3 = segments[i + 1];
-			quad_params.radii = { 0.0f, 0.0f, 0.0f, 0.0f };
-			quad_params.thickness = 0.0f;
-			quad_params.softness = 0.33f;
+			gfx_set_next_color0(segments[i + 0]);
+			gfx_set_next_color1(segments[i + 0]);
+			gfx_set_next_color2(segments[i + 1]);
+			gfx_set_next_color3(segments[i + 1]);
 
 			// TODO: this is a hack and looks ugly. find a better way to fix this.
 			f32 fix = 0.0f;
 
 			// frame rounding
 			if (i == 0) {
-				quad_params.radii = { 0.0f, 0.0f, frame->rounding.z, frame->rounding.w };
+				gfx_set_next_radius2(frame->rounding.z);
+				gfx_set_next_radius3(frame->rounding.w);
 			} else if (i == 5) {
-				quad_params.radii = { frame->rounding.x, frame->rounding.y, 0.0f, 0.0f };
+				gfx_set_next_radius0(frame->rounding.x);
+				gfx_set_next_radius1(frame->rounding.y);
 			} else {
 				fix = 1.0f;
 			}
@@ -1094,28 +1083,26 @@ ui_color_hue_bar(ui_frame_t* frame) {
 			f32 x0 = roundf(frame->rect.x0 + (step *( i + 0)) * frame_width) - fix;
 			f32 x1 = roundf(frame->rect.x0 + (step * (i + 1)) * frame_width) + fix;
 			rect_t segment = rect(x0, frame->rect.y0, x1, frame->rect.y1);
-			gfx_draw_quad(segment, quad_params);
+			gfx_draw_quad(segment);
 		}
 
 	}
 
 	// draw hue indicator
-	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(hue_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(hue_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 }
 
 function void 
@@ -1133,35 +1120,31 @@ ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 
 	// draw hue quad
-	gfx_quad_params_t params;
-	params.col0 = color(0xffffffff);
-	params.col1 = color(0x000000ff);
-	params.col2 = hue_col;
-	params.col3 = color(0x000000ff);
-	params.radii = frame->rounding;
-	params.thickness = 0.0f;
-	params.softness = 0.33f;
-	gfx_draw_quad(frame->rect, params);
+	gfx_set_next_color0(color(0xffffffff));
+	gfx_set_next_color1(color(0x000000ff));
+	gfx_set_next_color2(hue_col);
+	gfx_set_next_color3(color(0x000000ff));
+	gfx_set_next_radii(frame->rounding);
+	gfx_draw_quad(frame->rect);
 
 	// draw indicator
 	vec2_t indicator_pos = vec2(
 		frame->rect.x0 + (data->sat * frame_width), 
 		frame->rect.y0 + ((1.0f - data->val) * frame_height)
 	);
-	gfx_push_depth(frame->depth + 2);
-	{
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+	{
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(rgb_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 
 
 }
@@ -1181,7 +1164,7 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 	vec2_t frame_center = rect_center(frame->rect);
 	f32 wheel_radius = min(frame_width, frame_height) * 0.5f;
-	f32 wheel_thickness = wheel_radius * 0.15f;
+	f32 wheel_thickness = 20.0f;
 
 	// calculate tri points
 	f32 tri_dist = (wheel_radius - wheel_thickness) * 0.9f;
@@ -1192,8 +1175,9 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 	// draw hue wheel
 	{
 		// draw shadow
-		gfx_radial_params_t shadow_params = gfx_radial_params(frame->palette->shadow, wheel_radius * 0.15f);
-		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+		gfx_set_next_color(frame->palette->shadow);
+		gfx_set_next_thickness(wheel_thickness);
+		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
 
 		// draw hue arcs
 		f32 step = 1.0f / 6.0f;
@@ -1208,74 +1192,57 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_radial_params_t disk_params;
-			disk_params.col0 = segments[i + 0];
-			disk_params.col1 = segments[i + 1];
-			disk_params.col2 = segments[i + 0];
-			disk_params.col3 = segments[i + 1];
-			disk_params.thickness = wheel_radius * 0.15f;
-			disk_params.softness = 0.33f;
+			gfx_set_next_color0(segments[i + 0]);
+			gfx_set_next_color1(segments[i + 1]);
+			gfx_set_next_color2(segments[i + 0]);
+			gfx_set_next_color3(segments[i + 1]);
+			gfx_set_next_thickness(wheel_thickness);
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle);
 		}
 	}
 	
 	// draw sat val triangle
-	{
-
-		// draw shadow
-		// TODO: there is some weird rendering artifact when I draw this shadow.
-		//gfx_tri_params_t shadow_params = gfx_tri_params(frame->palette->shadow, 0.0f, 0.33f);
-		//gfx_draw_tri(vec2_add(tri_p0, 1.0f), vec2_add(tri_p1, 1.0f), vec2_add(tri_p2, 1.0f), shadow_params);
-			
-		// draw sat val tri
-		gfx_tri_params_t tri_params;
-		tri_params.col0 = hue_col;
-		tri_params.col1 = color(0xffffffff);
-		tri_params.col2 = color(0x000000ff);
-		tri_params.thickness = 0.0f;
-		tri_params.softness = 0.33f;
-		gfx_draw_tri(tri_p0, tri_p1, tri_p2, tri_params);
-
+	{	
+		gfx_set_next_color0(hue_col);
+		gfx_set_next_color1(color(0xffffffff));
+		gfx_set_next_color2(color(0x000000ff));
+		gfx_draw_tri(tri_p0, tri_p1, tri_p2);
 	}
 	
 	// draw hue indicator
-	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius - (wheel_thickness * 0.5f)));
 
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(hue_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(hue_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 
 	// draw sat val indicator
-	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2_lerp(vec2_lerp(tri_p1, tri_p0, clamp_01(data->sat)), tri_p2, clamp_01(1.0f - data->val));
 
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(rgb_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 
 }
 
@@ -1300,8 +1267,8 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 	// draw hue sat circle
 	{
 		// draw shadow
-		gfx_radial_params_t shadow_params = gfx_radial_params(frame->palette->shadow, 0.0f);
-		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f, shadow_params);
+		gfx_set_next_color(frame->palette->shadow);
+		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
 
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
@@ -1316,37 +1283,32 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_radial_params_t disk_params;
-			disk_params.col0 = color(0xffffffff);
-			disk_params.col1 = color(0xffffffff);
-			disk_params.col2 = segments[i + 0];
-			disk_params.col3 = segments[i + 1];
-			disk_params.thickness = 0.0f;
-			disk_params.softness = 0.33f;
+			gfx_set_next_color0(color(0xffffffff));
+			gfx_set_next_color1(color(0xffffffff));
+			gfx_set_next_color2(segments[i + 0]);
+			gfx_set_next_color3(segments[i + 1]);
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle, disk_params);
+			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle);
 		}
 	}
 
 	// draw hue sat indicator
-	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
 
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(hue_sat_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(hue_sat_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 
 }
 
@@ -1366,35 +1328,29 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 
 	// draw val bar
 	{
-		gfx_quad_params_t quad_params;
-		quad_params.col0 = color(0x000000ff);
-		quad_params.col1 = color(0x000000ff);
-		quad_params.col2 = hue_sat_col;
-		quad_params.col3 = hue_sat_col;
-		quad_params.radii = frame->rounding;
-		quad_params.thickness = 0.0f;
-		quad_params.softness = 0.33f;
-
-		gfx_draw_quad(frame->rect, quad_params);
+		gfx_set_next_color0(color(0x000000ff));
+		gfx_set_next_color1(color(0x000000ff));
+		gfx_set_next_color2(hue_sat_col);
+		gfx_set_next_color3(hue_sat_col);
+		gfx_set_next_radii(frame->rounding);
+		gfx_draw_quad(frame->rect);
 	}
 
 	// draw hue indicator
-	gfx_push_depth(frame->depth + 2);
 	{
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
-		// border
-		gfx_radial_params_t outer_border_params = gfx_radial_params(color(0x151515ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f, outer_border_params);
+		// borders
+		gfx_set_next_color(color(0x151515ff));
+		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_radial_params_t inner_border_params = gfx_radial_params(color(0xe2e2e2ff), 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f, inner_border_params);
+		gfx_set_next_color(color(0xe2e2e2ff));
+		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_radial_params_t disk_params = gfx_radial_params(rgb_col, 0.0f, 0.45f);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f, disk_params);
+		gfx_set_next_color(rgb_col);
+		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
-	gfx_pop_depth();
 
 }
 
@@ -1402,8 +1358,6 @@ function void
 ui_text_edit_draw_function(ui_frame_t* frame) {
 
 	if (ui_key_equals(ui_state.focused_frame_key, frame->key)) {
-		
-		gfx_push_depth(frame->depth + 1);
 
 		// get offsets
 		f32 cursor_offset = ui_text_offset_from_index(frame->font, frame->font_size, frame->string, ui_state.cursor.column);
@@ -1413,7 +1367,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		ui_state.mark_target_pos.x = mark_offset;
 
 		// draw cursor
-		gfx_quad_params_t cursor_params = gfx_quad_params(frame->palette->accent, 0.5f, 0.0f);
+		gfx_set_next_color(frame->palette->accent);
 
 		f32 left = ui_state.cursor_pos.x;
 		f32 right = cursor_offset;
@@ -1430,21 +1384,19 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 			frame->rect.x0 + text_start.x + right + 1.0f,
 			frame->rect.y1 - 2.0f
 		);
-		gfx_draw_quad(cursor_rect, cursor_params);
+		gfx_draw_quad(cursor_rect);
 
 		// draw mark
 		color_t mark_color = frame->palette->accent;
 		mark_color.a = 0.3f;
-		gfx_quad_params_t mark_params = gfx_quad_params(mark_color, 1.0f, 0.0f);
+		gfx_set_next_color(mark_color);
 		rect_t mark_rect = rect(
 			frame->rect.x0 + text_start.x + cursor_offset, 
 			frame->rect.y0 + 2.0f,
 			frame->rect.x0 + text_start.x + mark_offset + 2.0f,
 			frame->rect.y1 - 2.0f
 		);
-		gfx_draw_quad(mark_rect, mark_params);
-
-		gfx_pop_depth();
+		gfx_draw_quad(mark_rect);
 
 	}
 
@@ -1514,6 +1466,25 @@ ui_string_find_word_index(str_t string, i32 start_index, i32 delta) {
 	}
 
 	return start_index;
+}
+
+function void 
+ui_string_find_word_boundaries(str_t string, i32 index, i32* word_start, i32* word_end) {
+
+	// find start
+	i32 start = index;
+	while (start > 0 && !char_is_whitespace(string.data[start])) {
+		start--;
+	}
+
+	// find end
+	i32 end = index;
+	while (end != string.size && !char_is_whitespace(string.data[end])) {
+		end++;
+	}
+
+	*word_start = start;
+	*word_end = end - 1;
 }
 
 // key functions
@@ -2180,8 +2151,6 @@ ui_layout_solve_violations(ui_frame_t* root) {
 		}
 	}
 
-	arena_clear(ui_state.scratch_arena);
-
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
 		ui_layout_solve_violations(child);
@@ -2219,7 +2188,7 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 	}
 
 	// store view bounds
-	root->view_bounds.x = bounds;
+	root->view_bounds.x = bounds + 1.0f;
 
 	// y axis
 	layout_position = 0.0f;
@@ -2248,7 +2217,7 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 	}
 
 	// store view bounds
-	root->view_bounds.y = bounds;
+	root->view_bounds.y = bounds + 2.0f;
 
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
@@ -2454,6 +2423,16 @@ ui_frame_interaction(ui_frame_t* frame) {
 				ui_state.active_frame_key[event->mouse] = frame->key;
 				ui_state.focused_frame_key = frame->key;
 				result |= ui_interaction_left_pressed << event->mouse;
+
+				// double and triple clicks
+				if (ui_state.click_counter[event->mouse] >= 2) {
+					if (ui_state.click_counter[event->mouse] % 2 == 0) {
+						result |= ui_interaction_left_double_clicked << event->mouse;
+					} else {
+						result |= ui_interaction_left_triple_clicked << event->mouse;
+					}
+				}
+
 				taken = true;
 			}
 
@@ -2499,8 +2478,8 @@ ui_frame_interaction(ui_frame_t* frame) {
 			event->type == ui_event_type_mouse_scroll &&
 			event->modifiers != os_modifier_ctrl &&
 			mouse_in_bounds) {
-
-			vec2_t scroll = event->scroll;
+			
+			vec2_t scroll = vec2_mul(event->scroll, -17.0f);
 			
 			// swap scrolling on shift
 			if (event->modifiers & os_modifier_shift) {
@@ -2508,11 +2487,11 @@ ui_frame_interaction(ui_frame_t* frame) {
 				scroll.y = event->scroll.x;
 			}
 
-			if (!(frame->flags & ui_frame_flag_view_clamp_x)) {
+			if (!(frame->flags & ui_frame_flag_view_scroll_x)) {
 				scroll.x = 0.0f;
 			}
 
-			if (!(frame->flags & ui_frame_flag_view_clamp_y)) {
+			if (!(frame->flags & ui_frame_flag_view_scroll_y)) {
 				scroll.y = 0.0f;
 			}
 
@@ -2546,6 +2525,14 @@ ui_frame_interaction(ui_frame_t* frame) {
 			if (ui_key_equals(ui_state.active_frame_key[mouse_button], frame->key) || (result & ui_interaction_left_pressed << mouse_button)) {
 				result |= ui_interaction_left_dragging << mouse_button;
 			}
+			if ((result & ui_interaction_left_dragging << mouse_button) &&
+				ui_state.click_counter[mouse_button] >= 2) {
+				if (ui_state.click_counter[mouse_button] % 2 == 0) {
+					result |= ui_interaction_left_double_dragging << mouse_button;
+				} else {
+					result |= ui_interaction_left_triple_dragging << mouse_button;
+				}
+			}
 		}
 	}
 
@@ -2560,7 +2547,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 		ui_state.hovered_frame_key = frame->key;
 		result |= ui_interaction_hovered;
 	}
-
+	
 	return result;
 }
 

@@ -8,10 +8,31 @@
 #include <d3dcompiler.h>
 #include <dwrite.h>
 
+// todo:
+//
+// [~] - add basics back in.
+//    [x] - textures.
+//    [x] - shaders.
+//    [x] - buffers.
+//    [ ] - batches (improve).
+//    [ ] - fonts (but redo).
+// [ ] - add new stuff.
+//    [ ] - meshes.
+//    [ ] - render targets.
+//    [ ] - compute shaders.
+//    [ ] - asset hotloading.
+// [ ] - render graph.
+//
 
 // defines
 
-#define gfx_buffer_size kilobytes(64)
+#define gfx_max_buffer_size kilobytes(64)
+
+#define gfx_resource_list(type, name)\
+type name##_first;\
+type name##_last;\
+type name##_free;\
+u32 name##_count;
 
 #define gfx_stack_node_decl(name, type) struct gfx_##name##_node_t { gfx_##name##_node_t* next; type v; };
 #define gfx_stack_decl(name) struct { gfx_##name##_node_t* top; gfx_##name##_node_t* free; b8 auto_pop; } name##_stack;
@@ -20,12 +41,11 @@
 #define gfx_stack_push_func(name, type) function type gfx_push_##name(type);
 #define gfx_stack_pop_func(name, type) function type gfx_pop_##name();
 #define gfx_stack_set_next_func(name, type) function type gfx_set_next_##name(type);
-#define gfx_stack_func(name, type)\
+#define gfx_stack_func_decl(name, type)\
 gfx_stack_top_func(name, type)\
 gfx_stack_push_func(name, type)\
 gfx_stack_pop_func(name, type)\
 gfx_stack_set_next_func(name, type)\
-
 
 // enums
 
@@ -33,18 +53,6 @@ enum gfx_usage_type {
 	gfx_usage_type_static,
 	gfx_usage_type_dynamic,
 	gfx_usage_type_stream,
-};
-
-enum gfx_sample_type {
-	gfx_sample_type_nearest,
-	gfx_sample_type_linear,
-};
-
-enum gfx_topology_type {
-	gfx_topology_type_lines,
-	gfx_topology_type_line_strip,
-	gfx_topology_type_tris,
-	gfx_topology_type_tri_strip,
 };
 
 enum gfx_texture_format {
@@ -79,37 +87,47 @@ enum gfx_vertex_class {
 	gfx_vertex_class_per_instance,
 };
 
+enum gfx_sample_type {
+	gfx_sample_type_nearest,
+	gfx_sample_type_linear,
+};
+
+enum gfx_topology_type {
+	gfx_topology_type_lines,
+	gfx_topology_type_line_strip,
+	gfx_topology_type_tris,
+	gfx_topology_type_tri_strip,
+};
+
 enum gfx_batch_type {
-	gfx_batch_type_quad,
-	gfx_batch_type_circle,
-	gfx_batch_type_ring,
-	gfx_batch_type_line,
-	gfx_batch_type_tri,
+	gfx_batch_type_2d,
+	gfx_batch_type_3d,
 };
 
 // structs
 
-// buffers
+// resources
+
 struct gfx_buffer_t {
 	gfx_buffer_t* next;
+	gfx_buffer_t* prev;
 	ID3D11Buffer* id;
 	gfx_usage_type usage;
 	u32 size;
 };
 
-// textures
 struct gfx_texture_t {
 	gfx_texture_t* next;
-	
+	gfx_texture_t* prev;
+
 	str_t name;
 	ID3D11Texture2D* id;
 	ID3D11ShaderResourceView* srv;
 	gfx_usage_type usage;
-	u32 width, height;
+	uvec2_t size;
 	gfx_texture_format format;
 };
 
-// shaders
 struct gfx_shader_attribute_t {
 	cstr name;
 	u32 slot;
@@ -118,11 +136,12 @@ struct gfx_shader_attribute_t {
 };
 
 struct gfx_shader_layout_t {
-	gfx_shader_attribute_t attributes[8];
+	gfx_shader_attribute_t attributes[16];
 };
 
 struct gfx_shader_t {
 	gfx_shader_t* next;
+	gfx_shader_t* prev;
 
 	ID3D11VertexShader* vertex_shader;
 	ID3D11PixelShader* pixel_shader;
@@ -134,7 +153,6 @@ struct gfx_shader_t {
 
 };
 
-// fonts
 struct gfx_font_metrics_t {
 	f32 line_gap;
 	f32 ascent;
@@ -185,104 +203,92 @@ struct gfx_font_t {
 
 };
 
-// params types
-struct gfx_quad_params_t {
-	color_t col0;
-	color_t col1;
-	color_t col2;
-	color_t col3;
-	vec4_t radii;
-	f32 thickness;
-	f32 softness;
+struct gfx_vertex_t {
+	vec3_t pos;
+	vec3_t normal;
+	vec3_t tangent;
+	vec3_t bitangent;
+	vec2_t uv;
+	vec4_t color;
 };
 
-struct gfx_line_params_t {
-	color_t col0;
-	color_t col1;
-	f32 thickness;
-	f32 softness;
+struct gfx_mesh_t {
+	u32 vertex_count;
+	u32 vertex_size;
+	void* vertices;
 };
 
-struct gfx_text_params_t {
-	color_t color;
-	gfx_font_t* font;
-	f32 font_size;
-};
+// instances
 
-struct gfx_radial_params_t {
-	color_t col0;
-	color_t col1;
-	color_t col2;
-	color_t col3;
-	f32 thickness;
-	f32 softness;
-};
-
-struct gfx_tri_params_t {
-	color_t col0;
-	color_t col1;
-	color_t col2;
-	f32 thickness;
-	f32 softness;
-};
-
-
-// instance types
-struct gfx_quad_instance_t {
-	rect_t pos;
+struct gfx_2d_instance_t {
+	rect_t bounding_box;
 	rect_t uv;
-	vec4_t col0;
-	vec4_t col1;
-	vec4_t col2;
-	vec4_t col3;
-	vec4_t radii;
-	vec4_t style; // (thickness, softness, unused, unused)
-};
 
-struct gfx_line_instance_t {
-	rect_t pos;
-	vec4_t col0;
-	vec4_t col1;
-	vec4_t points;
-	vec4_t style; // (thickness, softness, unused, unused)
-};
+	i32 type; // 0 - quad, 1 - line, 2 - radial, 3 - tri
 
-struct gfx_radial_instance_t {
-	rect_t pos;
-	vec4_t col0;
-	vec4_t col1;
-	vec4_t col2;
-	vec4_t col3;
-	vec2_t angles; // (start_angle, end_angle)
-	vec2_t style; // (thickness, softness)
-};
-
-struct gfx_tri_instance_t {
-	rect_t pos;
-	vec4_t col0;
-	vec4_t col1;
-	vec4_t col2;
+	// position
 	vec2_t p0;
 	vec2_t p1;
 	vec2_t p2;
-	vec2_t style; // (thickness, softness)
+	vec2_t p3;
+
+	// color
+	vec4_t col0;
+	vec4_t col1;
+	vec4_t col2;
+	vec4_t col3;
+
+	// radius
+	f32 r0;
+	f32 r1;
+	f32 r2;
+	f32 r3;
+
+	// styling
+	f32 thickness;
+	f32 softness;
 };
 
 // batches
+
+struct gfx_2d_constants_t {
+	vec2_t window_size;
+	vec2_t time; // elasped_time, delta_time
+};
+
+struct gfx_3d_constants_t {
+	mat4_t view_projection;
+	mat4_t view;
+	mat4_t projection;
+	mat4_t inv_view;
+	mat4_t inv_projection;
+	vec2_t window_size;
+	vec2_t time; // elasped_time, delta_time
+};
+
 struct gfx_batch_state_t {
-	gfx_texture_t* texture;
 	gfx_shader_t* shader;
+	gfx_texture_t* texture;
+	gfx_batch_type type;
 	rect_t clip_mask;
-	i32 depth;
-	u32 instance_size;
+	gfx_vertex_class vertex_class;
+	union {
+		u32 vertex_size;
+		u32 instance_size;
+	};
+
 };
 
 struct gfx_batch_t {
 	gfx_batch_t* next;
 	gfx_batch_t* prev;
+
 	gfx_batch_state_t state;
+	union {
+		u32 vertex_count;
+		u32 instance_count;
+	};
 	void* data;
-	u32 instance_count;
 };
 
 struct gfx_batch_list_t {
@@ -291,57 +297,70 @@ struct gfx_batch_list_t {
 	u32 count;
 };
 
-struct gfx_batch_array_t {
-	gfx_batch_t* batches;
-	u32 count;
-};
-
 // stacks
 
 gfx_stack_node_decl(texture, gfx_texture_t*)
 gfx_stack_node_decl(shader, gfx_shader_t*)
 gfx_stack_node_decl(clip, rect_t)
-gfx_stack_node_decl(depth, i32)
-gfx_stack_node_decl(instance_size, u32)
+gfx_stack_node_decl(radius0, f32);
+gfx_stack_node_decl(radius1, f32);
+gfx_stack_node_decl(radius2, f32);
+gfx_stack_node_decl(radius3, f32);
+gfx_stack_node_decl(color0, color_t);
+gfx_stack_node_decl(color1, color_t);
+gfx_stack_node_decl(color2, color_t);
+gfx_stack_node_decl(color3, color_t);
+gfx_stack_node_decl(thickness, f32);
+gfx_stack_node_decl(softness, f32);
 
+// renderer
 
-struct gfx_constant_data_t {
-	vec2_t window_size;
+struct gfx_renderer_params_t {
+	color_t clear_color;
+	u32 sample_count;
 };
 
 struct gfx_renderer_t {
 	gfx_renderer_t* next;
+	gfx_renderer_t* prev;
 
 	os_window_t* window;
-	u32 width;
-	u32 height;
-
-	color_t clear_color;
+	gfx_renderer_params_t params;
+	uvec2_t resolution;
 
 	// d3d11
 	IDXGISwapChain1* swapchain;
+
 	ID3D11Texture2D* framebuffer;
 	ID3D11RenderTargetView* framebuffer_rtv;
+	ID3D11ShaderResourceView* framebuffer_srv;
+
 	ID3D11Texture2D* depthbuffer;
 	ID3D11DepthStencilView* depthbuffer_dsv;
-
-
+	ID3D11ShaderResourceView* depthbuffer_srv;
+	
 };
 
+// state
 struct gfx_state_t {
 
 	// arenas
+	arena_t* renderer_arena;
 	arena_t* resource_arena;
+	arena_t* batch_arena;
 	arena_t* scratch_arena;
-	arena_t* per_frame_arena;
 
 	// renderer list
-	gfx_renderer_t* renderer_free;
+	gfx_resource_list(gfx_renderer_t*, renderer);
+	gfx_renderer_t* renderer_active;
 
 	// resource list
-	gfx_texture_t* texture_free;
-	gfx_shader_t* shader_free;
-	gfx_buffer_t* buffer_free;
+	gfx_resource_list(gfx_texture_t*, texture);
+	gfx_resource_list(gfx_shader_t*, shader);
+	gfx_resource_list(gfx_buffer_t*, buffer);
+
+	// batch list
+	gfx_batch_list_t batch_list;
 
 	// d3d11
 	ID3D11Device* device;
@@ -349,6 +368,7 @@ struct gfx_state_t {
 	IDXGIDevice1* dxgi_device;
 	IDXGIAdapter* dxgi_adapter;
 	IDXGIFactory2* dxgi_factory;
+
 	ID3D11RasterizerState* solid_rasterizer_state;
 	ID3D11RasterizerState* wireframe_rasterizer_state;
 	ID3D11BlendState* blend_state;
@@ -363,95 +383,96 @@ struct gfx_state_t {
 	IDWriteRenderingParams* rendering_params;
 	IDWriteGdiInterop* gdi_interop;
 
-	gfx_renderer_t* active_renderer;
-
-	// batch list
-	gfx_batch_list_t batch_list;
-	u32 batch_count;
-
 	// stacks
 	gfx_stack_decl(texture);
 	gfx_stack_decl(shader);
 	gfx_stack_decl(clip);
-	gfx_stack_decl(depth);
-	gfx_stack_decl(instance_size);
+
+	// 2d stack
+	gfx_stack_decl(radius0);
+	gfx_stack_decl(radius1);
+	gfx_stack_decl(radius2);
+	gfx_stack_decl(radius3);
+	gfx_stack_decl(color0);
+	gfx_stack_decl(color1);
+	gfx_stack_decl(color2);
+	gfx_stack_decl(color3);
+	gfx_stack_decl(thickness);
+	gfx_stack_decl(softness);
 
 	// stack defaults
-	gfx_stack_decl_default(texture)
-	gfx_stack_decl_default(shader)
-	gfx_stack_decl_default(clip)
-	gfx_stack_decl_default(depth)
-	gfx_stack_decl_default(instance_size)
+	gfx_stack_decl_default(texture);
+	gfx_stack_decl_default(shader);
+	gfx_stack_decl_default(clip);
+	gfx_stack_decl_default(radius0);
+	gfx_stack_decl_default(radius1);
+	gfx_stack_decl_default(radius2);
+	gfx_stack_decl_default(radius3);
+	gfx_stack_decl_default(color0);
+	gfx_stack_decl_default(color1);
+	gfx_stack_decl_default(color2);
+	gfx_stack_decl_default(color3);
+	gfx_stack_decl_default(thickness);
+	gfx_stack_decl_default(softness);
 
 	// buffers
 	ID3D11Buffer* vertex_buffer;
 	ID3D11Buffer* constant_buffer;
 
-	// constant data
-	gfx_constant_data_t constant_data;
-
-	// default assets
-	gfx_texture_t* default_texture;
+	// constants
+	gfx_2d_constants_t constants_2d;
+	gfx_3d_constants_t constants_3d;
 
 	// assets
-	gfx_shader_t* quad_shader;
-	gfx_shader_t* line_shader;
-	gfx_shader_t* disk_shader;
-	gfx_shader_t* tri_shader;
-
+	gfx_texture_t* default_texture;
+	gfx_shader_t* shader_2d;
+	
 };
 
-// globals
+// global
 
 global gfx_state_t gfx_state;
 
 // functions
 
+// states
 function void gfx_init();
 function void gfx_release();
+function void gfx_update();
+function void gfx_submit();
 
 // renderer
-function gfx_renderer_t* gfx_renderer_create(os_window_t*, color_t, u8 = 1);
+function gfx_renderer_t* gfx_renderer_create(os_window_t*, gfx_renderer_params_t);
 function void gfx_renderer_release(gfx_renderer_t*);
-function void gfx_renderer_resize(gfx_renderer_t*);
+function void gfx_renderer_resize(gfx_renderer_t*, uvec2_t);
 function void gfx_renderer_begin_frame(gfx_renderer_t*);
 function void gfx_renderer_end_frame(gfx_renderer_t*);
 
-// stacks
-function void gfx_auto_pop_stacks();
-gfx_stack_func(texture, gfx_texture_t*)
-gfx_stack_func(shader, gfx_shader_t*)
-gfx_stack_func(clip, rect_t)
-gfx_stack_func(depth, i32)
-gfx_stack_func(instance_size, u32)
+// draw 
 
-function void gfx_draw_quad(rect_t, gfx_quad_params_t);
-function void gfx_draw_line(vec2_t, vec2_t, gfx_line_params_t);
-function void gfx_draw_text(str_t, vec2_t, gfx_text_params_t);
-function void gfx_draw_text(str16_t, vec2_t, gfx_text_params_t);
-function void gfx_draw_radial(vec2_t, f32, f32, f32, gfx_radial_params_t);
-function void gfx_draw_tri(vec2_t, vec2_t, vec2_t, gfx_tri_params_t);
-function void gfx_draw_bezier(vec2_t, vec2_t, vec2_t, vec2_t, gfx_line_params_t);
+// 2d
+function void gfx_draw_quad(rect_t);
+function void gfx_draw_line(vec2_t, vec2_t);
+function void gfx_draw_text(str_t, vec2_t, gfx_font_t*, f32);
+function void gfx_draw_text(str16_t, vec2_t);
+function void gfx_draw_radial(vec2_t, f32, f32, f32);
+function void gfx_draw_tri(vec2_t, vec2_t, vec2_t);
+function void gfx_draw_bezier(vec2_t, vec2_t, vec2_t, vec2_t);
+
+// 3d
+function void gfx_draw_mesh(gfx_mesh_t, gfx_shader_t*, mat4_t);
+
 
 // batch
-function i32 gfx_batch_compare_depth(const void*, const void*);
 function b8 gfx_batch_state_equal(gfx_batch_state_t*, gfx_batch_state_t*);
-function gfx_batch_t* gfx_batch_find(gfx_renderer_t*, gfx_batch_state_t, u32);
-function gfx_batch_array_t gfx_batch_list_to_batch_array(gfx_batch_list_t);
+function gfx_batch_t* gfx_batch_find(gfx_batch_state_t, u32);
 
-// instance params
-function gfx_quad_params_t gfx_quad_params(color_t, f32, f32, f32);
-function gfx_line_params_t gfx_line_params(color_t, f32, f32);
-function gfx_text_params_t gfx_text_params(color_t, gfx_font_t*, f32);
-function gfx_radial_params_t gfx_radial_params(color_t, f32, f32);
-function gfx_tri_params_t gfx_tri_params(color_t, f32, f32);
-
-// buffer
+// buffers
 function gfx_buffer_t* gfx_buffer_create(gfx_usage_type, u32, void*);
 function void gfx_buffer_release(gfx_buffer_t*);
 
 // texture
-function gfx_texture_t* gfx_texture_create(str_t, u32, u32, gfx_texture_format = gfx_texture_format_rgba8, void* = nullptr);
+function gfx_texture_t* gfx_texture_create(str_t, uvec2_t, gfx_texture_format = gfx_texture_format_rgba8, void* = nullptr);
 function gfx_texture_t* gfx_texture_load(str_t);
 function void gfx_texture_release(gfx_texture_t*);
 function void gfx_texture_load_buffer(gfx_texture_t*, void*);
@@ -474,14 +495,54 @@ function vec2_t gfx_font_atlas_add(gfx_font_t*, vec2_t);
 function f32 gfx_font_text_width(gfx_font_t*, f32, str_t);
 function f32 gfx_font_text_height(gfx_font_t*, f32);
 
-// enum helpers
+// mesh
+function gfx_mesh_t* gfx_mesh_create(str_t, u32, u32);
+function gfx_mesh_t* gfx_mesh_load(str_t);
+function void gfx_mesh_release(gfx_mesh_t*);
 
+
+// stacks
+function void gfx_auto_pop_stacks();
+gfx_stack_func_decl(texture, gfx_texture_t*);
+gfx_stack_func_decl(shader, gfx_shader_t*);
+gfx_stack_func_decl(clip, rect_t);
+gfx_stack_func_decl(radius0, f32);
+gfx_stack_func_decl(radius1, f32);
+gfx_stack_func_decl(radius2, f32);
+gfx_stack_func_decl(radius3, f32);
+gfx_stack_func_decl(color0, color_t);
+gfx_stack_func_decl(color1, color_t);
+gfx_stack_func_decl(color2, color_t);
+gfx_stack_func_decl(color3, color_t);
+gfx_stack_func_decl(thickness, f32);
+gfx_stack_func_decl(softness, f32);
+function void gfx_push_color(color_t);
+function void gfx_set_next_color(color_t);
+function void gfx_pop_color();
+
+function void gfx_push_radius(f32);
+function void gfx_set_next_radius(f32);
+function void gfx_push_radii(vec4_t);
+function void gfx_set_next_radii(vec4_t);
+
+
+// enum helpers
 function void d3d11_usage_type_to_d3d11_usage(gfx_usage_type, D3D11_USAGE*, UINT*);
 function D3D11_PRIMITIVE_TOPOLOGY d3d11_topology_type_to_d3d11_topology(gfx_topology_type);
 function DXGI_FORMAT d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format);
 function DXGI_FORMAT d3d11_texture_format_to_dxgi_format(gfx_texture_format);
 function u32 d3d11_texture_format_to_bytes(gfx_texture_format);
 function D3D11_INPUT_CLASSIFICATION d3d11_vertex_class_to_input_class(gfx_vertex_class);
+
+// error helpers
+
+#ifdef BUILD_DEBUG
+#define gfx_assert(hr, msg, ...) { if (FAILED(hr)) { printf("[error] "msg" (%x)\n", hr, __VA_ARGS__); os_abort(1); } }
+#define gfx_check_error(hr, msg, ...) { if (FAILED(hr)) { printf("[error] "msg" (%x)\n", hr, __VA_ARGS__); } }
+#else
+#define gfx_assert(hr, msg, ...)
+#define gfx_check_error(hr, msg, ...)
+#endif
 
 
 #endif // GFX_H

@@ -131,28 +131,28 @@ app_main(i32 argc, char** argv) {
 			disk_params.col0 = disk_params.col1 = disk_params.col2 = disk_params.col3 = color(0xe16e1cff);
 			disk_params.thickness = 0.0f;
 			disk_params.softness = 0.33f;
-			gfx_draw_disk(pos, 45.0f, 0.0f, 360.0f, disk_params);
+			gfx_draw_radial(pos, 45.0f, 0.0f, 360.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 			disk_params.col0 = disk_params.col1 = disk_params.col2 = disk_params.col3 = color(0x803496ff);
-			gfx_draw_disk(pos, 45.0f, 45.0f, 360.0f, disk_params);
+			gfx_draw_radial(pos, 45.0f, 45.0f, 360.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 			disk_params.col0 = disk_params.col1 = color(0x18ac70ff);
 			disk_params.col2 = disk_params.col3 = color(0x184270ff);
-			gfx_draw_disk(pos, 45.0f, 135.1f, 405.0f, disk_params);
+			gfx_draw_radial(pos, 45.0f, 135.1f, 405.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 			disk_params.col0 = disk_params.col1 = disk_params.col2 = disk_params.col3 = color(0x186d6dff);
 			disk_params.thickness = 15.0f;
-			gfx_draw_disk(pos, 45.0f, 0.0f, 360.0f, disk_params);
+			gfx_draw_radial(pos, 45.0f, 0.0f, 360.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 			disk_params.col0 = disk_params.col2 = color(0xd9be13ff);
 			disk_params.col1 = disk_params.col3 = color(0xd92713ff);
 			disk_params.thickness = 10.0f;
 			disk_params.softness = 3.0f;
-			gfx_draw_disk(pos, 45.0f, 90.0f, 360.0f, disk_params);
+			gfx_draw_radial(pos, 45.0f, 90.0f, 360.0f, disk_params);
 			pos = vec2_add(pos, vec2(100.0f, 0.0f));
 
 		}
@@ -291,8 +291,6 @@ app_main(i32 argc, char** argv) {
 			gfx_draw_text(text, vec2_add(pos, 1.0f), gfx_text_params(color(0x15151588), font, font_size));
 			gfx_draw_text(text, pos, gfx_text_params(color(0xcfcfcfff), font, font_size));
 			pos = vec2_add(pos, vec2(0.0f, 18.0f));
-
-
 
 			arena_clear(scratch);
 		}

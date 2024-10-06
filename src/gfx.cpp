@@ -16,20 +16,28 @@ gfx_state.name##_default_node.v = value; \
 #define gfx_stack_reset(name) \
 gfx_state.name##_stack.top = &gfx_state.name##_default_node; gfx_state.name##_stack.free = 0; gfx_state.name##_stack.auto_pop = 0; \
 
-
 // implementation
+
+// state 
 
 function void 
 gfx_init() {
 
-	// arenas
-	gfx_state.resource_arena = arena_create(megabytes(256));
-	gfx_state.scratch_arena = arena_create(megabytes(64));
-	gfx_state.per_frame_arena = arena_create(gigabytes(2));
+	// create arenas
+	gfx_state.renderer_arena = arena_create(megabytes(64));
+	gfx_state.resource_arena = arena_create(gigabytes(2));
+	gfx_state.batch_arena = arena_create(gigabytes(2));
+	gfx_state.scratch_arena = arena_create(gigabytes(2));
 
+	// init list
+	gfx_state.renderer_first = gfx_state.renderer_last = gfx_state.renderer_free = gfx_state.renderer_active = nullptr;
+	gfx_state.texture_first = gfx_state.texture_last = gfx_state.texture_free = nullptr;
+	gfx_state.shader_first = gfx_state.shader_last = gfx_state.shader_free = nullptr;
+	gfx_state.buffer_first = gfx_state.buffer_last = gfx_state.buffer_free = nullptr;
+	gfx_state.renderer_count = gfx_state.texture_count = gfx_state.shader_count = gfx_state.buffer_count = 0;
+
+	// create device
 	HRESULT hr = 0;
-
-	// create base device
 	u32 device_flags = 0;
 	D3D_FEATURE_LEVEL feature_levels[] = { D3D_FEATURE_LEVEL_11_0 };
 
@@ -38,10 +46,15 @@ gfx_init() {
 #endif // BUILD DEBUG
 
 	hr = D3D11CreateDevice(0, D3D_DRIVER_TYPE_HARDWARE, 0, device_flags, feature_levels, array_count(feature_levels), D3D11_SDK_VERSION, &gfx_state.device, 0, &gfx_state.device_context);
-	
+	gfx_assert(hr, "failed to create device.");
+
+	// get dxgi device, adaptor, and factory
 	hr = gfx_state.device->QueryInterface(__uuidof(IDXGIDevice1), (void**)(&gfx_state.dxgi_device));
+	gfx_assert(hr, "failed to get dxgi device.");
 	hr = gfx_state.dxgi_device->GetAdapter(&gfx_state.dxgi_adapter);
+	gfx_assert(hr, "failed to get dxgi adaptor.");
 	hr = gfx_state.dxgi_adapter->GetParent(__uuidof(IDXGIFactory2), (void**)(&gfx_state.dxgi_factory));
+	gfx_assert(hr, "failed to get dxgi factory.");
 
 	// create samplers
 	D3D11_SAMPLER_DESC sampler_desc = { 0 };
@@ -54,6 +67,7 @@ gfx_init() {
 	sampler_desc.MipLODBias = 0;
 	sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	hr = gfx_state.device->CreateSamplerState(&sampler_desc, &gfx_state.point_sampler);
+	gfx_assert(hr, "failed to create point sampler.");
 
 	// linear sampler
 	sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -61,7 +75,8 @@ gfx_init() {
 	sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 	sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	gfx_state.device->CreateSamplerState(&sampler_desc, &gfx_state.linear_sampler);
+	hr = gfx_state.device->CreateSamplerState(&sampler_desc, &gfx_state.linear_sampler);
+	gfx_assert(hr, "failed to create linear sampler.");
 
 	// create depth stencil states
 	D3D11_DEPTH_STENCIL_DESC depth_stencil_desc = { 0 };
@@ -81,7 +96,8 @@ gfx_init() {
 	depth_stencil_desc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
 	depth_stencil_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 	depth_stencil_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	gfx_state.device->CreateDepthStencilState(&depth_stencil_desc, &gfx_state.depth_stencil_state);
+	hr = gfx_state.device->CreateDepthStencilState(&depth_stencil_desc, &gfx_state.depth_stencil_state);
+	gfx_assert(hr, "failed to create depth stencil state.");
 
 	// no depth state
 	depth_stencil_desc.DepthEnable = false;
@@ -98,7 +114,8 @@ gfx_init() {
 	depth_stencil_desc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
 	depth_stencil_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
 	depth_stencil_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-	gfx_state.device->CreateDepthStencilState(&depth_stencil_desc, &gfx_state.no_depth_stencil_state);
+	hr = gfx_state.device->CreateDepthStencilState(&depth_stencil_desc, &gfx_state.no_depth_stencil_state);
+	gfx_assert(hr, "failed to create non depth stencil state.");
 
 	// rasterizers 
 	D3D11_RASTERIZER_DESC rasterizer_desc = { 0 };
@@ -114,7 +131,8 @@ gfx_init() {
 	rasterizer_desc.ScissorEnable = true;
 	rasterizer_desc.MultisampleEnable = true;
 	rasterizer_desc.AntialiasedLineEnable = false;
-	gfx_state.device->CreateRasterizerState(&rasterizer_desc, &gfx_state.solid_rasterizer_state);
+	hr = gfx_state.device->CreateRasterizerState(&rasterizer_desc, &gfx_state.solid_rasterizer_state);
+	gfx_assert(hr, "failed to create solid rasterizer state.");
 
 	// wireframe rasterizer
 	rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
@@ -127,7 +145,8 @@ gfx_init() {
 	rasterizer_desc.ScissorEnable = true;
 	rasterizer_desc.MultisampleEnable = true;
 	rasterizer_desc.AntialiasedLineEnable = false;
-	gfx_state.device->CreateRasterizerState(&rasterizer_desc, &gfx_state.wireframe_rasterizer_state);
+	hr = gfx_state.device->CreateRasterizerState(&rasterizer_desc, &gfx_state.wireframe_rasterizer_state);
+	gfx_assert(hr, "failed to create wireframe rasterizer state.");
 
 	// create blend state
 	D3D11_BLEND_DESC blend_state_desc = { 0 };
@@ -139,106 +158,87 @@ gfx_init() {
 	blend_state_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
 	blend_state_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	blend_state_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	hr = gfx_state.device->CreateBlendState(&blend_state_desc, &gfx_state.blend_state);
+	gfx_assert(hr, "failed to create blend state.");
+	
+	// create dwrite factory
+	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&gfx_state.dwrite_factory);
+	gfx_assert(hr, "failed to create dwrite factory.");
 
-	gfx_state.device->CreateBlendState(&blend_state_desc, &gfx_state.blend_state);
+	// create rendering params
+	hr = gfx_state.dwrite_factory->CreateRenderingParams(&gfx_state.rendering_params);
+	gfx_assert(hr, "failed to create dwrite rendering params.");
+	f32 gamma = gfx_state.rendering_params->GetGamma();
+	f32 enhanced_contrast = gfx_state.rendering_params->GetEnhancedContrast();
+	f32 clear_type_level = gfx_state.rendering_params->GetClearTypeLevel();
+	hr = gfx_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_DEFAULT, &gfx_state.rendering_params);
+	gfx_assert(hr, "failed to create custom dwrite rendering params.");
+
+	hr = gfx_state.dwrite_factory->GetGdiInterop(&gfx_state.gdi_interop);
+	gfx_assert(hr, "failed to create gdi interop.");
 
 	// create buffers
 	D3D11_BUFFER_DESC buffer_desc = { 0 };
 
 	// vertex buffer
-	buffer_desc.ByteWidth = gfx_buffer_size;
+	buffer_desc.ByteWidth = gfx_max_buffer_size;
 	buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
 	buffer_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	buffer_desc.MiscFlags = 0;
-	gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.vertex_buffer);
+	hr = gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.vertex_buffer);
+	gfx_assert(hr, "failed to create vertex buffer.");
+
 
 	// constant buffer
-	buffer_desc.ByteWidth = gfx_buffer_size;
-	buffer_desc.ByteWidth += 15;
-	buffer_desc.ByteWidth -= buffer_desc.ByteWidth % 16;
+	buffer_desc.ByteWidth = 512;
 	buffer_desc.Usage = D3D11_USAGE_DYNAMIC;
 	buffer_desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	buffer_desc.MiscFlags = 0;
-	gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.constant_buffer);
-
-	// create dwrite factory
-	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&gfx_state.dwrite_factory);
-
-	// create rendering params
-	hr = gfx_state.dwrite_factory->CreateRenderingParams(&gfx_state.rendering_params);
-	f32 gamma = gfx_state.rendering_params->GetGamma();
-	f32 enhanced_contrast = gfx_state.rendering_params->GetEnhancedContrast();
-	f32 clear_type_level = gfx_state.rendering_params->GetClearTypeLevel();
-	hr = gfx_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_DEFAULT, &gfx_state.rendering_params);
-
-	gfx_state.dwrite_factory->GetGdiInterop(&gfx_state.gdi_interop);
-
+	hr = gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.constant_buffer);
+	gfx_assert(hr, "failed to create constant buffer.");
 
 	// default texture
 	u32 texture_data = 0xFFFFFFFF;
-	gfx_state.default_texture = gfx_texture_create(str("default"), 1, 1, gfx_texture_format_rgba8, &texture_data);
+	gfx_state.default_texture = gfx_texture_create(str("default"), uvec2(1, 1), gfx_texture_format_rgba8, &texture_data);
 
-	gfx_state.quad_shader = gfx_shader_load(str("res/shaders/ui_quad.hlsl"), { {
-		{ "POS", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "UV", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "COL", 3, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "RAD", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "STY", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-	} });
-	
-	gfx_state.line_shader = gfx_shader_load(str("res/shaders/ui_line.hlsl"), { {
-		{"POS", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"PNT", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"STY", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-	} });
-
-	gfx_state.disk_shader = gfx_shader_load(str("res/shaders/ui_disk.hlsl"), { {
-		{"POS", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 3, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"ANG", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
-		{"STY", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
-	} });
-
-	gfx_state.tri_shader = gfx_shader_load(str("res/shaders/ui_triangle.hlsl"), { {
-		{"POS", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{"PNT", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
-		{"PNT", 1, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
-		{"PNT", 2, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
-		{"STY", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+	gfx_state.shader_2d = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), { {
+		{ "BBOX", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "UV",   0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "TYPE", 0, gfx_vertex_format_int,    gfx_vertex_class_per_instance },
+		{ "POS",  0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{ "POS",  1, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{ "POS",  2, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{ "POS",  3, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{ "COL",  0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "COL",  1, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "COL",  2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "COL",  3, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "RAD",  0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
+		{ "STY",  0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
 	} });
 
 	// stacks
 	gfx_default_init(texture, gfx_state.default_texture);
-	gfx_default_init(shader, gfx_state.quad_shader);
+	gfx_default_init(shader, gfx_state.shader_2d);
 	gfx_default_init(clip, rect(0.0f, 0.0f, 0.0f, 0.0f));
-	gfx_default_init(depth, 0);
-	gfx_default_init(instance_size, sizeof(gfx_quad_instance_t));
+	gfx_default_init(radius0, 0.0f);
+	gfx_default_init(radius1, 0.0f);
+	gfx_default_init(radius2, 0.0f);
+	gfx_default_init(radius3, 0.0f);
+	gfx_default_init(color0, color(0xffffffff));
+	gfx_default_init(color1, color(0xffffffff));
+	gfx_default_init(color2, color(0xffffffff));
+	gfx_default_init(color3, color(0xffffffff));
+	gfx_default_init(thickness, 0.0f);
+	gfx_default_init(softness, 0.33f);
 
 }
 
 function void 
 gfx_release() {
-
-	// release assets
-	gfx_texture_release(gfx_state.default_texture);
-	gfx_shader_release(gfx_state.quad_shader);
-	gfx_shader_release(gfx_state.line_shader);
-	gfx_shader_release(gfx_state.disk_shader);
-	gfx_shader_release(gfx_state.tri_shader);
-
+	
 	// release buffers
 	if (gfx_state.vertex_buffer != nullptr) { gfx_state.vertex_buffer->Release(); }
 	if (gfx_state.constant_buffer != nullptr) { gfx_state.constant_buffer->Release(); }
@@ -266,41 +266,209 @@ gfx_release() {
 	if (gfx_state.device != nullptr) { gfx_state.device->Release(); }
 
 	// release arenas
-	arena_release(gfx_state.resource_arena);
 	arena_release(gfx_state.scratch_arena);
-	arena_release(gfx_state.per_frame_arena);
+	arena_release(gfx_state.batch_arena);
+	arena_release(gfx_state.resource_arena);
+	arena_release(gfx_state.renderer_arena);
 
 }
 
-// renderer functions
+function void
+gfx_update() {
+
+	// clear arenas
+	arena_clear(gfx_state.batch_arena);
+	arena_clear(gfx_state.scratch_arena);
+
+	// TODO: hotloading
+
+}
+
+function void 
+gfx_submit() {
+
+	gfx_renderer_t* renderer = gfx_state.renderer_active;
+	const FLOAT clear_color_array[] = { renderer->params.clear_color.r, renderer->params.clear_color.g, renderer->params.clear_color.b, renderer->params.clear_color.a };
+	D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y, 0.0f, 1.0f };
+
+	// clear
+	gfx_state.device_context->OMSetRenderTargets(1, &renderer->framebuffer_rtv, renderer->depthbuffer_dsv);
+	gfx_state.device_context->ClearRenderTargetView(renderer->framebuffer_rtv, clear_color_array);
+	gfx_state.device_context->ClearDepthStencilView(renderer->depthbuffer_dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// set up common state
+	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
+	gfx_state.device_context->RSSetState(gfx_state.solid_rasterizer_state);
+	gfx_state.device_context->RSSetViewports(1, &viewport);
+	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.point_sampler);
+	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.linear_sampler);
+
+	// render 3d batches
+	{
+		// load constant buffer
+		D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
+		gfx_state.device_context->Map(gfx_state.constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
+		u8* ptr = (u8*)mapped_subresource.pData;
+		memcpy(ptr, &gfx_state.constants_3d, sizeof(gfx_3d_constants_t));
+		gfx_state.device_context->Unmap(gfx_state.constant_buffer, 0);
+
+		// setup state
+		gfx_state.device_context->OMSetDepthStencilState(gfx_state.depth_stencil_state, 1);
+		gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		gfx_state.device_context->VSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
+		gfx_state.device_context->PSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
+
+		// render batches
+		for (gfx_batch_t* batch = gfx_state.batch_list.first; batch != 0; batch = batch->next) {
+
+			// skip non 3d batches
+			if (batch->state.type != gfx_batch_type_3d) {
+				continue;
+			}
+
+			// load vertex data into buffer
+			u32 stride = batch->state.vertex_size;
+			u32 offset = 0;
+			D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
+			gfx_state.device_context->Map(gfx_state.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
+			u8* ptr = (u8*)mapped_subresource.pData;
+			memcpy(ptr, batch->data, batch->vertex_count * batch->state.vertex_size);
+			gfx_state.device_context->Unmap(gfx_state.vertex_buffer, 0);
+			gfx_state.device_context->IASetVertexBuffers(0, 1, &gfx_state.vertex_buffer, &stride, &offset);
+
+			// set texture
+			gfx_state.device_context->PSSetShaderResources(0, 1, &batch->state.texture->srv);
+
+			// set shader
+			gfx_state.device_context->VSSetShader(batch->state.shader->vertex_shader, 0, 0);
+			gfx_state.device_context->PSSetShader(batch->state.shader->pixel_shader, 0, 0);
+			gfx_state.device_context->IASetInputLayout(batch->state.shader->input_layout);
+
+			// set clip
+			D3D11_RECT scissor_rect = {
+				(i32)batch->state.clip_mask.x0, (i32)batch->state.clip_mask.y0,
+				(i32)batch->state.clip_mask.x1 , (i32)batch->state.clip_mask.y1
+			};
+			gfx_state.device_context->RSSetScissorRects(1, &scissor_rect);
+
+			// draw
+			switch (batch->state.vertex_class) {
+				case gfx_vertex_class_per_vertex: {
+					gfx_state.device_context->Draw(batch->vertex_count, 0);
+					break;
+				}
+			}
+
+		}
+	}
+
+	// render 2d batches
+	{
+		// load constant buffer
+		D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
+		gfx_state.device_context->Map(gfx_state.constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
+		u8* ptr = (u8*)mapped_subresource.pData;
+		memcpy(ptr, &gfx_state.constants_2d, sizeof(gfx_2d_constants_t));
+		gfx_state.device_context->Unmap(gfx_state.constant_buffer, 0);
+
+		// setup state
+		gfx_state.device_context->OMSetDepthStencilState(gfx_state.no_depth_stencil_state, 1);
+		gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+		gfx_state.device_context->VSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
+		gfx_state.device_context->PSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
+
+		// render batches
+		for (gfx_batch_t* batch = gfx_state.batch_list.first; batch != 0; batch = batch->next) {
+
+			// skip non 2d batches
+			if (batch->state.type != gfx_batch_type_2d) {
+				continue;
+			}
+
+			// load vertex data into buffer
+			u32 stride = batch->state.vertex_size;
+			u32 offset = 0;
+			D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
+			gfx_state.device_context->Map(gfx_state.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
+			u8* ptr = (u8*)mapped_subresource.pData;
+			memcpy(ptr, batch->data, batch->vertex_count * batch->state.vertex_size);
+			gfx_state.device_context->Unmap(gfx_state.vertex_buffer, 0);
+			gfx_state.device_context->IASetVertexBuffers(0, 1, &gfx_state.vertex_buffer, &stride, &offset);
+
+			// set texture
+			gfx_state.device_context->PSSetShaderResources(0, 1, &batch->state.texture->srv);
+
+			// set shader
+			gfx_state.device_context->VSSetShader(batch->state.shader->vertex_shader, 0, 0);
+			gfx_state.device_context->PSSetShader(batch->state.shader->pixel_shader, 0, 0);
+			gfx_state.device_context->IASetInputLayout(batch->state.shader->input_layout);
+
+			// set clip
+			D3D11_RECT scissor_rect = {
+				(i32)batch->state.clip_mask.x0, (i32)batch->state.clip_mask.y0,
+				(i32)batch->state.clip_mask.x1 , (i32)batch->state.clip_mask.y1
+			};
+			gfx_state.device_context->RSSetScissorRects(1, &scissor_rect);
+
+			switch (batch->state.vertex_class) {
+				case gfx_vertex_class_per_vertex: {
+					gfx_state.device_context->Draw(batch->vertex_count, 0);
+					break;
+				}
+				case gfx_vertex_class_per_instance:	{
+					// TODO: for now we assume that the vertex 
+					// count is always 4. but that might not
+					// always be true.
+					gfx_state.device_context->DrawInstanced(4, batch->instance_count, 0, 0);
+					break;
+				}
+			}
+		}
+	}
+
+	// present
+	renderer->swapchain->Present(1, 0);
+	gfx_state.device_context->ClearState();
+
+	// clear batches
+	gfx_state.batch_list.count = 0;
+	gfx_state.batch_list.first = nullptr;
+	gfx_state.batch_list.last = nullptr;
+
+}
+
+
+// renderer
 
 function gfx_renderer_t* 
-gfx_renderer_create(os_window_t* window, color_t clear_color, u8 sample_count) {
+gfx_renderer_create(os_window_t* window, gfx_renderer_params_t params) {
 
+	// get or create renderer
 	gfx_renderer_t* renderer = nullptr;
 	renderer = gfx_state.renderer_free;
 	if (renderer != nullptr) {
 		stack_pop(gfx_state.renderer_free);
 	} else {
-		renderer = (gfx_renderer_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_renderer_t));
+		renderer = (gfx_renderer_t*)arena_alloc(gfx_state.renderer_arena, sizeof(gfx_renderer_t));
 	}
-	memset(renderer, 0, sizeof(gfx_renderer_t));
+	memset(renderer, 0, sizeof(gfx_renderer_t*));
+	dll_push_back(gfx_state.renderer_first, gfx_state.renderer_last, renderer);
+	gfx_state.renderer_count++;
 
-	// fill params
+	// fill renderer
 	renderer->window = window;
-	renderer->clear_color = clear_color;
-	renderer->width = window->width;
-	renderer->height = window->height;
+	renderer->params = params;
+	renderer->resolution = window->resolution;
 
 	HRESULT hr = 0;
 
 	// create swapchain
 	DXGI_SWAP_CHAIN_DESC1 swapchain_desc = { 0 };
-	swapchain_desc.Width = window->width;
-	swapchain_desc.Height = window->height;
+	swapchain_desc.Width = renderer->resolution.x;
+	swapchain_desc.Height = renderer->resolution.y;
 	swapchain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swapchain_desc.Stereo = FALSE;
-	swapchain_desc.SampleDesc.Count = sample_count;
+	swapchain_desc.SampleDesc.Count = params.sample_count;
 	swapchain_desc.SampleDesc.Quality = 0;
 	swapchain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapchain_desc.BufferCount = 2;
@@ -308,265 +476,278 @@ gfx_renderer_create(os_window_t* window, color_t clear_color, u8 sample_count) {
 	swapchain_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 	swapchain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 	swapchain_desc.Flags = 0;
-	hr = gfx_state.dxgi_factory->CreateSwapChainForHwnd(gfx_state.device, window->handle, &swapchain_desc, 0, 0, &renderer->swapchain);
 
-	if (FAILED(hr)) {
-		printf("[error] failed to create swapchain. (%x)", hr);
-		os_abort(1);
-	}
+	hr = gfx_state.dxgi_factory->CreateSwapChainForHwnd(gfx_state.device, window->handle, &swapchain_desc, 0, 0, &renderer->swapchain);
+	gfx_assert(hr, "failed to create swapchain.");
 
 	// create framebuffer and render view target
-	renderer->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&renderer->framebuffer));
-	gfx_state.device->CreateRenderTargetView(renderer->framebuffer, 0, &renderer->framebuffer_rtv);
+	hr = renderer->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&renderer->framebuffer));
+	gfx_assert(hr, "failed to get framebuffer texture.");
+
+	hr = gfx_state.device->CreateRenderTargetView(renderer->framebuffer, 0, &renderer->framebuffer_rtv);
+	gfx_assert(hr, "failed to create render target view.");
+
+	// create depth target
+	D3D11_TEXTURE2D_DESC depthbuffer_desc = { 0 };
+	depthbuffer_desc = { 0 };
+	depthbuffer_desc.Width = renderer->resolution.x;
+	depthbuffer_desc.Height = renderer->resolution.y;
+	depthbuffer_desc.MipLevels = 1;
+	depthbuffer_desc.ArraySize = 1;
+	depthbuffer_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthbuffer_desc.SampleDesc.Count = params.sample_count;
+	depthbuffer_desc.SampleDesc.Quality = 0;
+	depthbuffer_desc.Usage = D3D11_USAGE_DEFAULT;
+	depthbuffer_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthbuffer_desc.CPUAccessFlags = 0;
+	depthbuffer_desc.MiscFlags = 0;
+	hr = gfx_state.device->CreateTexture2D(&depthbuffer_desc, 0, &renderer->depthbuffer);
+	gfx_assert(hr, "failed to create depthbuffer.");
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC depth_dsv_desc = { 0 };
+	depth_dsv_desc.Format = depthbuffer_desc.Format;
+	depth_dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	hr = gfx_state.device->CreateDepthStencilView(renderer->depthbuffer, &depth_dsv_desc, &renderer->depthbuffer_dsv);
+	gfx_assert(hr, "failed to create depth stencil view.");
 
 	return renderer;
-
 }
 
 function void
 gfx_renderer_release(gfx_renderer_t* renderer) {
+
+	if (renderer->depthbuffer_srv != nullptr) { renderer->depthbuffer_srv->Release(); }
 	if (renderer->depthbuffer_dsv != nullptr) { renderer->depthbuffer_dsv->Release(); }
 	if (renderer->depthbuffer != nullptr) { renderer->depthbuffer->Release(); }
+
+	if (renderer->framebuffer_srv != nullptr) { renderer->framebuffer_srv->Release(); }
 	if (renderer->framebuffer_rtv != nullptr) { renderer->framebuffer_rtv->Release(); }
 	if (renderer->framebuffer != nullptr) { renderer->framebuffer->Release(); }
+
 	if (renderer->swapchain != nullptr) { renderer->swapchain->Release(); }
+
+	dll_remove(gfx_state.renderer_first, gfx_state.renderer_last, renderer);
+	gfx_state.renderer_count--;
 	stack_push(gfx_state.renderer_free, renderer);
 }
 
 function void 
-gfx_renderer_resize(gfx_renderer_t* renderer) {
+gfx_renderer_resize(gfx_renderer_t* renderer, uvec2_t resolution) {
 
-	if (renderer->width == 0 || renderer->height == 0) {
+	// skip is invalid resolution
+	if (resolution.x == 0 || resolution.y == 0) {
 		return;
 	}
 
 	gfx_state.device_context->OMSetRenderTargets(0, 0, 0);
+	HRESULT hr = 0;
 
 	// release buffers
-	renderer->framebuffer_rtv->Release();
-	renderer->framebuffer->Release();
+	if (renderer->depthbuffer_srv != nullptr) { renderer->depthbuffer_srv->Release(); renderer->depthbuffer_srv = nullptr; }
+	if (renderer->depthbuffer_dsv != nullptr) { renderer->depthbuffer_dsv->Release(); renderer->depthbuffer_dsv = nullptr; }
+	if (renderer->depthbuffer != nullptr) { renderer->depthbuffer->Release(); renderer->depthbuffer = nullptr; }
+
+	if (renderer->framebuffer_srv != nullptr) { renderer->framebuffer_srv->Release(); renderer->framebuffer_srv = nullptr; }
+	if (renderer->framebuffer_rtv != nullptr) { renderer->framebuffer_rtv->Release(); renderer->framebuffer_rtv = nullptr; }
+	if (renderer->framebuffer != nullptr) { renderer->framebuffer->Release(); renderer->framebuffer = nullptr; }
 
 	// resize framebuffer
-	renderer->swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+	hr = renderer->swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+	gfx_assert(hr, "failed to resize framebuffer.");
 	renderer->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&renderer->framebuffer));
 	gfx_state.device->CreateRenderTargetView(renderer->framebuffer, 0, &renderer->framebuffer_rtv);
 
+	// resize depthbuffer
+	D3D11_TEXTURE2D_DESC depthbuffer_desc = { 0 };
+	renderer->framebuffer->GetDesc(&depthbuffer_desc);
+	depthbuffer_desc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	depthbuffer_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	hr = gfx_state.device->CreateTexture2D(&depthbuffer_desc, 0, &renderer->depthbuffer);
+	gfx_assert(hr, "failed to resize depthbuffer.");
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC depth_dsv_desc = { 0 };
+	depth_dsv_desc.Flags = 0;
+	depth_dsv_desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depth_dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depth_dsv_desc.Texture2D.MipSlice = 0;
+	gfx_state.device->CreateDepthStencilView(renderer->depthbuffer, &depth_dsv_desc, &renderer->depthbuffer_dsv);
+	gfx_assert(hr, "failed to create new depth stencil view.");
+
+	// set new resolution
+	renderer->resolution = resolution;
 }
 
 function void
 gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 
-	// clear arena
-	arena_clear(gfx_state.per_frame_arena);
-
-	// clear batch list
-	gfx_state.batch_list.first = nullptr;
-	gfx_state.batch_list.last = nullptr;
-	gfx_state.batch_list.count = 0;
-
+	// set active renderer
+	gfx_state.renderer_active = renderer;
+	
 	// resize if needed
-	if (renderer->width != renderer->window->width || renderer->height != renderer->window->height) {
-		renderer->width = renderer->window->width;
-		renderer->height = renderer->window->height;
-		gfx_renderer_resize(renderer);
+	if (!uvec2_equals(renderer->resolution, renderer->window->resolution)) {
+		gfx_renderer_resize(renderer, renderer->window->resolution);
 	}
 
-	// clear
-	FLOAT clear_color_array[] = {renderer->clear_color.r, renderer->clear_color.g, renderer->clear_color.b, renderer->clear_color.a };
-	gfx_state.device_context->ClearRenderTargetView(renderer->framebuffer_rtv, clear_color_array);
+	// set default clip
+	gfx_state.clip_default_node.v = rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y);
 
-	gfx_state.active_renderer = renderer;
-
-	gfx_default_init(clip, rect(0.0f, 0.0f, (f32)gfx_state.active_renderer->width, (f32)gfx_state.active_renderer->height));
-	gfx_state.constant_data.window_size = vec2((f32)gfx_state.active_renderer->width, (f32)gfx_state.active_renderer->height);
+	// update constants
+	gfx_state.constants_2d.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
+	gfx_state.constants_2d.time = vec2(renderer->window->elasped_time, renderer->window->delta_time);
 
 	// reset stacks
-	gfx_stack_reset(texture)
-	gfx_stack_reset(shader)
-	gfx_stack_reset(clip)
-	gfx_stack_reset(depth)
-	gfx_stack_reset(instance_size)
+	gfx_stack_reset(texture);
+	gfx_stack_reset(shader);
+	gfx_stack_reset(clip);
+	
+	gfx_stack_reset(radius0);
+	gfx_stack_reset(radius1);
+	gfx_stack_reset(radius2);
+	gfx_stack_reset(radius3);
+	gfx_stack_reset(color0);
+	gfx_stack_reset(color1);
+	gfx_stack_reset(color2);
+	gfx_stack_reset(color3);
+	gfx_stack_reset(thickness);
+	gfx_stack_reset(softness);
 
 }
 
 function void
 gfx_renderer_end_frame(gfx_renderer_t* renderer) {
-	
-	// create batch array
-	gfx_batch_array_t batch_array = gfx_batch_list_to_batch_array(gfx_state.batch_list);
 
-	// sort batches by depth
-	qsort(batch_array.batches, batch_array.count, sizeof(gfx_batch_t), gfx_batch_compare_depth);
+	// submit to gfx state
+	gfx_submit();
 
-	// load constant buffer
-	D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
-	gfx_state.device_context->Map(gfx_state.constant_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
-	u8* ptr = (u8*)mapped_subresource.pData;
-	memcpy(ptr, &gfx_state.constant_data, sizeof(gfx_constant_data_t));
-	gfx_state.device_context->Unmap(gfx_state.constant_buffer, 0);
-
-	// set graphics state
-
-	// set output merger state
-	//gfx_state.device_context->OMSetDepthStencilState(gfx_state.no_depth_stencil_state, 1);
-	gfx_state.device_context->OMSetRenderTargets(1, &renderer->framebuffer_rtv, nullptr);
-	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
-	
-	// set input assembler state
-	gfx_state.device_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-
-	// set rasterizer state
-	D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (f32)renderer->window->width, (f32)renderer->window->height, 0.0f, 1.0f };
-	gfx_state.device_context->RSSetState(gfx_state.solid_rasterizer_state);
-	gfx_state.device_context->RSSetViewports(1, &viewport);
-
-	// set samplers
-	gfx_state.device_context->PSSetSamplers(0, 1, &gfx_state.point_sampler);
-	gfx_state.device_context->PSSetSamplers(1, 1, &gfx_state.linear_sampler);
-
-	// set buffers
-	gfx_state.device_context->VSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
-	gfx_state.device_context->PSSetConstantBuffers(0, 1, &gfx_state.constant_buffer);
-
-	for (u32 i = 0; i < batch_array.count; i++) {
-
-		gfx_batch_t* batch = &batch_array.batches[i];
-
-		// debug info
-		if (0) {
-			printf("[batch] {\n  texture: %.*s\n  shader: %.*s\n  clip: (%.1f, %.1f, %.1f, %.1f)\n  depth: %u\n  instance_size: %u\n}\n",
-				batch->state.texture->name.size, batch->state.texture->name.data,
-				batch->state.shader->name.size, batch->state.shader->name.data,
-				batch->state.clip_mask.x0, batch->state.clip_mask.y0, batch->state.clip_mask.x1, batch->state.clip_mask.y1,
-				batch->state.depth, batch->state.instance_size
-			);
-		}
-
-		u32 stride = batch->state.instance_size;
-		u32 offset = 0;
-
-		// load vertex data into buffer
-		D3D11_MAPPED_SUBRESOURCE mapped_subresource = { 0 };
-		gfx_state.device_context->Map(gfx_state.vertex_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_subresource);
-		u8* ptr = (u8*)mapped_subresource.pData;
-		memcpy(ptr, batch->data, batch->instance_count * batch->state.instance_size);
-		gfx_state.device_context->Unmap(gfx_state.vertex_buffer, 0);
-		gfx_state.device_context->IASetVertexBuffers(0, 1, &gfx_state.vertex_buffer, &stride, &offset);
-
-		// set texture
-		gfx_state.device_context->PSSetShaderResources(0, 1, &batch->state.texture->srv);
-
-		// set shader
-		gfx_state.device_context->VSSetShader(batch->state.shader->vertex_shader, 0, 0);
-		gfx_state.device_context->PSSetShader(batch->state.shader->pixel_shader, 0, 0);
-		gfx_state.device_context->IASetInputLayout(batch->state.shader->input_layout);
-		
-		// set clip
-		D3D11_RECT scissor_rect = {
-			(i32)batch->state.clip_mask.x0, (i32)batch->state.clip_mask.y0,
-			(i32)batch->state.clip_mask.x1 , (i32)batch->state.clip_mask.y1
-		};
-		gfx_state.device_context->RSSetScissorRects(1, &scissor_rect);
-
-		// draw
-		gfx_state.device_context->DrawInstanced(4, batch->instance_count, 0, 0);
-
-	}
-	
-	// clear batch list
-	gfx_state.batch_count = gfx_state.batch_list.count;
-
-	// present
-	renderer->swapchain->Present(1, 0);
-	gfx_state.device_context->ClearState();
-
-	gfx_state.active_renderer = nullptr;
+	// clear active renderer
+	gfx_state.renderer_active = nullptr;
 }
 
 
+// draw functions
 
-function void 
-gfx_draw_quad(rect_t pos, gfx_quad_params_t params) {
-
-	gfx_batch_state_t state;
-	state.shader = gfx_state.quad_shader;
-	state.instance_size = sizeof(gfx_quad_instance_t);
+function void
+gfx_draw_quad(rect_t pos) {
+	
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_state.shader_2d;
 	state.texture = gfx_top_texture();
 	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, 1);
-	gfx_quad_instance_t* instance = &((gfx_quad_instance_t*)batch->data)[batch->instance_count++];
+	state.type = gfx_batch_type_2d;
+	state.vertex_class = gfx_vertex_class_per_instance;
+	state.instance_size = sizeof(gfx_2d_instance_t);
+	gfx_batch_t* batch = gfx_batch_find(state, 1);
 
+	// get instance
+	gfx_2d_instance_t* instance = &((gfx_2d_instance_t*)batch->data)[batch->instance_count++];
+	
 	rect_validate(pos);
 
-	instance->pos = pos;
+	// fill instance
+	instance->bounding_box = pos;
 	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->type = 0;
 
-	instance->col0 = params.col0.vec;
-	instance->col1 = params.col1.vec;
-	instance->col2 = params.col2.vec;
-	instance->col3 = params.col3.vec;
+	instance->col0 = gfx_top_color0().vec;
+	instance->col1 = gfx_top_color1().vec;
+	instance->col2 = gfx_top_color2().vec;
+	instance->col3 = gfx_top_color3().vec;
 
-	instance->radii = params.radii;
-	instance->style = {params.thickness, params.softness, 0.0f, 0.0f};
+	instance->r0 = gfx_top_radius0();
+	instance->r1 = gfx_top_radius1();
+	instance->r2 = gfx_top_radius2();
+	instance->r3 = gfx_top_radius3();
+
+	instance->thickness = gfx_top_thickness();
+	instance->softness = gfx_top_softness();
 
 	gfx_auto_pop_stacks();
 }
 
 function void
-gfx_draw_line(vec2_t p0, vec2_t p1, gfx_line_params_t params) {
+gfx_draw_line(vec2_t p0, vec2_t p1) {
 
-	gfx_batch_state_t state;
-	state.shader = gfx_state.line_shader;
-	state.instance_size = sizeof(gfx_line_instance_t);
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_state.shader_2d;
 	state.texture = gfx_top_texture();
 	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, 1);
-	gfx_line_instance_t* instance = &((gfx_line_instance_t*)batch->data)[batch->instance_count++];
+	state.type = gfx_batch_type_2d;
+	state.vertex_class = gfx_vertex_class_per_instance;
+	state.instance_size = sizeof(gfx_2d_instance_t);
+	gfx_batch_t* batch = gfx_batch_find(state, 1);
+
+	// get instance
+	gfx_2d_instance_t* instance = &((gfx_2d_instance_t*)batch->data)[batch->instance_count++];
 
 	// calculate bounding box
 	rect_t bbox = { p0.x, p0.y, p1.x, p1.y };
 	rect_validate(bbox);
-	bbox = rect_grow(bbox, params.thickness + params.softness);
+	f32 thickness = gfx_top_thickness();
+	f32 softness = gfx_top_softness();
+	bbox = rect_grow(bbox, roundf(thickness + softness));
 
 	vec2_t c = rect_center(bbox);
 	vec2_t c_p0 = vec2_sub(c, p0);
 	vec2_t c_p1 = vec2_sub(c, p1);
-	
-	instance->pos = bbox;
-	instance->col0 = params.col0.vec;
-	instance->col1 = params.col1.vec;
-	instance->points = { c_p0.x, c_p0.y, c_p1.x, c_p1.y };
-	instance->style = { params.thickness, params.softness, 0.0f, 0.0f };
 
+	// fill instance
+	instance->bounding_box = bbox;
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->type = 1;
+
+	instance->col0 = gfx_top_color0().vec;
+	instance->col1 = gfx_top_color1().vec;
+
+	instance->p0 = { c_p0.x, c_p0.y };
+	instance->p1 = { c_p1.x, c_p1.y };
+
+	instance->thickness = thickness;
+	instance->softness = softness;
+
+	gfx_auto_pop_stacks();
 }
 
-function void 
-gfx_draw_text(str_t string, vec2_t pos, gfx_text_params_t params) {
-	
-	gfx_batch_state_t state;
-	state.shader = gfx_state.quad_shader;
-	state.instance_size = sizeof(gfx_quad_instance_t);
-	state.texture = params.font->atlas_texture;
+function void
+gfx_draw_text(str_t string, vec2_t pos, gfx_font_t* font, f32 font_size) {
+
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_state.shader_2d;
+	state.texture = font->atlas_texture;
 	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, string.size);
-	
+	state.type = gfx_batch_type_2d;
+	state.vertex_class = gfx_vertex_class_per_instance;
+	state.instance_size = sizeof(gfx_2d_instance_t);
+	gfx_batch_t* batch = gfx_batch_find(state, string.size);
+
 	for (u32 i = 0; i < string.size; i++) {
-		gfx_quad_instance_t* instance = &((gfx_quad_instance_t*)batch->data)[batch->instance_count++];
+
+		// get instance
+		gfx_2d_instance_t* instance = &((gfx_2d_instance_t*)batch->data)[batch->instance_count++];
 
 		u8 codepoint = *(string.data + i);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, codepoint, font_size);
 
-		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		// fill instance
+		instance->bounding_box = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
 		instance->uv = glyph->uv;
-		instance->col0 = params.color.vec;
-		instance->col1 = params.color.vec;
-		instance->col2 = params.color.vec;
-		instance->col3 = params.color.vec;
-		instance->radii = { 0.0f, 0.0f, 0.0f, 0.0f };
-		instance->style = { 0.0f, 0.0f, 0.0f, 0.0f };
+		instance->type = 0;
+
+		instance->col0 = gfx_top_color0().vec;
+		instance->col1 = gfx_top_color0().vec;
+		instance->col2 = gfx_top_color0().vec;
+		instance->col3 = gfx_top_color0().vec;
+
+		instance->r0 = 0.0f;
+		instance->r1 = 0.0f;
+		instance->r2 = 0.0f;
+		instance->r3 = 0.0f;
+
+		instance->thickness = 0.0f;
+		instance->softness = 0.0f;
+
 		pos.x += glyph->advance;
 
 	}
@@ -575,169 +756,134 @@ gfx_draw_text(str_t string, vec2_t pos, gfx_text_params_t params) {
 }
 
 function void
-gfx_draw_text(str16_t string, vec2_t pos, gfx_text_params_t params) {
+gfx_draw_radial(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 
-	gfx_batch_state_t state;
-	state.shader = gfx_state.quad_shader;
-	state.instance_size = sizeof(gfx_quad_instance_t);
-	state.texture = params.font->atlas_texture;
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_state.shader_2d;
+	state.texture = gfx_top_texture();
 	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, string.size);
+	state.type = gfx_batch_type_2d;
+	state.vertex_class = gfx_vertex_class_per_instance;
+	state.instance_size = sizeof(gfx_2d_instance_t);
+	gfx_batch_t* batch = gfx_batch_find(state, 1);
 
-	for (u32 i = 0; i < string.size; i++) {
-		gfx_quad_instance_t* instance = &((gfx_quad_instance_t*)batch->data)[batch->instance_count++];
+	// get instance
+	gfx_2d_instance_t* instance = &((gfx_2d_instance_t*)batch->data)[batch->instance_count++];
+	
+	instance->bounding_box = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->type = 2;
 
-		u16 codepoint = *(string.data + i);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(params.font, codepoint, params.font_size);
+	instance->p0 = { radians(start_angle), radians(end_angle) };
 
-		instance->pos = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
-		instance->uv = glyph->uv;
-		instance->col0 = params.color.vec;
-		instance->col1 = params.color.vec;
-		instance->col2 = params.color.vec;
-		instance->col3 = params.color.vec;
-		instance->radii = { 0.0f, 0.0f, 0.0f, 0.0f };
-		instance->style = { 0.0f, 0.0f, 0.0f, 0.0f };
-		pos.x += glyph->advance;
+	instance->col0 = gfx_top_color0().vec;
+	instance->col1 = gfx_top_color1().vec;
+	instance->col2 = gfx_top_color2().vec;
+	instance->col3 = gfx_top_color3().vec;
 
-	}
+	instance->thickness = gfx_top_thickness();
+	instance->softness = gfx_top_softness();
 
 	gfx_auto_pop_stacks();
-
 }
 
 function void
-gfx_draw_radial(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle, gfx_radial_params_t params) {
+gfx_draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 
-	// get instance
-	gfx_batch_state_t state;
-	state.shader = gfx_state.disk_shader;
-	state.instance_size = sizeof(gfx_radial_instance_t);
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_state.shader_2d;
 	state.texture = gfx_top_texture();
 	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, 1);
-	gfx_radial_instance_t* instance = &((gfx_radial_instance_t*)batch->data)[batch->instance_count++];
-
-	instance->pos = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
-	instance->col0 = params.col0.vec;
-	instance->col1 = params.col1.vec;
-	instance->col2 = params.col2.vec;
-	instance->col3 = params.col3.vec;
-
-	instance->angles = { radians(start_angle), radians(end_angle) };
-	instance->style = { params.thickness, params.softness };
-
-	gfx_auto_pop_stacks();
-}
-
-function void 
-gfx_draw_tri(vec2_t p0, vec2_t p1, vec2_t p2, gfx_tri_params_t params) {
+	state.type = gfx_batch_type_2d;
+	state.vertex_class = gfx_vertex_class_per_instance;
+	state.instance_size = sizeof(gfx_2d_instance_t);
+	gfx_batch_t* batch = gfx_batch_find(state, 1);
 
 	// get instance
-	gfx_batch_state_t state;
-	state.shader = gfx_state.tri_shader;
-	state.instance_size = sizeof(gfx_tri_instance_t);
-	state.texture = gfx_top_texture();
-	state.clip_mask = gfx_top_clip();
-	state.depth = gfx_top_depth();
-	gfx_batch_t* batch = gfx_batch_find(gfx_state.active_renderer, state, 1);
-	gfx_tri_instance_t* instance = &((gfx_tri_instance_t*)batch->data)[batch->instance_count++];
+	gfx_2d_instance_t* instance = &((gfx_2d_instance_t*)batch->data)[batch->instance_count++];
 
 	// calculate bounding box
 	vec2_t points[3] = { p0, p1, p2 };
 	rect_t bbox = rect_bbox(points, 3);
-	bbox = rect_grow(bbox, 5.0f * roundf(params.thickness + params.softness));
+	f32 thickness = gfx_top_thickness();
+	f32 softness = gfx_top_softness();
+	bbox = rect_grow(bbox, 5.0f * roundf(thickness + softness));
 
 	vec2_t c = rect_center(bbox);
 	vec2_t c_p0 = vec2_sub(p0, c);
 	vec2_t c_p1 = vec2_sub(p1, c);
 	vec2_t c_p2 = vec2_sub(p2, c);
 
-	instance->pos = bbox;
-	instance->col0 = params.col0.vec;
-	instance->col1 = params.col1.vec;
-	instance->col2 = params.col2.vec;
+	instance->bounding_box = bbox;
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->type = 3;
+
 	instance->p0 = c_p0;
 	instance->p1 = c_p1;
 	instance->p2 = c_p2;
-	instance->style = { params.thickness, params.softness };
-}
 
-function void
-gfx_draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1, gfx_line_params_t params) {
+	instance->col0 = gfx_top_color0().vec;
+	instance->col1 = gfx_top_color1().vec;
+	instance->col2 = gfx_top_color2().vec;
 
-	// this uses seiler's interpolation by Cem Yuksel
+	instance->thickness = thickness;
+	instance->softness = softness;
 
-	const i32 res = 32;
-	vec2_t points[res];
-
-	vec2_t s0 = vec2_sub(vec2_sub(vec2_mul(c0, 3.0f), p0), p1);
-	vec2_t s1 = vec2_sub(vec2_sub(vec2_mul(c1, 3.0f), p1), p0);
-
-	for (i32 i = 0; i < res; i++) {
-
-		f32 t = (f32)i / (f32)(res - 1);
-
-		vec2_t p = vec2_lerp(p0, p1, t);
-		vec2_t s = vec2_lerp(s0, s1, t);
-
-		points[i] = vec2_lerp(p, s, (1.0f - t) * t);
-	}
-
-	for (i32 i = 0; i < res - 1; i++) {
-		gfx_draw_line(points[i], points[i + 1], params);
-	}
-
+	gfx_auto_pop_stacks();
 }
 
 // batch functions
 
-function i32
-gfx_batch_compare_depth(const void* a, const void* b) {
-	return ((gfx_batch_t*)a)->state.depth - ((gfx_batch_t*)b)->state.depth;
-}
-
 function b8
 gfx_batch_state_equal(gfx_batch_state_t* state_a, gfx_batch_state_t* state_b) {
-
+	b8 result = false;
 	if ((state_a->shader == state_b->shader) &&
 		(state_a->texture == state_b->texture) &&
-		(state_a->instance_size = state_b->instance_size) &&
+		(state_a->type == state_b->type) &&
 		(state_a->clip_mask.x0 == state_b->clip_mask.x0) &&
 		(state_a->clip_mask.y0 == state_b->clip_mask.y0) &&
 		(state_a->clip_mask.x1 == state_b->clip_mask.x1) &&
 		(state_a->clip_mask.y1 == state_b->clip_mask.y1) &&
-		(state_a->depth == state_b->depth)) {
-		return true;
+		(state_a->vertex_class == state_b->vertex_class) &&
+		(state_a->vertex_size == state_b->vertex_size)) {
+		result = true;
 	}
-
-	return false;
-
+	return result;
 }
 
 function gfx_batch_t*
-gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
+gfx_batch_find(gfx_batch_state_t state, u32 count) {
 
 	// search through current batches
 	for (gfx_batch_t* batch = gfx_state.batch_list.first; batch != 0; batch = batch->next) {
 
 		b8 batches_equal = gfx_batch_state_equal(&state, &batch->state);
-		b8 batch_has_size = (batch->state.instance_size * (batch->instance_count + count)) < gfx_buffer_size;
+		b8 batch_has_size = ((batch->vertex_count + count)* batch->state.vertex_size) < gfx_max_buffer_size;
 
-		// if state matches, and we have room..
+		//if (!batches_equal) {
+		//	printf("---------------------------\n");
+		//	printf("shader: %.*s    ---   shader: %.*s\n", state.shader->name.size, state.shader->name.data, batch->state.shader->name.size, batch->state.shader->name.data);
+		//	printf("texture: %.*s   ---   texture: %.*s\n", state.texture->name.size, state.texture->name.data, batch->state.texture->name.size, batch->state.texture->name.data);
+		//	printf("type: %u        ---   type: %u\n", state.type, batch->state.type);
+		//	printf("class: %u       ---   class: %u\n", state.vertex_class, batch->state.vertex_class);
+		//	printf("size: %u        ---   size: %u\n", state.vertex_size, batch->state.vertex_size);
+		//	printf("result: %s\n", batches_equal ? "equals" : "not equal");
+		//	printf("---------------------------\n");
+		//}
+		
 		if (batches_equal && batch_has_size) {
 			return batch;
 		}
 	}
 
-	// ..else, create a new batch
-	gfx_batch_t* batch = (gfx_batch_t*)arena_calloc(gfx_state.per_frame_arena, sizeof(gfx_batch_t));
+	// create a new batch if we didn't find one
+	gfx_batch_t* batch = (gfx_batch_t*)arena_calloc(gfx_state.batch_arena, sizeof(gfx_batch_t));
 
 	batch->state = state;
-	batch->data = arena_alloc(gfx_state.per_frame_arena, gfx_buffer_size);
-	batch->instance_count = 0;
+	batch->data = arena_alloc(gfx_state.batch_arena, gfx_max_buffer_size);
+	batch->vertex_count = 0;
 
 	dll_push_back(gfx_state.batch_list.first, gfx_state.batch_list.last, batch);
 	gfx_state.batch_list.count++;
@@ -745,85 +891,9 @@ gfx_batch_find(gfx_renderer_t* renderer, gfx_batch_state_t state, u32 count) {
 	return batch;
 }
 
-function gfx_batch_array_t
-gfx_batch_list_to_batch_array(gfx_batch_list_t list) {
-
-	// allocate list
-	u32 count = list.count;
-	gfx_batch_t* batches = (gfx_batch_t*)arena_alloc(gfx_state.per_frame_arena, sizeof(gfx_batch_t) * count);
-	
-	gfx_batch_t* current = list.first;
-	for (int i = 0; i < list.count && current != 0; i++) {
-		batches[i] = *current;
-		current = current->next;
-	}
-
-	gfx_batch_array_t batch_array = { 0 };
-	batch_array.batches = batches;
-	batch_array.count = count;
-
-	return batch_array;
-}
-
-
-// instance param functions
-
-function gfx_quad_params_t 
-gfx_quad_params(color_t color, f32 radius = 5.0f, f32 thickness = 0.0f, f32 softness = 0.33f) {
-	gfx_quad_params_t params = { 0 };
-
-	params.col0 = color;
-	params.col1 = color;
-	params.col2 = color;
-	params.col3 = color;
-	params.radii = { radius, radius, radius, radius };
-	params.thickness = thickness;
-	params.softness = softness;
-
-	return params;
-}
-
-function gfx_line_params_t
-gfx_line_params(color_t color, f32 thickness = 1.0f, f32 softness = 0.33f) {
-	gfx_line_params_t params;
-	params.col0 = params.col1 = color;
-	params.thickness = thickness;
-	params.softness = softness;
-	return params;
-}
-
-function gfx_text_params_t
-gfx_text_params(color_t color, gfx_font_t* font, f32 font_size) {
-	gfx_text_params_t params = { 0 };
-
-	params.color = color;
-	params.font = font;
-	params.font_size = font_size;
-
-	return params;
-}
-
-function gfx_radial_params_t
-gfx_radial_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
-	gfx_radial_params_t params;
-	params.col0 = params.col1 = params.col2 = params.col3 = color;
-	params.thickness = thickness;
-	params.softness = softness;
-	return params;
-}
-
-function gfx_tri_params_t 
-gfx_tri_params(color_t color, f32 thickness = 0.0f, f32 softness = 0.33f) {
-	gfx_tri_params_t params;
-	params.col0 = params.col1 = params.col2 = color;
-	params.thickness = thickness;
-	params.softness = softness;
-	return params;
-}
-
 // buffer functions
 
-function gfx_buffer_t* 
+function gfx_buffer_t*
 gfx_buffer_create(gfx_usage_type usage, u32 size, void* data) {
 
 	gfx_buffer_t* buffer = nullptr;
@@ -834,6 +904,8 @@ gfx_buffer_create(gfx_usage_type usage, u32 size, void* data) {
 		buffer = (gfx_buffer_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_buffer_t));
 	}
 	memset(buffer, 0, sizeof(gfx_buffer_t));
+	dll_push_back(gfx_state.buffer_first, gfx_state.buffer_last, buffer);
+	gfx_state.buffer_count++;
 
 	D3D11_USAGE d3d11_usage = D3D11_USAGE_DEFAULT;
 	u32 cpu_access_flags = 0;
@@ -847,29 +919,32 @@ gfx_buffer_create(gfx_usage_type usage, u32 size, void* data) {
 	desc.Usage = d3d11_usage;
 	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER | D3D11_BIND_INDEX_BUFFER;
 	desc.CPUAccessFlags = cpu_access_flags;
-	
-	HRESULT hr = gfx_state.device->CreateBuffer(&desc, (data != nullptr) ? &initial_data : nullptr, &buffer->id);
-	if (FAILED(hr)) {
-		printf("[error] failed to create buffer. (%x)\n");
-	}
 
+	HRESULT hr = gfx_state.device->CreateBuffer(&desc, (data != nullptr) ? &initial_data : nullptr, &buffer->id);
+	gfx_assert(hr, "failed to create buffer.");
+		
 	buffer->usage = usage;
 	buffer->size = size;
 
 	return buffer;
 }
 
-function void 
+function void
 gfx_buffer_release(gfx_buffer_t* buffer) {
 	if (buffer->id != nullptr) { buffer->id->Release(); }
+	dll_remove(gfx_state.buffer_first, gfx_state.buffer_last, buffer);
+	gfx_state.buffer_count--;
 	stack_push(gfx_state.buffer_free, buffer);
 }
 
+
+
 // texture functions
 
-function gfx_texture_t* 
-gfx_texture_create(str_t name, u32 width, u32 height, gfx_texture_format format, void* data) {
+function gfx_texture_t*
+gfx_texture_create(str_t name, uvec2_t size, gfx_texture_format format, void* data) {
 
+	// get or create texture
 	gfx_texture_t* texture = nullptr;
 	texture = gfx_state.texture_free;
 	if (texture != nullptr) {
@@ -878,12 +953,15 @@ gfx_texture_create(str_t name, u32 width, u32 height, gfx_texture_format format,
 		texture = (gfx_texture_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_texture_t));
 	}
 	memset(texture, 0, sizeof(gfx_texture_t));
-	
+	dll_push_back(gfx_state.texture_first, gfx_state.texture_last, texture);
+	gfx_state.texture_count++;
+
+	// fill struct
 	texture->name = name;
-	texture->width = width;
-	texture->height = height;
+	texture->size = size;
 	texture->format = format;
-	
+
+	// load data
 	gfx_texture_load_buffer(texture, data);
 
 	return texture;
@@ -904,6 +982,8 @@ function void
 gfx_texture_release(gfx_texture_t* texture) {
 	if (texture->id != nullptr) { texture->id->Release(); }
 	if (texture->srv != nullptr) { texture->srv->Release(); }
+	dll_remove(gfx_state.texture_first, gfx_state.texture_last, texture);
+	gfx_state.texture_count--;
 	stack_push(gfx_state.texture_free, texture);
 }
 
@@ -917,8 +997,8 @@ gfx_texture_load_buffer(gfx_texture_t* texture, void* data) {
 
 	// set descriptors
 	D3D11_TEXTURE2D_DESC texture_desc = { 0 };
-	texture_desc.Width = texture->width;
-	texture_desc.Height = texture->height;
+	texture_desc.Width = texture->size.x;
+	texture_desc.Height = texture->size.y;
 	texture_desc.ArraySize = 1;
 	texture_desc.Format = d3d11_texture_format_to_dxgi_format(texture->format);
 	texture_desc.SampleDesc.Count = 1;
@@ -937,19 +1017,15 @@ gfx_texture_load_buffer(gfx_texture_t* texture, void* data) {
 
 	D3D11_SUBRESOURCE_DATA texture_data = { 0 };
 	texture_data.pSysMem = data;
-	texture_data.SysMemPitch = texture->width * d3d11_texture_format_to_bytes(texture->format);
+	texture_data.SysMemPitch = texture->size.x * d3d11_texture_format_to_bytes(texture->format);
 
 	// create texture
 	hr = gfx_state.device->CreateTexture2D(&texture_desc, data ? &texture_data : nullptr, &id);
-	if (FAILED(hr)) {
-		printf("[error] failed to create texture '%.*s' (%x)\n", texture->name.size, texture->name.data, hr);
-	}
+	gfx_check_error(hr, "failed to create texture: '%.*s'", texture->name.size, texture->name.data);
 
 	// create srv
 	hr = gfx_state.device->CreateShaderResourceView(id, &srv_desc, &srv);
-	if (FAILED(hr)) {
-		printf("[error] failed to create srv '%.*s' (%x)\n", texture->name.size, texture->name.data, hr);
-	}
+	gfx_check_error(hr, "failed to create shader resource view for texture: '%.*s'.", texture->name.size, texture->name.data);
 
 	if (SUCCEEDED(hr)) {
 
@@ -966,27 +1042,31 @@ gfx_texture_load_buffer(gfx_texture_t* texture, void* data) {
 
 }
 
-function void 
+function void
 gfx_texture_fill(gfx_texture_t* texture, rect_t rect, void* data) {
-
+	
 	D3D11_BOX dst_box = {
 	  (UINT)rect.x0, (UINT)rect.y0, 0,
 	  (UINT)rect.x1, (UINT)rect.y1, 1,
 	};
 
-	if (dst_box.right > texture->width || dst_box.bottom > texture->height) {
+	if (dst_box.right > texture->size.x || dst_box.bottom > texture->size.y) {
 		printf("[error] incorrect rect size.\n");
-	} else {
-		u32 bytes = d3d11_texture_format_to_bytes(texture->format);
-		gfx_state.device_context->UpdateSubresource(texture->id, 0, &dst_box, data, (rect.x1 - rect.x0) * bytes, 0);
-	}
+		return;
+	} 
+
+	u32 bytes = d3d11_texture_format_to_bytes(texture->format);
+	gfx_state.device_context->UpdateSubresource(texture->id, 0, &dst_box, data, (rect.x1 - rect.x0) * bytes, 0);
 }
+
+
 
 // shader functions
 
 function gfx_shader_t*
 gfx_shader_create(str_t name, str_t src, gfx_shader_layout_t layout) {
 
+	// get or create shader
 	gfx_shader_t* shader = nullptr;
 	shader = gfx_state.shader_free;
 	if (shader != nullptr) {
@@ -995,10 +1075,13 @@ gfx_shader_create(str_t name, str_t src, gfx_shader_layout_t layout) {
 		shader = (gfx_shader_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_shader_t));
 	}
 	memset(shader, 0, sizeof(gfx_shader_t));
+	dll_push_back(gfx_state.shader_first, gfx_state.shader_last, shader);
+	gfx_state.shader_count++;
 
+	// fill struct
 	shader->name = name;
 	shader->layout = layout;
-	
+
 	gfx_shader_build(shader, src);
 
 	return shader;
@@ -1010,10 +1093,7 @@ gfx_shader_load(str_t filepath, gfx_shader_layout_t layout) {
 
 	str_t src = os_file_read_all(gfx_state.scratch_arena, filepath);
 	str_t file_name = str_get_file_name(filepath);
-
 	gfx_shader_t* shader = gfx_shader_create(file_name, src, layout);
-
-	arena_clear(gfx_state.scratch_arena);
 
 	return shader;
 }
@@ -1023,7 +1103,8 @@ gfx_shader_release(gfx_shader_t* shader) {
 	if (shader->vertex_shader != nullptr) { shader->vertex_shader->Release(); }
 	if (shader->pixel_shader != nullptr) { shader->pixel_shader->Release(); }
 	if (shader->input_layout != nullptr) { shader->input_layout->Release(); }
-	shader->compiled = false;
+	dll_remove(gfx_state.shader_first, gfx_state.shader_last, shader);
+	gfx_state.shader_count--;
 	stack_push(gfx_state.shader_free, shader);
 }
 
@@ -1044,34 +1125,30 @@ gfx_shader_build(gfx_shader_t* shader, str_t src) {
 
 	// compile vertex shader
 	hr = D3DCompile(src.data, src.size, (char*)shader->name.data, 0, 0, "vs_main", "vs_5_0", compile_flags, 0, &vs_blob, &vs_error_blob);
-
 	if (vs_error_blob) {
 		cstr error_msg = (cstr)vs_error_blob->GetBufferPointer();
 		printf("[error] failed to compile vertex shader:\n\n%s\n", error_msg);
 		goto shader_build_cleanup;
 	}
-
 	hr = gfx_state.device->CreateVertexShader(vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), nullptr, &vertex_shader);
 
 	// compile pixel shader
 	hr = D3DCompile(src.data, src.size, (char*)shader->name.data, 0, 0, "ps_main", "ps_5_0", compile_flags, 0, &ps_blob, &ps_error_blob);
-
 	if (ps_error_blob) {
 		cstr error_msg = (cstr)ps_error_blob->GetBufferPointer();
 		printf("[error] failed to compile pixel shader:\n\n%s\n", error_msg);
 		goto shader_build_cleanup;
 	}
-
 	hr = gfx_state.device->CreatePixelShader(ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &pixel_shader);
 
 
 	// create input element description
 	gfx_shader_attribute_t* attributes = shader->layout.attributes;
 
-	D3D11_INPUT_ELEMENT_DESC input_element_desc[8] = { 0 };
+	D3D11_INPUT_ELEMENT_DESC input_element_desc[16] = { 0 };
 	u32 attribute_count = 0;
 
-	for (i32 i = 0; i < 8; i++) {
+	for (i32 i = 0; i < 16; i++) {
 		if (!attributes[i].name) { break; }
 		input_element_desc[i] = {
 			attributes[i].name,
@@ -1090,8 +1167,7 @@ gfx_shader_build(gfx_shader_t* shader, str_t src) {
 		printf("[error] failed to create shader input layout. (%x)\n", hr);
 		goto shader_build_cleanup;
 	}
-
-
+	
 	if (hr == S_OK) {
 
 		// release old shaders if needed
@@ -1106,13 +1182,11 @@ gfx_shader_build(gfx_shader_t* shader, str_t src) {
 
 		printf("[info] successfully created shader: '%.*s'\n", shader->name.size, shader->name.data);
 	}
-	
+
 	// build success
 	result = true;
 
-
 shader_build_cleanup:
-	arena_clear(gfx_state.scratch_arena);
 	if (vs_blob != nullptr) { vs_blob->Release(); }
 	if (ps_blob != nullptr) { ps_blob->Release(); }
 	if (vs_error_blob != nullptr) { vs_error_blob->Release(); }
@@ -1120,6 +1194,8 @@ shader_build_cleanup:
 	shader->compiled = result;
 	return result;
 }
+
+
 
 // font functions
 
@@ -1132,7 +1208,7 @@ gfx_font_load(str_t filepath) {
 	str16_t wide_filepath = str_to_str16(gfx_state.scratch_arena, filepath);
 
 	// create font file and face
-	gfx_state.dwrite_factory->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &(font->file));
+	gfx_state.dwrite_factory->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &font->file);
 	gfx_state.dwrite_factory->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
 
 	// glyph cache
@@ -1149,9 +1225,7 @@ gfx_font_load(str_t filepath) {
 
 	// atlas texture
 	str_t font_name = str_get_file_name(filepath);
-	font->atlas_texture = gfx_texture_create(font_name, 1024, 1024, gfx_texture_format_rgba8, nullptr);
-
-	arena_clear(gfx_state.scratch_arena);
+	font->atlas_texture = gfx_texture_create(font_name, uvec2(1024, 1024), gfx_texture_format_rgba8, nullptr);
 
 	return font;
 }
@@ -1164,7 +1238,7 @@ gfx_font_release(gfx_font_t* font) {
 
 }
 
-function u32 
+function u32
 gfx_font_glyph_hash(u32 codepoint, f32 size) {
 	u32 float_bits = *(u32*)&size;
 	u32 hash = float_bits ^ codepoint;
@@ -1213,10 +1287,9 @@ gfx_font_get_glyph(gfx_font_t* font, u32 codepoint, f32 size) {
 		glyph->advance = raster.advance;
 		glyph->height = raster.height;
 		glyph->pos = rect(0.0f, 0.0f, raster_size.x, raster_size.y);
-		glyph->uv = rect(region.x0 / 1024.0f, region.y0 / 1024.0f, region.x1 / 1024.0f, region.y1/ 1024.0f);
+		glyph->uv = rect(region.x0 / 1024.0f, region.y0 / 1024.0f, region.x1 / 1024.0f, region.y1 / 1024.0f);
 		dll_push_back(font->glyph_first, font->glyph_last, glyph);
 
-		arena_clear(gfx_state.scratch_arena);
 	}
 
 	return glyph;
@@ -1430,7 +1503,7 @@ gfx_font_get_metrics(gfx_font_t* font, f32 size) {
 	return result;
 }
 
-function f32 
+function f32
 gfx_font_text_width(gfx_font_t* font, f32 size, str_t string) {
 	f32 width = 0.0f;
 	for (u32 offset = 0; offset < string.size; offset++) {
@@ -1441,12 +1514,110 @@ gfx_font_text_width(gfx_font_t* font, f32 size, str_t string) {
 	return width;
 }
 
-function f32 
+function f32
 gfx_font_text_height(gfx_font_t* font, f32 size) {
 	gfx_font_metrics_t metrics = gfx_font_get_metrics(font, size);
 	f32 h = (metrics.ascent + metrics.descent);
 	return h;
 }
+
+// mesh functions
+
+function gfx_mesh_t*
+gfx_mesh_create(str_t name, u32 vertex_size, u32 vertex_count) {
+
+	gfx_mesh_t* mesh = (gfx_mesh_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_mesh_t));
+
+	// fill struct
+	mesh->vertex_size = vertex_size;
+	mesh->vertex_count = vertex_count;
+	mesh->vertices = arena_alloc(gfx_state.resource_arena, vertex_size * vertex_count);
+
+	return mesh;
+}
+
+function gfx_mesh_t* 
+gfx_mesh_load(str_t filepath) {
+
+	str_t filename = str_get_file_name(filepath);
+
+	str_t data = os_file_read_all(gfx_state.scratch_arena, filepath);
+	u8 splits[] = { '\n' };
+	str_list_t lines = str_split(gfx_state.scratch_arena, data, splits, 1);
+
+	// count vertices
+	u32 position_count = 0;
+	u32 tex_coord_count = 0;
+	u32 normal_count = 0;
+	u32 face_count = 0;
+
+	for (str_node_t* line_node = lines.first; line_node != 0; line_node = line_node->next) {
+		str_t line = line_node->string;
+		if (line.data[0] == 'v' && line.data[1] == ' ') { position_count++; }
+		if (line.data[0] == 'v' && line.data[1] == 't') { tex_coord_count++; }
+		if (line.data[0] == 'v' && line.data[1] == 'n') { normal_count++; }
+		if (line.data[0] == 'f') { face_count++; }
+	}
+
+	gfx_mesh_t* mesh = gfx_mesh_create(filename, sizeof(gfx_vertex_t), face_count * 3);
+	gfx_vertex_t* vertices = (gfx_vertex_t*)mesh->vertices;
+
+	vec3_t* positions = (vec3_t*)arena_alloc(gfx_state.scratch_arena, sizeof(vec3_t) * position_count);
+	vec2_t* tex_coords = (vec2_t*)arena_alloc(gfx_state.scratch_arena, sizeof(vec2_t) * tex_coord_count);
+	vec3_t* normals = (vec3_t*)arena_alloc(gfx_state.scratch_arena, sizeof(vec3_t) * normal_count);
+
+	position_count = 0;
+	tex_coord_count = 0;
+	normal_count = 0;
+
+	for (str_node_t* line_node = lines.first; line_node != 0; line_node = line_node->next) {
+		str_t line = line_node->string;
+
+		if (line.data[0] == 'v') {
+
+			if (line.data[1] == ' ') { // position
+				f32 x, y, z;
+				str_scan(line, "v %f %f %f", &x, &y, &z);
+				positions[position_count++] = { x, y, z };
+			} else if (line.data[1] == 't') { // tex coords
+				f32 u, v;
+				str_scan(line, "vt %f %f", &u, &v);
+				tex_coords[tex_coord_count++] = { u, v };
+			} else if (line.data[1] == 'n') { // normals
+				f32 x, y, z;
+				str_scan(line, "vn %f %f %f", &x, &y, &z);
+				normals[normal_count++] = { x, y, z };
+			}
+
+		}
+
+		// face
+		if (line.data[0] == 'f') {
+			i32 i0, i1, i2;
+			i32 t0, t1, t2;
+			i32 n0, n1, n2;
+
+			str_scan(line, "f %d/%d/%d %d/%d/%d %d/%d/%d",
+				&i0, &t0, &n0,
+				&i1, &t1, &n1,
+				&i2, &t2, &n2);
+
+			vertices[mesh->vertex_count++] = { positions[i0 - 1], normals[n0 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t0 - 1], color(0xffffffff).vec };
+			vertices[mesh->vertex_count++] = { positions[i1 - 1], normals[n1 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t1 - 1], color(0xffffffff).vec };
+			vertices[mesh->vertex_count++] = { positions[i2 - 1], normals[n2 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t2 - 1], color(0xffffffff).vec };
+			face_count++;
+		}
+	}
+
+
+	return mesh;
+}
+
+function void 
+gfx_mesh_release(gfx_mesh_t*) {
+
+}
+
 
 // stack functions
 
@@ -1463,7 +1634,7 @@ gfx_##name##_node_t* node = gfx_state.name##_stack.free; \
 if (node != 0) { \
 	stack_pop(gfx_state.name##_stack.free); \
 } else { \
-	node = (gfx_##name##_node_t*)arena_alloc(gfx_state.per_frame_arena, sizeof(gfx_##name##_node_t)); \
+	node = (gfx_##name##_node_t*)arena_alloc(gfx_state.batch_arena, sizeof(gfx_##name##_node_t)); \
 } \
 type old_value = gfx_state.name##_stack.top->v; \
 node->v = v; \
@@ -1491,7 +1662,7 @@ gfx_##name##_node_t* node = gfx_state.name##_stack.free; \
 if (node != 0) { \
 	stack_pop(gfx_state.name##_stack.free); \
 } else { \
-	node = (gfx_##name##_node_t*)arena_alloc(gfx_state.per_frame_arena, sizeof(gfx_##name##_node_t)); \
+	node = (gfx_##name##_node_t*)arena_alloc(gfx_state.batch_arena, sizeof(gfx_##name##_node_t)); \
 } \
 type old_value = gfx_state.name##_stack.top->v; \
 node->v = v; \
@@ -1512,25 +1683,95 @@ gfx_stack_set_next_impl(name, type)\
 function void
 gfx_auto_pop_stacks() {
 
-	gfx_stack_auto_pop_impl(texture)
-	gfx_stack_auto_pop_impl(shader)
-	gfx_stack_auto_pop_impl(clip)
-	gfx_stack_auto_pop_impl(depth)
-	gfx_stack_auto_pop_impl(instance_size)
+	gfx_stack_auto_pop_impl(texture);
+	gfx_stack_auto_pop_impl(shader);
+	gfx_stack_auto_pop_impl(clip);
+	gfx_stack_auto_pop_impl(radius0);
+	gfx_stack_auto_pop_impl(radius1);
+	gfx_stack_auto_pop_impl(radius2);
+	gfx_stack_auto_pop_impl(radius3);
+	gfx_stack_auto_pop_impl(color0);
+	gfx_stack_auto_pop_impl(color1);
+	gfx_stack_auto_pop_impl(color2);
+	gfx_stack_auto_pop_impl(color3);
+	gfx_stack_auto_pop_impl(thickness);
+	gfx_stack_auto_pop_impl(softness);
 
 }
 
-gfx_stack_impl(texture, gfx_texture_t*)
-gfx_stack_impl(shader, gfx_shader_t*)
-gfx_stack_impl(clip, rect_t)
-gfx_stack_impl(depth, i32)
-gfx_stack_impl(instance_size, u32)
+gfx_stack_impl(texture, gfx_texture_t*);
+gfx_stack_impl(shader, gfx_shader_t*);
+gfx_stack_impl(clip, rect_t);
+gfx_stack_impl(radius0, f32);
+gfx_stack_impl(radius1, f32);
+gfx_stack_impl(radius2, f32);
+gfx_stack_impl(radius3, f32);
+gfx_stack_impl(color0, color_t);
+gfx_stack_impl(color1, color_t);
+gfx_stack_impl(color2, color_t);
+gfx_stack_impl(color3, color_t);
+gfx_stack_impl(thickness, f32);
+gfx_stack_impl(softness, f32);
+
+function void 
+gfx_push_color(color_t color) {
+	gfx_push_color0(color);
+	gfx_push_color1(color);
+	gfx_push_color2(color);
+	gfx_push_color3(color);
+}
+
+function void 
+gfx_set_next_color(color_t color) {
+	gfx_set_next_color0(color);
+	gfx_set_next_color1(color);
+	gfx_set_next_color2(color);
+	gfx_set_next_color3(color);
+}
+
+function void gfx_pop_color() {
+	gfx_pop_color0();
+	gfx_pop_color1();
+	gfx_pop_color2();
+	gfx_pop_color3();
+}
+
+function void
+gfx_push_radius(f32 radius) {
+	gfx_push_radius0(radius);
+	gfx_push_radius1(radius);
+	gfx_push_radius2(radius);
+	gfx_push_radius3(radius);
+}
+
+function void 
+gfx_set_next_radius(f32 radius) {
+	gfx_set_next_radius0(radius);
+	gfx_set_next_radius1(radius);
+	gfx_set_next_radius2(radius);
+	gfx_set_next_radius3(radius);
+}
+
+function void 
+gfx_push_radii(vec4_t radii) {
+	gfx_push_radius0(radii.x);
+	gfx_push_radius1(radii.y);
+	gfx_push_radius2(radii.z);
+	gfx_push_radius3(radii.w);
+}
+
+function void 
+gfx_set_next_radii(vec4_t radii) {
+	gfx_set_next_radius0(radii.x);
+	gfx_set_next_radius1(radii.y);
+	gfx_set_next_radius2(radii.z);
+	gfx_set_next_radius3(radii.w);
+}
 
 // enum helper functions
 
-function void 
+function void
 d3d11_usage_type_to_d3d11_usage(gfx_usage_type type, D3D11_USAGE* out_d3d11_usage, UINT* out_cpu_access_flags) {
-
 	switch (type) {
 		case gfx_usage_type_static: {
 			*out_d3d11_usage = D3D11_USAGE_IMMUTABLE;
@@ -1549,31 +1790,24 @@ d3d11_usage_type_to_d3d11_usage(gfx_usage_type type, D3D11_USAGE* out_d3d11_usag
 			*out_cpu_access_flags = D3D11_CPU_ACCESS_WRITE;
 			break;
 		}
-
 	}
-
 }
 
-function D3D11_PRIMITIVE_TOPOLOGY 
+function D3D11_PRIMITIVE_TOPOLOGY
 d3d11_topology_type_to_d3d11_topology(gfx_topology_type type) {
 	D3D11_PRIMITIVE_TOPOLOGY topology;
-
 	switch (type) {
 		case gfx_topology_type_lines: { topology = D3D11_PRIMITIVE_TOPOLOGY_LINELIST; break; }
 		case gfx_topology_type_line_strip: { topology = D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP; break; }
 		case gfx_topology_type_tris: { topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST; break; }
 		case gfx_topology_type_tri_strip: { topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP; break; }
 	}
-
 	return topology;
-
 }
 
 function DXGI_FORMAT
 d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format format) {
-
 	DXGI_FORMAT result = DXGI_FORMAT_UNKNOWN;
-
 	switch (format) {
 		case gfx_vertex_format_float: { result = DXGI_FORMAT_R32_FLOAT; break; }
 		case gfx_vertex_format_float2: { result = DXGI_FORMAT_R32G32_FLOAT; break; }
@@ -1588,18 +1822,15 @@ d3d11_vertex_format_type_to_dxgi_format(gfx_vertex_format format) {
 		case gfx_vertex_format_uint3: { result = DXGI_FORMAT_R32G32B32_UINT; break; }
 		case gfx_vertex_format_uint4: { result = DXGI_FORMAT_R32G32B32A32_UINT; break; }
 	}
-
 	return result;
-
 }
 
-function DXGI_FORMAT 
+function DXGI_FORMAT
 d3d11_texture_format_to_dxgi_format(gfx_texture_format format) {
 	DXGI_FORMAT result = DXGI_FORMAT_R8G8B8A8_UNORM;
-
 	switch (format) {
 		case gfx_texture_format_r8: { result = DXGI_FORMAT_R8_UNORM; break; }
-		case gfx_texture_format_rg8: { result = DXGI_FORMAT_R8G8_UNORM;break; }
+		case gfx_texture_format_rg8: { result = DXGI_FORMAT_R8G8_UNORM; break; }
 		case gfx_texture_format_rgba8: { result = DXGI_FORMAT_R8G8B8A8_UNORM; break; }
 		case gfx_texture_format_bgra8: { result = DXGI_FORMAT_B8G8R8A8_UNORM; break; }
 		case gfx_texture_format_r16: { result = DXGI_FORMAT_R16_UNORM; break; }
@@ -1608,15 +1839,12 @@ d3d11_texture_format_to_dxgi_format(gfx_texture_format format) {
 		case gfx_texture_format_rg32: { result = DXGI_FORMAT_R32G32_FLOAT; break; }
 		case gfx_texture_format_rgba32: { result = DXGI_FORMAT_R32G32B32A32_FLOAT; break; }
 	}
-
 	return result;
 }
 
-function u32 
+function u32
 d3d11_texture_format_to_bytes(gfx_texture_format format) {
-
 	u32 result = 0;
-
 	switch (format) {
 		case gfx_texture_format_r8: { result = 1; break; }
 		case gfx_texture_format_rg8: { result = 2; break; }
@@ -1628,20 +1856,19 @@ d3d11_texture_format_to_bytes(gfx_texture_format format) {
 		case gfx_texture_format_rg32: { result = 8; break; }
 		case gfx_texture_format_rgba32: { result = 16; break; }
 	}
-
 	return result;
 }
 
 function D3D11_INPUT_CLASSIFICATION
 d3d11_vertex_class_to_input_class(gfx_vertex_class classification) {
 	D3D11_INPUT_CLASSIFICATION shader_classification;
-
 	switch (classification) {
 		case gfx_vertex_class_per_vertex: { shader_classification = D3D11_INPUT_PER_VERTEX_DATA; break; }
 		case gfx_vertex_class_per_instance: { shader_classification = D3D11_INPUT_PER_INSTANCE_DATA; break; }
 	}
-
 	return shader_classification;
 }
+
+
 
 #endif // GFX_CPP

@@ -21,6 +21,8 @@ os_init() {
 	// time
 	timeBeginPeriod(1);
 	QueryPerformanceFrequency(&os_state.time_frequency);
+	os_state.blink_time = GetCaretBlinkTime();
+	os_state.double_click_time = GetDoubleClickTime();
 
 	// register window class
 	WNDCLASS window_class = { 0 };
@@ -72,8 +74,7 @@ os_update() {
 		// window size
 		RECT w32_rect = { 0 };
 		GetClientRect(window->handle, &w32_rect);
-		window->width = (w32_rect.right - w32_rect.left);
-		window->height = (w32_rect.bottom - w32_rect.top);
+		window->resolution = uvec2((w32_rect.right - w32_rect.left), (w32_rect.bottom - w32_rect.top));
 		
 		// mouse position
 		POINT cursor_pos;
@@ -99,29 +100,22 @@ os_any_window_exist() {
 
 function void 
 os_abort(u32 exit_code) {
-
-	// write to log.
-	// TODO: write to log
-	// exit
 	ExitProcess(exit_code);
+}
+
+function u64
+os_time_microseconds() {
+	LARGE_INTEGER current_time;
+	QueryPerformanceCounter(&current_time);
+	f64 time_in_seconds = ((f64)current_time.QuadPart) / ((f64)os_state.time_frequency.QuadPart);
+	u64 time = (u64)(time_in_seconds * 1000000);
+	return time;
 }
 
 function void
 os_set_cursor(os_cursor cursor) {
 	HCURSOR hcursor = os_state.cursors[cursor];
 	SetCursor(hcursor);
-}
-
-
-// log functions
-function void 
-os_log(str_t) {
-
-}
-
-function void 
-os_logf(char*, ...) {
-
 }
 
 // event functions
@@ -278,8 +272,7 @@ os_window_open(str_t title, u32 width, u32 height) {
 	ShowWindow(window->handle, SW_SHOW);
 
 	window->title = title;
-	window->width = width;
-	window->height = height;
+	window->resolution = uvec2(width, height);
 	window->resize_function = nullptr;
 	window->close_function = nullptr;
 
@@ -534,18 +527,13 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_SIZE: {
+			UINT width = LOWORD(lparam);
+			UINT height = HIWORD(lparam);
+			window->resolution = uvec2(width, height);
 			if (window->resize_function != nullptr) {
-
-				UINT width = LOWORD(lparam);
-				UINT height = HIWORD(lparam);
-
-				window->width = width;
-				window->height = height;
-
 				window->resize_function();
-			} else {
-				result = DefWindowProcA(handle, msg, wparam, lparam);
-			}
+			} 
+			result = DefWindowProcA(handle, msg, wparam, lparam);
 			break;
 		}
 

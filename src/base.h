@@ -3,6 +3,14 @@
 #ifndef BASE_H
 #define BASE_H
 
+
+// TODO:
+//
+// [ ] - finish out math library.
+// [ ] - add simd for math library.
+//
+
+
 // includes
 
 #include <cstdio>
@@ -119,6 +127,19 @@ struct str_t {
 	u32 size;
 };
 
+struct str_node_t {
+	str_node_t* next;
+	str_node_t* prev;
+	str_t string;
+};
+
+struct str_list_t {
+	str_node_t* first;
+	str_node_t* last;
+	u32 count;
+	u32 total_size;
+};
+
 struct str16_t {
 	u16* data;
 	u32 size;
@@ -173,6 +194,14 @@ struct color_t {
 	color_format format;
 };
 
+struct quat_t {
+	f32 x, y, z, w;
+};
+
+struct mat4_t {
+	f32 data[4][4];
+};
+
 struct arena_t {
 	u32 pos;
 	u32 commit_pos;
@@ -225,6 +254,12 @@ function str_t str_get_file_name(str_t);
 function str_t str_get_file_extension(str_t);
 function str_t str_formatv(arena_t*, char*, va_list);
 function str_t str_format(arena_t*, char*, ...);
+function void str_scan(str_t, char*, ...);
+
+// str list
+function void str_list_push_node(str_list_t*, str_node_t*);
+function void str_list_push(arena_t*, str_list_t*, str_t);
+function str_list_t str_split(arena_t*, str_t, u8*, u32);
 
 // str16
 function str16_t str16(u16*);
@@ -270,21 +305,51 @@ function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 // ivec2
 function ivec2_t ivec2(i32);
 function ivec2_t ivec2(i32, i32);
+function b8 ivec2_equals(i32, i32);
 
 // uvec2
 function uvec2_t uvec2(u32);
 function uvec2_t uvec2(u32, u32);
+function b8 uvec2_equals(u32, u32);
 
 // vec3
-
-function vec3_t vec3(f32);
 function vec3_t vec3(f32, f32, f32);
+function vec3_t vec3_add(vec3_t, vec3_t);
+function vec3_t vec3_add(vec3_t, f32);
+function vec3_t vec3_sub(vec3_t, vec3_t);
+function vec3_t vec3_sub(vec3_t, f32);
+function vec3_t vec3_mul(vec3_t, vec3_t);
+function vec3_t vec3_mul(vec3_t, f32);
+function vec3_t vec3_div(vec3_t, vec3_t);
+function vec3_t vec3_div(vec3_t, f32);
+function f32    vec3_dot(vec3_t, vec3_t);
+function vec3_t vec3_cross(vec3_t, vec3_t);
+function f32    vec3_length(vec3_t);
+function vec3_t vec3_normalize(vec3_t);
+function vec3_t vec3_lerp(vec3_t, vec3_t, f32);
+function f32    vec3_angle_between(vec3_t, vec3_t);
+function vec3_t vec3_project(vec3_t, vec3_t);
 function vec3_t vec3_clamp(vec3_t, f32, f32);
 
 // vec4
-
 function vec4_t vec4(f32);
 function vec4_t vec4(f32, f32, f32, f32);
+function vec4_t vec4_add(vec4_t, vec4_t);
+function vec4_t vec4_add(vec4_t, f32);
+function vec4_t vec4_sub(vec4_t, vec4_t);
+function vec4_t vec4_sub(vec4_t, f32);
+function vec4_t vec4_mul(vec4_t, vec4_t);
+function vec4_t vec4_mul(vec4_t, f32);
+function vec4_t vec4_mul(vec4_t, mat4_t);
+function vec4_t vec4_div(vec4_t, vec4_t);
+function vec4_t vec4_div(vec4_t, f32);
+function f32    vec4_dot(vec4_t, vec4_t);
+function f32    vec4_cross(vec4_t, vec4_t);
+function f32    vec4_length(vec4_t);
+function vec4_t vec4_normalize(vec4_t);
+function vec4_t vec4_lerp(vec4_t, vec4_t, f32);
+function f32    vec4_angle_between(vec4_t, vec4_t);
+function vec4_t vec4_project(vec4_t, vec4_t);
 
 // rect
 function rect_t rect(f32, f32, f32, f32);
@@ -303,6 +368,43 @@ function rect_t rect_shrink(rect_t, vec2_t);
 function rect_t rect_translate(rect_t, f32);
 function rect_t rect_translate(rect_t, vec2_t);
 function rect_t rect_bbox(vec2_t*, u32);
+
+// quat
+function quat_t quat_create(f32, f32, f32, f32);
+function quat_t quat_axis_angle(vec3_t, f32);
+function quat_t quat_from_euler_angle(vec3_t);
+function vec3_t quat_to_euler_angle(quat_t);
+function vec3_t quat_to_dir(quat_t);
+function quat_t quat_add(quat_t, quat_t);
+function quat_t quat_sub(quat_t, quat_t);
+function quat_t quat_mul(quat_t, quat_t);
+function quat_t quat_mul(quat_t, f32);
+function quat_t quat_div(quat_t, f32);
+function f32    quat_dot(quat_t, quat_t);
+function f32    quat_length(quat_t);
+function quat_t quat_normalize(quat_t);
+function quat_t quat_negate(quat_t);
+function quat_t quat_lerp(quat_t, quat_t, f32);
+function quat_t quat_slerp(quat_t, quat_t, f32);
+
+// mat4
+function mat4_t mat4_identity();
+function b8 mat4_equals(mat4_t, mat4_t);
+function mat4_t mat4_transpose(mat4_t);
+function mat4_t mat4_from_quat(quat_t);
+
+function mat4_t mat4_translate(vec3_t);
+function mat4_t mat4_translate(mat4_t, vec3_t);
+function mat4_t mat4_scale(vec3_t);
+
+function mat4_t mat4_mul(mat4_t, mat4_t);
+function mat4_t mat4_mul(mat4_t, vec4_t);
+function mat4_t mat4_inverse(mat4_t);
+
+function mat4_t mat4_orthographic(f32, f32, f32, f32, f32, f32);
+function mat4_t mat4_perspective(f32, f32, f32, f32);
+function mat4_t mat4_lookat(vec3_t, vec3_t, vec3_t);
+
 
 // misc
 function vec3_t barycentric(vec2_t, vec2_t, vec2_t, vec2_t);
