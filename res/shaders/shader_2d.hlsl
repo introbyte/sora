@@ -59,22 +59,22 @@ vs_out vs_main(vs_in input) {
     // per-vertex arrays
     float2 vertex_pos[] = {
         float2(quad_p0.x, quad_p1.y),
-        float2(quad_p1.x, quad_p1.y),
         float2(quad_p0.x, quad_p0.y),
+        float2(quad_p1.x, quad_p1.y),
         float2(quad_p1.x, quad_p0.y),
     };
     
     float2 vertex_uvs[] = {
         float2(uv_p0.x, uv_p1.y),
-        float2(uv_p1.x, uv_p1.y),
         float2(uv_p0.x, uv_p0.y),
+        float2(uv_p1.x, uv_p1.y),
         float2(uv_p1.x, uv_p0.y),
     };
     
     float2 vertex_cols[] = {
         float2(0.0f, 1.0f),
-        float2(1.0f, 1.0f),
         float2(0.0f, 0.0f),
+        float2(1.0f, 1.0f),
         float2(1.0f, 0.0f),
     };
     

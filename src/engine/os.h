@@ -11,6 +11,7 @@
 
 typedef void os_window_resize_func();
 typedef void os_window_close_func();
+typedef void os_thread_function();
 
 // enums
 
@@ -227,11 +228,19 @@ struct os_file_t {
 	os_file_attributes_t attributes;
 };
 
+struct os_thread_t {
+	os_thread_t* next;
+	HANDLE handle;
+	DWORD thread_id;
+	void* params;
+	os_thread_function* func;
+};
 struct os_state_t {
 
 	// arenas
 	arena_t* window_arena;
 	arena_t* event_list_arena;
+	arena_t* thread_arena;
 	arena_t* scratch_arena;
 
 	// window list
@@ -250,6 +259,10 @@ struct os_state_t {
 	// cursor
 	HCURSOR cursors[os_cursor_count];
 	
+	// thread
+	SRWLOCK thread_srw_lock;
+	os_thread_t* thread_free;
+
 	// log
 	os_file_t log_file;
 
@@ -312,8 +325,15 @@ function void os_file_delete(str_t);
 function void os_file_move(str_t, str_t);
 function void os_file_copy(str_t, str_t);
 
-// window procedure
+// thread
+function os_thread_t* os_thread_create(os_thread_function*, str_t);
+function void os_thread_release(os_thread_t*);
+function void os_thread_set_name(os_thread_t*, str_t);
+function void os_thread_join(os_thread_t*);
+function void os_thread_detach(os_thread_t*);
+function DWORD os_win32_thread_entry_point(void*);
 
+// window procedure
 LRESULT CALLBACK window_procedure(HWND, UINT, WPARAM, LPARAM);
 
 #endif // OS_H

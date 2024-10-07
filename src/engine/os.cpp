@@ -16,6 +16,7 @@ os_init() {
 	// arenas
 	os_state.window_arena = arena_create(megabytes(8));
 	os_state.event_list_arena = arena_create(megabytes(8));
+	os_state.thread_arena = arena_create(megabytes(8));
 	os_state.scratch_arena = arena_create(megabytes(8));
 
 	// time
@@ -44,6 +45,9 @@ os_init() {
 	os_state.cursors[os_cursor_hand_point] = LoadCursorA(NULL, IDC_HAND);
 	os_state.cursors[os_cursor_disabled] = LoadCursorA(NULL, IDC_NO);
 
+	// init locks
+	InitializeSRWLock(&os_state.thread_srw_lock);
+
 }
 
 function void 
@@ -52,6 +56,7 @@ os_release() {
 	// release arenas
 	arena_release(os_state.window_arena);
 	arena_release(os_state.event_list_arena);
+	arena_release(os_state.thread_arena);
 	arena_release(os_state.scratch_arena);
 }
 
@@ -87,7 +92,7 @@ os_update() {
 		// time
 		window->tick_previous = window->tick_current;
 		QueryPerformanceCounter(&window->tick_current);
-		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / os_state.time_frequency.QuadPart;
+		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
 		window->elasped_time += window->delta_time;
 	}
 
@@ -275,6 +280,10 @@ os_window_open(str_t title, u32 width, u32 height) {
 	window->resolution = uvec2(width, height);
 	window->resize_function = nullptr;
 	window->close_function = nullptr;
+	QueryPerformanceCounter(&window->tick_current);
+	window->tick_previous = window->tick_current;
+	window->delta_time = 0.0;
+	window->elasped_time = 0.0;
 
 	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
@@ -505,6 +514,76 @@ os_file_move(str_t src_path, str_t dst_path) {
 function void
 os_file_copy(str_t src_path, str_t dst_path) {
 	CopyFileA((char*)src_path.data, (char*)dst_path.data, true);
+}
+
+// thread functions
+
+function os_thread_t*
+os_thread_create(os_thread_function* thread_function, str_t name = str("")) {
+
+	os_thread_t* thread = { 0 };
+
+	// find or create thread
+	AcquireSRWLockExclusive(&os_state.thread_srw_lock);
+	thread = os_state.thread_free;
+	if (thread != nullptr) {
+		stack_pop(os_state.thread_free);
+	} else {
+		thread = (os_thread_t*)arena_alloc(os_state.thread_arena, sizeof(os_thread_t));
+	}
+	memset(thread, 0, sizeof(os_thread_t));
+	ReleaseSRWLockExclusive(&os_state.thread_srw_lock);
+
+	if (thread != nullptr) {
+		thread->func = thread_function;
+		thread->handle = CreateThread(NULL, 0, os_win32_thread_entry_point, thread, 0, &thread->thread_id);
+	}
+
+	os_thread_set_name(thread, name);
+
+	return thread;
+}
+
+function void
+os_thread_release(os_thread_t* thread) {
+	AcquireSRWLockExclusive(&os_state.thread_srw_lock);
+	stack_push(os_state.thread_free, thread);
+	ReleaseSRWLockExclusive(&os_state.thread_srw_lock);
+}
+
+function void
+os_thread_set_name(os_thread_t* thread, str_t name) {
+	str16_t thread_wide = str_to_str16(os_state.scratch_arena, name);
+	SetThreadDescription(thread->handle, (WCHAR*)thread_wide.data);
+}
+
+function void
+os_thread_join(os_thread_t* thread) {
+	if (thread != nullptr) {
+		if (thread->handle != nullptr) {
+			WaitForSingleObject(thread->handle, INFINITE);
+			CloseHandle(thread->handle);
+		}
+
+		os_thread_release(thread);
+	}
+}
+
+function void
+os_thread_detach(os_thread_t* thread) {
+	if (thread != nullptr) {
+		if (thread->handle != nullptr) {
+			CloseHandle(thread->handle);
+		}
+		os_thread_release(thread);
+	}
+}
+
+function DWORD
+os_win32_thread_entry_point(void* params) {
+	os_thread_t* thread = (os_thread_t*)params;
+	thread->func();
+	return 0;
 }
 
 // window procedure

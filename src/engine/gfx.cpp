@@ -123,7 +123,7 @@ gfx_init() {
 	// solid rasterizer
 	rasterizer_desc.FillMode = D3D11_FILL_SOLID;
 	rasterizer_desc.CullMode = D3D11_CULL_BACK;
-	rasterizer_desc.FrontCounterClockwise = true;
+	rasterizer_desc.FrontCounterClockwise = false;
 	rasterizer_desc.DepthBias = 0;
 	rasterizer_desc.DepthBiasClamp = 0.0f;
 	rasterizer_desc.SlopeScaledDepthBias = 0.0f;
@@ -137,7 +137,7 @@ gfx_init() {
 	// wireframe rasterizer
 	rasterizer_desc.FillMode = D3D11_FILL_WIREFRAME;
 	rasterizer_desc.CullMode = D3D11_CULL_NONE;
-	rasterizer_desc.FrontCounterClockwise = true;
+	rasterizer_desc.FrontCounterClockwise = false;
 	rasterizer_desc.DepthBias = 0;
 	rasterizer_desc.DepthBiasClamp = 0.0f;
 	rasterizer_desc.SlopeScaledDepthBias = 0.0f;
@@ -198,6 +198,7 @@ gfx_init() {
 	buffer_desc.MiscFlags = 0;
 	hr = gfx_state.device->CreateBuffer(&buffer_desc, 0, &gfx_state.constant_buffer);
 	gfx_assert(hr, "failed to create constant buffer.");
+
 
 	// default texture
 	u32 texture_data = 0xFFFFFFFF;
@@ -595,6 +596,12 @@ gfx_renderer_begin_frame(gfx_renderer_t* renderer) {
 	gfx_state.constants_2d.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
 	gfx_state.constants_2d.time = vec2(renderer->window->elasped_time, renderer->window->delta_time);
 
+	f32 el = renderer->window->elasped_time;
+	vec3_t from_pos = vec3(10.0f * sinf(el), 3.0f, 10.0f * cosf(el));
+	gfx_state.constants_3d.projection = mat4_perspective(80.0f, (f32)renderer->resolution.x / (f32)renderer->resolution.y, 0.01f, 100.0f);
+	gfx_state.constants_3d.view = mat4_lookat(from_pos, vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+	gfx_state.constants_3d.view_projection = mat4_mul(gfx_state.constants_3d.projection, gfx_state.constants_3d.view);
+
 	// reset stacks
 	gfx_stack_reset(texture);
 	gfx_stack_reset(shader);
@@ -626,6 +633,7 @@ gfx_renderer_end_frame(gfx_renderer_t* renderer) {
 
 // draw functions
 
+// 2d
 function void
 gfx_draw_quad(rect_t pos) {
 	
@@ -646,7 +654,7 @@ gfx_draw_quad(rect_t pos) {
 
 	// fill instance
 	instance->bounding_box = pos;
-	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->uv = rect(0.0f, 0.0f, 0.0f, 0.0f);
 	instance->type = 0;
 
 	instance->col0 = gfx_top_color0().vec;
@@ -832,6 +840,25 @@ gfx_draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 	instance->softness = softness;
 
 	gfx_auto_pop_stacks();
+}
+
+//3d
+function void
+gfx_draw_mesh(gfx_mesh_t* mesh, mat4_t transform) {
+
+	// find a batch
+	gfx_batch_state_t state = { 0 };
+	state.shader = gfx_top_shader();
+	state.texture = gfx_top_texture();
+	state.clip_mask = gfx_top_clip();
+	state.type = gfx_batch_type_3d;
+	state.vertex_class = gfx_vertex_class_per_vertex;
+	state.vertex_size = mesh->vertex_size;
+	gfx_batch_t* batch = gfx_batch_find(state, mesh->vertex_count);
+
+	// copy mesh data
+	memcpy((u8*)batch->data + batch->vertex_count, mesh->vertices, mesh->vertex_count * mesh->vertex_size);
+	batch->vertex_count += mesh->vertex_count;
 }
 
 // batch functions
@@ -1550,6 +1577,7 @@ gfx_mesh_load(str_t filepath) {
 	u32 tex_coord_count = 0;
 	u32 normal_count = 0;
 	u32 face_count = 0;
+	u32 vertex_count = 0;
 
 	for (str_node_t* line_node = lines.first; line_node != 0; line_node = line_node->next) {
 		str_t line = line_node->string;
@@ -1602,9 +1630,9 @@ gfx_mesh_load(str_t filepath) {
 				&i1, &t1, &n1,
 				&i2, &t2, &n2);
 
-			vertices[mesh->vertex_count++] = { positions[i0 - 1], normals[n0 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t0 - 1], color(0xffffffff).vec };
-			vertices[mesh->vertex_count++] = { positions[i1 - 1], normals[n1 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t1 - 1], color(0xffffffff).vec };
-			vertices[mesh->vertex_count++] = { positions[i2 - 1], normals[n2 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t2 - 1], color(0xffffffff).vec };
+			vertices[vertex_count++] = { positions[i0 - 1], normals[n0 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t0 - 1], color(0xffffffff).vec };
+			vertices[vertex_count++] = { positions[i1 - 1], normals[n1 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t1 - 1], color(0xffffffff).vec };
+			vertices[vertex_count++] = { positions[i2 - 1], normals[n2 - 1], vec3(0.0f), vec3(0.0f), tex_coords[t2 - 1], color(0xffffffff).vec };
 			face_count++;
 		}
 	}

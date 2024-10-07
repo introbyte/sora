@@ -483,6 +483,7 @@ ui_end_frame() {
 			}
 		}
 
+		
 		// debug draw
 		if (0) {
 
@@ -494,7 +495,6 @@ ui_end_frame() {
 				gfx_draw_quad(frame->rect);
 			}
 		}
-
 		
 		// pop
 		i32 pop_index = 0;
@@ -589,7 +589,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 	if (interaction & ui_interaction_left_dragging) {
 		vec2_t mouse_pos = ui_state.mouse_pos;
 		*value = remap(mouse_pos.x, frame->rect.x0, frame->rect.x1, min, max);
-		*value = clamp_01(*value);
+		*value = clamp(*value, min, max);
 	}
 
 	f32 percent = remap(*value, min, max, 0.0f, 1.0f);

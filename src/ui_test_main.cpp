@@ -2,15 +2,15 @@
 
 // includes
 
-#include "base.h"
-#include "os.h"
-#include "gfx.h"
-#include "ui.h"
+#include "engine/base.h"
+#include "engine/os.h"
+#include "engine/gfx.h"
+#include "engine/ui.h"
 
-#include "base.cpp"
-#include "os.cpp"
-#include "gfx.cpp"
-#include "ui.cpp"
+#include "engine/base.cpp"
+#include "engine/os.cpp"
+#include "engine/gfx.cpp"
+#include "engine/ui.cpp"
 
 struct frame_stats_t {
 	f32 dt;

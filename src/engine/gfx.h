@@ -10,14 +10,14 @@
 
 // todo:
 //
-// [~] - add basics back in.
+// [x] - add basics back in.
 //    [x] - textures.
 //    [x] - shaders.
 //    [x] - buffers.
-//    [ ] - batches (improve).
-//    [ ] - fonts (but redo).
+//    [x] - batches (improve).
+//    [x] - fonts.
 // [ ] - add new stuff.
-//    [ ] - meshes.
+//    [x] - meshes.
 //    [ ] - render targets.
 //    [ ] - compute shaders.
 //    [ ] - asset hotloading.
@@ -216,6 +216,18 @@ struct gfx_mesh_t {
 	u32 vertex_count;
 	u32 vertex_size;
 	void* vertices;
+};
+
+struct gfx_render_target_t {
+
+	ID3D11Texture2D* colorbuffer;
+	ID3D11ShaderResourceView* colorbuffer_srv;
+	ID3D11RenderTargetView* colorbuffer_rtv;
+
+	ID3D11Texture2D* depthbuffer;
+	ID3D11ShaderResourceView* depthbuffer_srv;
+	ID3D11DepthStencilView* depthbuffer_rtv;
+
 };
 
 // instances
@@ -460,7 +472,7 @@ function void gfx_draw_tri(vec2_t, vec2_t, vec2_t);
 function void gfx_draw_bezier(vec2_t, vec2_t, vec2_t, vec2_t);
 
 // 3d
-function void gfx_draw_mesh(gfx_mesh_t, gfx_shader_t*, mat4_t);
+function void gfx_draw_mesh(gfx_mesh_t*, mat4_t);
 
 
 // batch
