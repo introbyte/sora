@@ -90,11 +90,76 @@ app_init() {
 	} });
 
 	// load mesh
-	mesh = gfx_mesh_load(str("res/models/cube.obj"));
+	mesh = gfx_mesh_load(str("res/models/scene.obj"));
 }
 
 function void
-app_update_and_render() {
+shadow_pass(gfx_render_pass_t* pass) {
+
+	// set camera pos 
+	gfx_3d_constants_t shadow_constants;
+	shadow_constants.projection = mat4_orthographic(-30.0f, 30.0f, 30.0f, -30.0f, 0.01f, 100.0f);
+	shadow_constants.view = mat4_lookat(vec3(10.0f, 15.0f, 7.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+	shadow_constants.view_projection = mat4_mul(shadow_constants.projection, shadow_constants.view);
+	gfx_set_constants(&shadow_constants, sizeof(gfx_3d_constants_t));
+
+	// draw mesh
+	gfx_set_next_shader(mesh_shader);
+	gfx_draw_mesh(mesh, mat4_identity());
+
+}
+
+function void
+scene_pass(gfx_render_pass_t* pass) {
+
+
+
+	gfx_3d_constants_t scene_constants;
+	f32 el = renderer->window->elasped_time;
+	vec3_t from_pos = vec3(10.0f * sinf(el), 3.0f, 10.0f * cosf(el));
+	scene_constants.projection = mat4_perspective(80.0f, (f32)renderer->resolution.x / (f32)renderer->resolution.y, 0.01f, 100.0f);
+	scene_constants.view = mat4_lookat(from_pos, vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+	scene_constants.view_projection = mat4_mul(scene_constants.projection, scene_constants.view);
+
+	mat4_t shadow_projection = mat4_orthographic(-30.0f, 30.0f, 30.0f, -30.0f, 0.01f, 100.0f);
+	mat4_t shadow_view = mat4_lookat(vec3(10.0f, 15.0f, 7.0f), vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+	scene_constants.shadow_view_projection = mat4_mul(shadow_projection, shadow_view);
+
+	gfx_set_constants(&scene_constants, sizeof(gfx_3d_constants_t));
+
+	// draw mesh
+	gfx_set_texture(pass->prev->render_target->depthbuffer, 1);
+	gfx_set_next_shader(mesh_shader);
+	gfx_draw_mesh(mesh, mat4_identity());
+
+}
+
+function void
+ui_pass(gfx_render_pass_t* pass) {
+
+	gfx_render_target_blit(pass->render_target, pass->prev->render_target);
+
+	// draw ui
+	ui_begin_frame(renderer);
+	ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
+	ui_push_pref_height(ui_size_pixel(21.0f, 1.0f));
+
+	// frame stats
+	{
+		ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
+		ui_labelf("min: %.2f ms", frame_stats.min);
+		ui_labelf("max: %.2f ms", frame_stats.max);
+	}
+
+	ui_pop_pref_width();
+	ui_pop_pref_height();
+
+	ui_end_frame();
+
+}
+
+function void
+app_update() {
 
 	// update 
 	{
@@ -105,33 +170,6 @@ app_update_and_render() {
 			os_window_fullscreen(window);
 		}
 
-	}
-
-	// render 3d
-	{
-		gfx_set_next_shader(mesh_shader);
-		gfx_draw_mesh(mesh, mat4_identity());
-	}
-
-	// render ui
-	{
-
-		ui_begin_frame(renderer);
-		ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
-		ui_push_pref_height(ui_size_pixel(21.0f, 1.0f));
-
-		// frame stats
-		{
-			ui_labelf("frame_time: %.2f ms", frame_stats.dt);
-			ui_labelf("min: %.2f ms", frame_stats.min);
-			ui_labelf("max: %.2f ms", frame_stats.max);
-			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
-		}
-
-		ui_pop_pref_width();
-		ui_pop_pref_height();
-
-		ui_end_frame();
 	}
 
 }
@@ -151,7 +189,35 @@ app_entry_point(i32 argc, char** argv) {
 
 	// create contexts
 	window = os_window_open(str("3d test"), 1280, 960);
-	renderer = gfx_renderer_create(window, { color(0x050505ff), 1 });
+	renderer = gfx_renderer_create(window, color(0x050505ff));
+
+	// set up render passes
+	gfx_render_pass_desc_t pass_desc = { 0 };
+
+	pass_desc.name = str("shadow");
+	pass_desc.size = uvec2(4096, 4096);
+	pass_desc.samples = 1;
+	pass_desc.flags = gfx_render_pass_flag_depth_only | gfx_render_pass_flag_fixed_size;
+	pass_desc.colorbuffer_format = gfx_texture_format_null;
+	pass_desc.depthbuffer_format = gfx_texture_format_d32;
+	gfx_renderer_add_pass(renderer, pass_desc, shadow_pass);
+
+	pass_desc.name = str("scene");
+	pass_desc.size = renderer->resolution;
+	pass_desc.samples = 1;
+	pass_desc.flags = 0;
+	pass_desc.colorbuffer_format = gfx_texture_format_rgba8;
+	pass_desc.depthbuffer_format = gfx_texture_format_d32;
+	gfx_renderer_add_pass(renderer, pass_desc, scene_pass );
+
+	pass_desc.name = str("ui");
+	pass_desc.size = renderer->resolution;
+	pass_desc.samples = 1;
+	pass_desc.flags = gfx_render_pass_flag_color_only;
+	pass_desc.colorbuffer_format = gfx_texture_format_rgba8;
+	pass_desc.depthbuffer_format = gfx_texture_format_null;
+	gfx_renderer_add_pass(renderer, pass_desc, ui_pass );
+
 
 	// init
 	app_init();
@@ -162,10 +228,10 @@ app_entry_point(i32 argc, char** argv) {
 		// update layers
 		os_update();
 		gfx_update();
+		app_update();
 
-		gfx_renderer_begin_frame(renderer);
-		app_update_and_render();
-		gfx_renderer_end_frame(renderer);
+		// submit renderer
+		gfx_renderer_submit(renderer);
 	}
 
 	// release

@@ -422,10 +422,11 @@ os_file_open(str_t filepath, os_file_access_flag flags) {
 
 	if (file.handle == INVALID_HANDLE_VALUE) {
 		printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
+		file.handle = nullptr;
+	} else {
+		os_file_attributes_t attributes = os_file_get_attributes(file);
+		file.attributes = attributes;
 	}
-
-	os_file_attributes_t attributes = os_file_get_attributes(file);
-	file.attributes = attributes;
 
 	return file;
 }
@@ -487,10 +488,13 @@ os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
 
 function str_t
 os_file_read_all(arena_t* arena, str_t filepath) {
+	str_t data = str("");
 	os_file_t file = os_file_open(filepath);
-	os_file_attributes_t attributes = os_file_get_attributes(file);
-	str_t data = os_file_read_range(arena, file, 0, attributes.size);
-	os_file_close(file);
+	if (file.handle != nullptr) {
+		os_file_attributes_t attributes = os_file_get_attributes(file);
+		data = os_file_read_range(arena, file, 0, attributes.size);
+		os_file_close(file);
+	}
 	return data;
 }
 

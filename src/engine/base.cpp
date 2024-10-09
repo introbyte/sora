@@ -1590,10 +1590,10 @@ mat4_inverse(mat4_t m) {
 function mat4_t
 mat4_orthographic(f32 left, f32 right, f32 top, f32 bottom, f32 z_near, f32 z_far) {
 	mat4_t r = { {
-		{2.0f / (right - left), 0.0f                 , 0.0f               , (left + right) / (left - right)},
-		{0.0f                 , 2.0f / (top - bottom), 0.0f               , (bottom + top) / (bottom - top)},
-		{0.0f                 , 0.0f                 , 2.0f / (z_far - z_near), (z_near + z_far) / (z_near - z_far)},
-		{0.0f                 , 0.0f                 , 0.0f               , 1.0f}
+		{2.0f / (right - left), 0.0f                 , 0.0f                   , (left + right) / (left - right)},
+		{0.0f                 , 2.0f / (top - bottom), 0.0f                   , (bottom + top) / (bottom - top)},
+		{0.0f                 , 0.0f                 , 1.0f / (z_near - z_far), (z_near) / (z_near - z_far)},
+		{0.0f                 , 0.0f                 , 0.0f                   , 1.0f}
 	} };
 	return r;
 }
@@ -1623,7 +1623,7 @@ mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
 	mat4_t v = { {
 		{ r.x,  r.y,  r.z, -vec3_dot(from, r)},
 		{ u.x,  u.y,  u.z, -vec3_dot(from, u)},
-		{-f.x, -f.y, -f.z, vec3_dot(from, f)},
+		{-f.x, -f.y, -f.z,  vec3_dot(from, f)},
 		{ 0.0f,       0.0,        0.0f,      1.0f}
 	} };
 

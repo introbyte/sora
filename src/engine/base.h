@@ -101,7 +101,7 @@ typedef double f64;
 
 typedef const char* cstr;
 
-typedef i8 b8;
+typedef bool b8;
 
 // enums
 

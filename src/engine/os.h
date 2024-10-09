@@ -274,6 +274,7 @@ global os_state_t os_state;
 
 // functions
 
+// state
 function void os_init();
 function void os_release();
 function void os_update();
