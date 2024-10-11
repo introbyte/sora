@@ -173,7 +173,9 @@ struct os_window_t {
 	HWND handle;
 	HDC hdc;
 
+	// info
 	str_t title;
+	b8 is_running;
 
 	// sizing
 	uvec2_t resolution;
@@ -235,6 +237,7 @@ struct os_thread_t {
 	void* params;
 	os_thread_function* func;
 };
+
 struct os_state_t {
 
 	// arenas
@@ -266,6 +269,10 @@ struct os_state_t {
 	// log
 	os_file_t log_file;
 
+	// input state
+	b8 keys[255];
+	b8 mouse_buttons[os_mouse_button_count];
+
 };
 
 // global
@@ -281,7 +288,10 @@ function void os_update();
 function b8 os_any_window_exist();
 function void os_abort(u32);
 function u64 os_time_microseconds();
+
 function void os_set_cursor(os_cursor);
+function vec2_t os_get_cursor_pos(os_window_t*);
+function void os_set_cursor_pos(os_window_t*, vec2_t);
 
 // events
 function void os_event_push(os_event_t*);
@@ -293,10 +303,15 @@ function b8 os_mouse_press(os_window_t*, os_mouse_button, os_modifiers);
 function b8 os_mouse_release(os_window_t*, os_mouse_button, os_modifiers);
 function f32 os_mouse_scroll(os_window_t*);
 function vec2_t os_mouse_move(os_window_t*);
+function b8 os_mouse_button_is_down(os_mouse_button);
+function b8 os_key_is_down(os_key);
+
+
 // window
 
 function os_window_t* os_window_open(str_t, u32, u32);
 function void os_window_close(os_window_t*);
+function b8 os_window_is_running(os_window_t*);
 function void os_window_minimize(os_window_t*);
 function void os_window_maximize(os_window_t*);
 function void os_window_restore(os_window_t*);
@@ -318,6 +333,7 @@ function void os_mem_decommit(void*, u32);
 function os_file_t os_file_open(str_t, os_file_access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);
 function void os_file_close(os_file_t);
 function os_file_attributes_t os_file_get_attributes(os_file_t);
+function os_file_attributes_t os_file_get_attributes(str_t);
 function str_t os_file_read_range(arena_t*, os_file_t, u32, u32);
 function str_t os_file_read_all(arena_t*, str_t);
 function str_t os_file_read_all(arena_t*, os_file_t);

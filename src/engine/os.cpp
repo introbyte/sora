@@ -48,6 +48,15 @@ os_init() {
 	// init locks
 	InitializeSRWLock(&os_state.thread_srw_lock);
 
+	// clear input state
+	for (i32 i = 0; i < 255; i++) {
+		os_state.keys[i] = false;
+	}
+
+	for (i32 i = 0; i < os_mouse_button_count; i++) {
+		os_state.mouse_buttons[i] = false;
+	}
+
 }
 
 function void 
@@ -121,6 +130,21 @@ function void
 os_set_cursor(os_cursor cursor) {
 	HCURSOR hcursor = os_state.cursors[cursor];
 	SetCursor(hcursor);
+}
+
+function vec2_t
+os_get_cursor_pos(os_window_t* window) {
+	POINT cursor_pos;
+	GetCursorPos(&cursor_pos);
+	ScreenToClient(window->handle, &cursor_pos);
+	return vec2(cursor_pos.x, cursor_pos.y);
+}
+
+function void 
+os_set_cursor_pos(os_window_t* window, vec2_t pos) {
+	POINT p = { pos.x, pos.y };
+	ClientToScreen(window->handle, &p);
+	SetCursorPos(p.x, p.y);
 }
 
 // event functions
@@ -245,6 +269,17 @@ os_mouse_move(os_window_t* window) {
 	return result;
 }
 
+function b8 
+os_mouse_button_is_down(os_mouse_button mouse_button) {
+	return os_state.mouse_buttons[mouse_button];
+}
+
+function b8 
+os_key_is_down(os_key key) {
+	return os_state.keys[key];
+}
+
+
 // window functions
 
 function os_window_t* 
@@ -288,6 +323,8 @@ os_window_open(str_t title, u32 width, u32 height) {
 	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
 	
+	window->is_running = true;
+
 	return window;
 }
 
@@ -297,6 +334,11 @@ os_window_close(os_window_t* window) {
 	stack_push(os_state.free_window, window);
 	if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
 	if (window->handle) { DestroyWindow(window->handle); }
+}
+
+function b8 
+os_window_is_running(os_window_t* window) {
+	return window->is_running;
 }
 
 function void 
@@ -438,18 +480,26 @@ os_file_close(os_file_t file) {
 
 function os_file_attributes_t
 os_file_get_attributes(os_file_t file) {
-
 	os_file_attributes_t attributes = { 0 };
-
 	u32 high_bits = 0;
 	u32 low_bits = GetFileSize(file.handle, (DWORD*)&high_bits);
 	FILETIME last_write_time = { 0 };
 	GetFileTime(file.handle, 0, 0, &last_write_time);
 	attributes.size = (u64)low_bits | (((u64)high_bits) << 32);
 	attributes.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
-
 	return attributes;
 }
+
+function os_file_attributes_t 
+os_file_get_attributes(str_t filepath) {
+	WIN32_FILE_ATTRIBUTE_DATA file_info;
+	GetFileAttributesExA((char*)filepath.data, GetFileExInfoStandard, &file_info);
+	os_file_attributes_t attributes = { 0 };
+	attributes.last_modified = ((u64)file_info.ftLastWriteTime.dwLowDateTime) | (((u64)file_info.ftLastWriteTime.dwHighDateTime) << 32);
+	attributes.size = (u64)file_info.nFileSizeLow | (((u64)file_info.nFileSizeHigh) << 32);
+	return attributes;
+}
+
 
 function str_t
 os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
@@ -605,7 +655,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			if (window->close_function != nullptr) {
 				window->close_function();
 			}
-			os_window_close(window);
+			window->is_running = false;
 			break;
 		}
 
@@ -628,6 +678,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->window = window;
 			event->type = os_event_type_key_press;
 			event->key = (os_key)key;
+			os_state.keys[key] = true;
 			break;
 		}
 
@@ -638,6 +689,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->window = window;
 			event->type = os_event_type_key_release;
 			event->key = (os_key)key;
+			os_state.keys[key] = false;
 			break;
 		}
 
@@ -688,6 +740,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				case WM_RBUTTONDOWN: event->mouse = os_mouse_button_right; break;
 				case WM_MBUTTONDOWN: event->mouse = os_mouse_button_middle; break;
 			}
+			os_state.mouse_buttons[event->mouse] = true;
 			break;
 		}
 
@@ -703,6 +756,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				case WM_RBUTTONUP: event->mouse = os_mouse_button_right; break;
 				case WM_MBUTTONUP: event->mouse = os_mouse_button_middle; break;
 			}
+			os_state.mouse_buttons[event->mouse] = false;
 			break;
 		}
 

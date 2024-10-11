@@ -48,6 +48,7 @@ struct gfx_shader_t {
 	gfx_shader_t* prev;
 
 	gfx_shader_desc_t desc;
+	u32 last_modified;
 	ID3D11VertexShader* vertex_shader;
 	ID3D11PixelShader* pixel_shader;
 	ID3D11InputLayout* input_layout;
@@ -67,6 +68,20 @@ struct gfx_render_target_t {
 };
 
 
+// render graph
+
+struct gfx_render_pass_t {
+
+	// renderer list
+	gfx_render_pass_t* next;
+	gfx_render_pass_t* prev;
+	
+	str_t name;
+	gfx_render_pass_func* pass_function;
+	gfx_render_target_t* render_target;
+};
+
+
 // renderer
 
 struct gfx_renderer_t {
@@ -77,6 +92,12 @@ struct gfx_renderer_t {
 	os_window_t* window;
 	color_t clear_color;
 	uvec2_t resolution;
+
+	// graph arena
+	arena_t* graph_arena;
+	gfx_render_pass_t* pass_first;
+	gfx_render_pass_t* pass_last;
+	u32 pass_count;
 
 	// d3d11
 	IDXGISwapChain1* swapchain;
@@ -99,6 +120,8 @@ struct gfx_state_t {
 	IDXGIAdapter* dxgi_adapter;
 	IDXGIFactory2* dxgi_factory;
 
+	gfx_render_target_t* render_target_active;
+
 	// resources
 	gfx_buffer_t* buffer_first;
 	gfx_buffer_t* buffer_last;
@@ -115,6 +138,31 @@ struct gfx_state_t {
 	gfx_render_target_t* render_target_first;
 	gfx_render_target_t* render_target_last;
 	gfx_render_target_t* render_target_free;
+
+	// renderer
+	gfx_renderer_t* renderer_first;
+	gfx_renderer_t* renderer_last;
+	gfx_renderer_t* renderer_free;
+	gfx_renderer_t* renderer_active;
+
+	// pipeline assets
+	ID3D11SamplerState* linear_wrap_sampler;
+	ID3D11SamplerState* linear_clamp_sampler;
+	ID3D11SamplerState* nearest_wrap_sampler;
+	ID3D11SamplerState* nearest_clamp_sampler;
+
+	ID3D11DepthStencilState* depth_stencil_state;
+	ID3D11DepthStencilState* no_depth_stencil_state;
+
+	ID3D11RasterizerState* solid_cull_none_rasterizer;
+	ID3D11RasterizerState* solid_cull_front_rasterizer;
+	ID3D11RasterizerState* solid_cull_back_rasterizer;
+	ID3D11RasterizerState* wireframe_cull_none_rasterizer;
+	ID3D11RasterizerState* wireframe_cull_front_rasterizer;
+	ID3D11RasterizerState* wireframe_cull_back_rasterizer;
+
+	ID3D11BlendState* blend_state;
+
 };
 
 // global
@@ -122,14 +170,7 @@ struct gfx_state_t {
 global gfx_state_t gfx_state;
 
 
-
-
-
-
-// helper functions
-function b8 _texture_format_is_depth(gfx_texture_format);
-
-// enum functions
+// d3d11 enum functions
 function D3D11_USAGE _usage_to_d3d11_usage(gfx_usage);
 function UINT _usage_to_access_flags(gfx_usage);
 function D3D11_BIND_FLAG _buffer_type_to_bind_flag(gfx_buffer_type);
