@@ -128,8 +128,13 @@ os_time_microseconds() {
 
 function void
 os_set_cursor(os_cursor cursor) {
-	HCURSOR hcursor = os_state.cursors[cursor];
-	SetCursor(hcursor);
+	if (cursor == os_cursor_null) {
+		ShowCursor(false);
+	} else {
+		ShowCursor(true);
+		HCURSOR hcursor = os_state.cursors[cursor];
+		SetCursor(hcursor);
+	}
 }
 
 function vec2_t

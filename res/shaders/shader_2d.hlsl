@@ -17,7 +17,7 @@ struct vs_in {
     float4 col2 : COL2;
     float4 col3 : COL3;
     float4 radii : RAD;
-    float2 style : STY;
+    float3 style : STY;
     uint vertex_id : SV_VertexID;
 };
 
@@ -38,6 +38,7 @@ struct vs_out {
     float4 radius : RAD;
     float thickness : THC;
     float softness : SFT;
+    float omit_texture : TEX;
     
 };
 
@@ -55,6 +56,7 @@ vs_out vs_main(vs_in input) {
     // unpack style params
     float thickness = input.style.x;
     float softness = input.style.y;
+    float omit_texture = input.style.z;
     
     // per-vertex arrays
     float2 vertex_pos[] = {
@@ -96,6 +98,7 @@ vs_out vs_main(vs_in input) {
     output.radius = input.radii;
     output.thickness = thickness;
     output.softness = softness;
+    output.omit_texture = omit_texture;
     
     return output;
 }
@@ -105,6 +108,14 @@ SamplerState texture_sampler : register(s0);
 
 #define PI 3.14159265359
 #define TWO_PI 6.28318530718
+
+#define draw_shape_rect 1
+#define draw_shape_quad 2
+#define draw_shape_line 3
+#define draw_shape_circle 4
+#define draw_shape_arc 5
+#define draw_shape_tri 6
+
 
 // sdf functions
 
@@ -186,10 +197,7 @@ float4 draw_quad(vs_out input) {
     float4 top_color = lerp(input.col0, input.col2, input.c_coord.x);
     float4 bottom_color = lerp(input.col1, input.col3, input.c_coord.x);
     float4 color = lerp(top_color, bottom_color, input.c_coord.y);
-    
-    // sample texture
-    float4 tex_color = color_texture.Sample(texture_sampler, input.uv);
-    
+
     // sdf sample
     float2 sample_pos = (2.0f * input.c_coord - 1.0f) * input.half_size;
     
@@ -203,8 +211,7 @@ float4 draw_quad(vs_out input) {
         border_t = 1.0f;
     }
     
-    float4 final_color = tex_color;
-    final_color *= color;
+    float4 final_color = color;
     final_color.a *= quad_t;
     final_color.a *= border_t;
     
@@ -213,9 +220,6 @@ float4 draw_quad(vs_out input) {
 }
 
 float4 draw_line(vs_out input) {
-    
-    // sample texture
-    float4 tex_color = color_texture.Sample(texture_sampler, input.uv);
     
     // sdf sample
     float2 sample_pos = (2.0f * input.uv - 1.0f) * input.half_size;
@@ -226,17 +230,13 @@ float4 draw_line(vs_out input) {
     float t = length(sample_pos - input.p1.xy) / length(input.half_size * 2.0f);
     float4 color = lerp(input.col0, input.col1, t);
     
-    float4 final_color = tex_color;
-    final_color *= color;
+    float4 final_color = color;
     final_color.a *= line_t;
     
     return final_color;
 }
 
 float4 draw_radial(vs_out input) {
-    
-    // sample texture
-    float4 tex_color = color_texture.Sample(texture_sampler, input.uv);
     
     // sdf sample
     float2 sample_pos = (2.0f * input.uv - 1.0f) * input.half_size.x;
@@ -265,8 +265,7 @@ float4 draw_radial(vs_out input) {
         border_t = 1.0f;
     }
     
-    float4 final_color = tex_color;
-    final_color *= color;
+    float4 final_color = color;
     final_color.a *= disk_t;
     final_color.a *= border_t;
     final_color.a *= bar;
@@ -275,9 +274,6 @@ float4 draw_radial(vs_out input) {
 }
 
 float4 draw_tri(vs_out input) {
-    
-    // sample texture
-    float4 tex_color = color_texture.Sample(texture_sampler, input.uv);
     
     // sdf sample
     float2 sample_pos = (2.0f * input.uv - 1.0f) * input.half_size;
@@ -296,8 +292,7 @@ float4 draw_tri(vs_out input) {
     float3 weights = barycentric(sample_pos, input.p0, input.p1, input.p2);
     float4 color = (weights.x * input.col0) + (weights.y * input.col1) + (weights.z * input.col2);
     
-    float4 final_color = tex_color;
-    final_color = color;
+    float4 final_color = color;
     final_color.a *= tri_t;
     final_color.a *= border_t;
     
@@ -308,25 +303,30 @@ float4 draw_tri(vs_out input) {
 float4 ps_main(vs_out input) : SV_TARGET { 
     
     float4 final_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    float4 tex_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    
+    if (input.omit_texture == 0.0f) {
+        tex_color = color_texture.Sample(texture_sampler, input.uv);
+    }
     
     switch (input.type) {
-        case 0: {
+        case draw_shape_rect:{
             final_color = draw_quad(input);
             break;
         }
-        case 1: {
+        case draw_shape_line:{
             final_color = draw_line(input);
             break;
         }
-        case 2: {
+        case draw_shape_circle:{
             final_color = draw_radial(input);
             break;
         }
-        case 3: {
+        case draw_shape_tri:{
             final_color = draw_tri(input);
             break;
         }
     }
     
-    return final_color;
+    return tex_color * final_color;
 }

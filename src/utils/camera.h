@@ -141,7 +141,6 @@ camera_update(camera_t* camera) {
 		pitch_input = delta.y;
 		yaw_input = delta.x;
 	}
-
 	camera->last_mouse_pos = os_get_cursor_pos(camera->window);
 
 	// clamp input

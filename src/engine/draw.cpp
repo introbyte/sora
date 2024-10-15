@@ -101,10 +101,28 @@ draw_init() {
 	draw_state.default_pipeline.viewport = rect(0.0f, 0.0f, 0.0f, 0.0f);
 	draw_state.default_pipeline.scissor = rect(0.0f, 0.0f, 0.0f, 0.0f);
 
+	draw_state.default_font = font_open(str("res/fonts/segoe_ui.ttf"));
+
 	// stack defaults
 	draw_default_init(texture, draw_state.default_texture);
 	draw_default_init(shader, draw_state.default_shader);
 	draw_default_init(pipeline, draw_state.default_pipeline);
+
+	draw_default_init(color0, color(0xffffffff));
+	draw_default_init(color1, color(0xffffffff));
+	draw_default_init(color2, color(0xffffffff));
+	draw_default_init(color3, color(0xffffffff));
+
+	draw_default_init(radius0, 0.0f);
+	draw_default_init(radius1, 0.0f);
+	draw_default_init(radius2, 0.0f);
+	draw_default_init(radius3, 0.0f);
+
+	draw_default_init(thickness, 0.0f);
+	draw_default_init(softness, 0.33f);
+
+	draw_default_init(font, draw_state.default_font);
+	draw_default_init(font_size, 9.0f);
 
 	draw_state.batch_first = draw_state.batch_last = nullptr;
 
@@ -129,11 +147,27 @@ draw_release() {
 
 function void 
 draw_update() {
-
-	// reset stacks
+	
+	// reset stack
 	draw_stack_reset(texture);
 	draw_stack_reset(shader);
 	draw_stack_reset(pipeline);
+
+	draw_stack_reset(color0);
+	draw_stack_reset(color1);
+	draw_stack_reset(color2);
+	draw_stack_reset(color3);
+
+	draw_stack_reset(radius0);
+	draw_stack_reset(radius1);
+	draw_stack_reset(radius2);
+	draw_stack_reset(radius3);
+
+	draw_stack_reset(thickness);
+	draw_stack_reset(softness);
+
+	draw_stack_reset(font);
+	draw_stack_reset(font_size);
 
 }
 
@@ -143,26 +177,36 @@ draw_submit() {
 	// draw each batch
 	for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
 
-		// load into buffers
-		gfx_buffer_fill(draw_state.vertex_buffer, batch->data, batch->state.vertex_size * batch->vertex_count);
-
-		// set pipeline
+		// set pipeline (topology, cull mode, filter, etc.)
 		gfx_set_pipeline(batch->state.pipeline_state);
 
-
-		// set buffers
-		gfx_set_buffer(draw_state.vertex_buffer, 0, batch->state.vertex_size);
+		// set constant buffers
 		gfx_set_buffer(draw_state.constant_buffers[0], 0);
 		gfx_set_buffer(draw_state.constant_buffers[1], 1);
 		gfx_set_buffer(draw_state.constant_buffers[2], 2);
 		gfx_set_buffer(draw_state.constant_buffers[3], 3);
 
-		// set textures
-		gfx_set_texture(batch->state.textures, 0);
+		// set shader and textures
 		gfx_set_shader(batch->state.shader);
+		gfx_set_texture(batch->state.textures, 0);
 
 		// draw
-		gfx_draw(batch->vertex_count);
+		switch (batch->state.instanced) {
+			case false: {
+				// fill vertex buffer and draw
+				gfx_buffer_fill(draw_state.vertex_buffer, batch->data, batch->state.vertex_size * batch->vertex_count);
+				gfx_set_buffer(draw_state.vertex_buffer, 0, batch->state.vertex_size);
+				gfx_draw(batch->vertex_count);
+				break;
+			}
+			case true: {
+				// fill index buffer and draw
+				gfx_buffer_fill(draw_state.vertex_buffer, batch->data, batch->state.instance_size * batch->instance_count);
+				gfx_set_buffer(draw_state.vertex_buffer, 0, batch->state.instance_size);
+				gfx_draw_instanced(batch->state.instance_vertex_count, batch->instance_count);
+				break;
+			}
+		}
 
 	}
 
@@ -170,10 +214,31 @@ draw_submit() {
 	arena_clear(draw_state.batch_arena);
 	draw_state.batch_first = draw_state.batch_last = nullptr;
 
+	// reset stack
+	draw_stack_reset(texture);
+	draw_stack_reset(shader);
+	draw_stack_reset(pipeline);
+
+	draw_stack_reset(color0);
+	draw_stack_reset(color1);
+	draw_stack_reset(color2);
+	draw_stack_reset(color3);
+
+	draw_stack_reset(radius0);
+	draw_stack_reset(radius1);
+	draw_stack_reset(radius2);
+	draw_stack_reset(radius3);
+
+	draw_stack_reset(thickness);
+	draw_stack_reset(softness);
+
+	draw_stack_reset(font);
+	draw_stack_reset(font_size);
+
 }
 
 function void 
-draw_set_constants(void* data, u32 size, u32 slot) {
+draw_push_constants(void* data, u32 size, u32 slot) {
 	gfx_buffer_fill(draw_state.constant_buffers[slot], data, size);
 }
 
@@ -210,7 +275,7 @@ draw_batch_find(draw_batch_state_t state, u32 count) {
 	// try to find batch in batch list
 	for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
 		b8 batch_equals = draw_batch_state_equals(batch->state, state);
-		b8 batch_has_space = ((batch->vertex_count + count) * batch->state.vertex_size <= draw_max_buffer_size);
+		b8 batch_has_space = ((batch->vertex_count + count) * batch->state.vertex_size) <= draw_max_buffer_size;
 		if (batch_equals && batch_has_space) {
 			return batch;
 		}
@@ -251,6 +316,185 @@ draw_push_vertices(void* vertices, u32 vertex_size, u32 vertex_count) {
 }
 
 
+// 2d draw
+
+function void 
+draw_push_rect(rect_t pos) {
+
+	// find batch
+	draw_batch_state_t state = { 0 };
+	state.textures = draw_top_texture();
+	state.shader = draw_top_shader();
+	state.pipeline_state = draw_top_pipeline();
+	state.instanced = true;
+	state.instance_vertex_count = 4;
+	state.instance_size = sizeof(draw_2d_instance_t);
+	draw_batch_t* batch = draw_batch_find(state, 1);
+
+	// push data
+	draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
+
+	instance->bbox = pos;
+	instance->uv = rect(0.0f, 0.0f, 0.0f, 0.0f);
+	instance->shape = draw_shape_rect;
+
+	instance->p0 = vec2(0.0f);
+	instance->p1 = vec2(0.0f);
+	instance->p2 = vec2(0.0f);
+	instance->p3 = vec2(0.0f);
+
+	instance->col0 = draw_top_color0().vec;
+	instance->col1 = draw_top_color1().vec;
+	instance->col2 = draw_top_color2().vec;
+	instance->col3 = draw_top_color3().vec;
+
+	instance->r0 = draw_top_radius0();
+	instance->r1 = draw_top_radius1();
+	instance->r2 = draw_top_radius2();
+	instance->r3 = draw_top_radius3();
+
+	instance->thickness = draw_top_thickness();
+	instance->softness = draw_top_softness();
+	instance->omit_texture = 1.0f;
+
+	batch->instance_count++;
+	draw_auto_pop_stacks();
+}
+
+function void 
+draw_push_text(str_t text, vec2_t pos) {
+
+	// find batch
+	draw_batch_state_t state = { 0 };
+	state.textures = draw_top_texture();
+	state.shader = draw_top_shader();
+	state.pipeline_state = draw_top_pipeline();
+	state.instanced = true;
+	state.instance_vertex_count = 4;
+	state.instance_size = sizeof(draw_2d_instance_t);
+	draw_batch_t* batch = draw_batch_find(state, text.size);
+
+	font_t* font = draw_top_font();
+	f32 font_size = draw_top_font_size();
+
+	for (u32 i = 0; i < text.size; i++) {
+
+		// get instance
+		draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
+
+		u8 codepoint = *(text.data + i);
+		font_glyph_t* glyph = font_get_glyph(font, font_size, codepoint);
+
+		// fill instance
+		instance->bbox = { pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1 };
+		instance->uv = glyph->uv;
+		instance->shape = draw_shape_rect;
+
+		instance->col0 = draw_top_color0().vec;
+		instance->col1 = draw_top_color1().vec;
+		instance->col2 = draw_top_color2().vec;
+		instance->col3 = draw_top_color3().vec;
+
+		instance->r0 = 0.0f;
+		instance->r1 = 0.0f;
+		instance->r2 = 0.0f;
+		instance->r3 = 0.0f;
+
+		instance->thickness = 0.0f;
+		instance->softness = 0.0f;
+		instance->omit_texture = 0.0f;
+
+		pos.x += glyph->advance;
+		batch->instance_count++;
+	}
+
+	draw_auto_pop_stacks();
+}
+
+function void 
+draw_push_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
+
+	// find batch
+	draw_batch_state_t state = { 0 };
+	state.textures = draw_top_texture();
+	state.shader = draw_top_shader();
+	state.pipeline_state = draw_top_pipeline();
+	state.instanced = true;
+	state.instance_vertex_count = 4;
+	state.instance_size = sizeof(draw_2d_instance_t);
+	draw_batch_t* batch = draw_batch_find(state, 1);
+
+	// push data
+	draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
+
+	instance->bbox = { pos.x - radius, pos.y - radius, pos.x + radius, pos.y + radius };
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->shape = draw_shape_circle;
+
+	instance->p0 = { radians(start_angle), radians(end_angle) };
+
+	instance->col0 = draw_top_color0().vec;
+	instance->col1 = draw_top_color1().vec;
+	instance->col2 = draw_top_color2().vec;
+	instance->col3 = draw_top_color3().vec;
+
+	instance->thickness = draw_top_thickness();
+	instance->softness = draw_top_softness();
+	instance->omit_texture = 1.0f;
+
+	batch->instance_count++;
+	draw_auto_pop_stacks();
+}
+
+function void
+draw_push_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
+
+	// find batch
+	draw_batch_state_t state = { 0 };
+	state.textures = draw_top_texture();
+	state.shader = draw_top_shader();
+	state.pipeline_state = draw_top_pipeline();
+	state.instanced = true;
+	state.instance_vertex_count = 4;
+	state.instance_size = sizeof(draw_2d_instance_t);
+	draw_batch_t* batch = draw_batch_find(state, 1);
+
+	// push data
+	draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
+
+	// calculate bounding box
+	vec2_t points[3] = { p0, p1, p2 };
+	rect_t bbox = rect_bbox(points, 3);
+	f32 thickness = draw_top_thickness();
+	f32 softness = draw_top_softness();
+	bbox = rect_grow(bbox, 5.0f * roundf(thickness + softness));
+
+	vec2_t c = rect_center(bbox);
+	vec2_t c_p0 = vec2_sub(p0, c);
+	vec2_t c_p1 = vec2_sub(p1, c);
+	vec2_t c_p2 = vec2_sub(p2, c);
+
+	instance->bbox = bbox;
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->shape = draw_shape_tri;
+
+	instance->p0 = c_p0;
+	instance->p1 = c_p1;
+	instance->p2 = c_p2;
+
+	instance->col0 = draw_top_color0().vec;
+	instance->col1 = draw_top_color1().vec;
+	instance->col2 = draw_top_color2().vec;
+
+	instance->thickness = thickness;
+	instance->softness = softness;
+	instance->omit_texture = 1.0f;
+
+	batch->instance_count++;
+	draw_auto_pop_stacks();
+}
+
+
 // stack functions
 
 function void 
@@ -258,11 +502,108 @@ draw_auto_pop_stacks() {
 	draw_stack_auto_pop_impl(texture);
 	draw_stack_auto_pop_impl(shader);
 	draw_stack_auto_pop_impl(pipeline);
+
+	draw_stack_auto_pop_impl(color0);
+	draw_stack_auto_pop_impl(color1);
+	draw_stack_auto_pop_impl(color2);
+	draw_stack_auto_pop_impl(color3);
+
+	draw_stack_auto_pop_impl(radius0);
+	draw_stack_auto_pop_impl(radius1);
+	draw_stack_auto_pop_impl(radius2);
+	draw_stack_auto_pop_impl(radius3);
+
+	draw_stack_auto_pop_impl(thickness);
+	draw_stack_auto_pop_impl(softness);
+
+	draw_stack_auto_pop_impl(font);
+	draw_stack_auto_pop_impl(font_size);
+
 }
 
 draw_stack_impl(texture, gfx_texture_t*);
 draw_stack_impl(shader, gfx_shader_t*);
 draw_stack_impl(pipeline, gfx_pipeline_t);
+
+draw_stack_impl(color0, color_t);
+draw_stack_impl(color1, color_t);
+draw_stack_impl(color2, color_t);
+draw_stack_impl(color3, color_t);
+
+draw_stack_impl(radius0, f32);
+draw_stack_impl(radius1, f32);
+draw_stack_impl(radius2, f32);
+draw_stack_impl(radius3, f32);
+
+draw_stack_impl(thickness, f32);
+draw_stack_impl(softness, f32);
+
+draw_stack_impl(font, font_t*);
+draw_stack_impl(font_size, f32);
+
+function void 
+draw_push_color(color_t color) {
+	draw_push_color0(color);
+	draw_push_color1(color);
+	draw_push_color2(color);
+	draw_push_color3(color);
+}
+
+function void 
+draw_set_next_color(color_t color) {
+	draw_set_next_color0(color);
+	draw_set_next_color1(color);
+	draw_set_next_color2(color);
+	draw_set_next_color3(color);
+}
+
+function void 
+draw_pop_color() {
+	draw_pop_color0();
+	draw_pop_color1();
+	draw_pop_color2();
+	draw_pop_color3();
+}
+
+function void 
+draw_push_radius(f32 radius) {
+	draw_push_radius0(radius);
+	draw_push_radius1(radius);
+	draw_push_radius2(radius);
+	draw_push_radius3(radius);
+}
+
+function void 
+draw_set_next_radius(f32 radius) {
+	draw_set_next_radius0(radius);
+	draw_set_next_radius1(radius);
+	draw_set_next_radius2(radius);
+	draw_set_next_radius3(radius);
+}
+
+function void 
+draw_push_radius(vec4_t radii) {
+	draw_push_radius0(radii.x);
+	draw_push_radius1(radii.y);
+	draw_push_radius2(radii.z);
+	draw_push_radius3(radii.w);
+}
+
+function void 
+draw_set_next_radius(vec4_t radii) {
+	draw_set_next_radius0(radii.x);
+	draw_set_next_radius1(radii.y);
+	draw_set_next_radius2(radii.z);
+	draw_set_next_radius3(radii.w);
+}
+
+function void 
+draw_pop_radius() {
+	draw_pop_radius0();
+	draw_pop_radius1();
+	draw_pop_radius2();
+	draw_pop_radius3();
+}
 
 
 #endif // DRAW_CPP

@@ -368,7 +368,7 @@ struct ui_frame_t {
 	vec4_t rounding;
 	ui_palette_t* palette;
 	gfx_texture_t* texture;
-	gfx_font_t* font;
+	font_t* font;
 	f32 font_size;
 	ui_frame_custom_draw_func* custom_draw_func;
 	void* custom_draw_data;
@@ -433,10 +433,15 @@ ui_stack_node_decl(rounding_10, f32)
 ui_stack_node_decl(rounding_11, f32)
 ui_stack_node_decl(palette, ui_palette_t*)
 ui_stack_node_decl(texture, gfx_texture_t*)
-ui_stack_node_decl(font, gfx_font_t*)
+ui_stack_node_decl(font, font_t*)
 ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
 ui_stack_node_decl(focus_active, ui_focus_type)
+
+struct ui_constants_t {
+	vec2_t window_size;
+	vec2_t time;
+};
 
 struct ui_state_t {
 	
@@ -494,11 +499,15 @@ struct ui_state_t {
 	// frame tree
 	ui_frame_t* root;
 
+	// assets
+	gfx_shader_t* ui_shader;
+	ui_constants_t constants;
+
 	// defaults
 	ui_palette_t default_palette;
 	gfx_texture_t* default_texture;
-	gfx_font_t* default_font;
-	gfx_font_t* default_icon_font;
+	font_t* default_font;
+	font_t* default_icon_font;
 
 	// stack defaults
 	ui_stack_decl_default(parent);
@@ -621,9 +630,9 @@ function ui_size_t ui_size_by_child(f32);
 function ui_size_t ui_size_em(f32, f32);
 
 // alignment
-function vec2_t ui_text_align(gfx_font_t*, f32, str_t, rect_t, ui_text_alignment);
-function f32 ui_text_offset_from_index(gfx_font_t*, f32, str_t, u32);
-function u32 ui_text_index_from_offset(gfx_font_t*, f32, str_t, f32);
+function vec2_t ui_text_align(font_t*, f32, str_t, rect_t, ui_text_alignment);
+function f32 ui_text_offset_from_index(font_t*, f32, str_t, u32);
+function u32 ui_text_index_from_offset(font_t*, f32, str_t, f32);
 
 // text point
 function b8 ui_text_point_equals(ui_text_point_t, ui_text_point_t);
@@ -695,7 +704,7 @@ ui_stack_func(rounding_10, f32)
 ui_stack_func(rounding_11, f32)
 ui_stack_func(palette, ui_palette_t*)
 ui_stack_func(texture, gfx_texture_t*)
-ui_stack_func(font, gfx_font_t*)
+ui_stack_func(font, font_t*)
 ui_stack_func(font_size, f32)
 ui_stack_func(focus_hot, ui_focus_type)
 ui_stack_func(focus_active, ui_focus_type)

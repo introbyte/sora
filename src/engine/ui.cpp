@@ -87,9 +87,9 @@ ui_init() {
 	ui_state.default_palette.text = color(0xe2e2e2ff);
 	ui_state.default_palette.accent = color(0x5bd9ffff); // blue
 
-	ui_state.default_texture = gfx_state.default_texture;
-	ui_state.default_font = gfx_font_load(str("res/fonts/segoe_ui.ttf"));
-	ui_state.default_icon_font = gfx_font_load(str("res/fonts/icons.ttf"));
+	ui_state.default_texture = draw_state.default_texture;
+	ui_state.default_font = font_open(str("res/fonts/segoe_ui.ttf"));
+	ui_state.default_icon_font = font_open(str("res/fonts/icons.ttf"));
 	
 	// default stack
 	ui_default_init(parent, nullptr);
@@ -125,6 +125,24 @@ ui_init() {
 	// build state
 	ui_state.build_index = 0;
 
+	// assets
+	global gfx_shader_attribute_t ui_shader_attributes[] = {
+		{"BBOX", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"UV", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"TYPE", 0, gfx_vertex_format_int, gfx_vertex_class_per_instance},
+		{"POS", 0,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
+		{"POS", 1,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
+		{"POS", 2,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
+		{"POS", 3,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
+		{"COL", 0,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"COL", 1,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"COL", 2,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"COL", 3,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"RAD", 0,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
+		{"STY", 0,  gfx_vertex_format_float3, gfx_vertex_class_per_instance},
+	};
+	ui_state.ui_shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), ui_shader_attributes, 13);
+
 }
 
 function void
@@ -133,7 +151,8 @@ ui_release() {
 	ui_state.window = nullptr;
 	ui_state.renderer = nullptr;
 
-	gfx_font_release(ui_state.default_font);
+	font_close(ui_state.default_font);
+	font_close(ui_state.default_icon_font);
 
 	// release arenas
 	arena_release(ui_state.frame_arena);
@@ -155,6 +174,7 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	arena_clear(ui_state.per_frame_arena);
 	arena_clear(ui_state.event_arena);
 	arena_clear(ui_state.scratch_arena);
+
 
 	// reset event list
 	ui_state.event_list = { 0 };
@@ -351,6 +371,16 @@ ui_end_frame() {
 
 	}
 	
+	// set draw pipeline
+	ui_state.constants.window_size = vec2((f32)ui_state.renderer->resolution.x, (f32)ui_state.renderer->resolution.y);
+	gfx_pipeline_t pipeline = gfx_pipeline_create();
+	pipeline.topology = gfx_topology_tri_strip;
+	pipeline.depth_mode = gfx_depth_none;
+	draw_push_pipeline(pipeline);
+	draw_push_shader(ui_state.ui_shader);
+	draw_push_constants(&ui_state.constants, sizeof(ui_constants_t), 0);
+	draw_push_texture(font_state.atlas_texture);
+
 	// draw
 	gfx_renderer_t* renderer = ui_state.renderer;
 	u32 depth = 0;
@@ -366,9 +396,9 @@ ui_end_frame() {
 
 		// frame shadow
 		if (frame->flags & ui_frame_flag_draw_shadow) {
-			gfx_set_next_color(palette->shadow);
-			gfx_set_next_radii(frame->rounding);
-			gfx_draw_quad(rect_translate(frame->rect, 1.0f));
+			//draw_set_next_color(palette->shadow);
+			//draw_set_next_radius(frame->rounding);
+			//draw_push_rect(frame->rect);
 		}
 
 		// determine color
@@ -399,100 +429,56 @@ ui_end_frame() {
 			}
 
 			// background
-			gfx_set_next_color(background_color);
-			gfx_set_next_radii(frame->rounding);
-			gfx_draw_quad(frame->rect);
-
+			draw_set_next_color(background_color);
+			draw_set_next_radius(frame->rounding);
+			draw_push_rect(frame->rect);
 		}
 
 		// border
 		if (frame->flags & (ui_frame_flag_draw_border_light | ui_frame_flag_draw_border_dark)) {
-			gfx_set_next_color(border_color);
-			gfx_set_next_radii(frame->rounding);
-			gfx_set_next_thickness(1.0f);
-			gfx_draw_quad(frame->rect);
+			draw_set_next_color(border_color);
+			draw_set_next_radius(frame->rounding);
+			draw_set_next_thickness(1.0f);
+			draw_push_rect(frame->rect);
 		}
-		
-		// debug focus
-		if (0) {
-			if (ui_key_equals(ui_state.focused_frame_key, frame->key) && !frame->is_transient) {
-				gfx_set_next_color(color(0xffff78ff));
-				gfx_set_next_radii(frame->rounding);
-				gfx_draw_quad(frame->rect);
-			}
-		}
-
+	
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
-			rect_t top_clip = gfx_top_clip();
-			rect_t new_clip = rect_shrink(frame->rect, 1.0f);
-			if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
-				new_clip = rect_intersection(new_clip, top_clip);
-			}
-			gfx_push_clip(new_clip);
+			//rect_t top_clip = gfx_top_clip();
+			//rect_t new_clip = rect_shrink(frame->rect, 1.0f);
+			//if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
+			//	new_clip = rect_intersection(new_clip, top_clip);
+			//}
+			//gfx_push_clip(new_clip);
 		}
 
 		// text
 		if (frame->flags & ui_frame_flag_draw_text) {
 
 			// calculate text pos
-			vec2_t text_pos;
+			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
+			
+			draw_push_font(frame->font);
+			draw_push_font_size(frame->font_size);
 
-			gfx_font_metrics_t font_metrics = gfx_font_get_metrics(frame->font, frame->font_size);
-			text_pos.y = roundf((frame->rect.y0 + frame->rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent) + 2.0f;
-			switch (frame->text_alignment) {
-				default: 
-				case ui_text_alignment_left:{
-					text_pos.x = frame->rect.x0 + frame->text_padding;
-					break;
-				}
-
-				case ui_text_alignment_center: {
-					f32 text_width = gfx_font_text_width(frame->font, frame->font_size, frame->string); // TODO: cache string size.
-					text_pos.x = roundf((frame->rect.x0 + frame->rect.x1 - text_width) * 0.5f);
-					text_pos.x = max(text_pos.x, frame->rect.x0 + frame->text_padding);
-					break;
-				}
-
-				case ui_text_alignment_right: {
-					f32 text_width = gfx_font_text_width(frame->font, frame->font_size, frame->string);
-					text_pos.x = roundf(frame->rect.x1 - text_width - frame->text_padding);
-					text_pos.x = max(text_pos.x, frame->rect.x0 + frame->text_padding);
-					break;
-				}
-			}
-			text_pos.x = floorf(text_pos.x);
-
-			// TODO: truncate text if too long.
-			// make text appear in front
 			{
 				// text shadow
-				gfx_set_next_color(palette->shadow);
-				gfx_draw_text(frame->string, vec2_add(text_pos, 1.0f), frame->font, frame->font_size);
+				draw_set_next_color(palette->shadow);
+				draw_push_text(frame->string, vec2_add(text_pos, 1.0f));
 
 				// text
-				gfx_set_next_color(palette->text);
-				gfx_draw_text(frame->string, text_pos, frame->font, frame->font_size);
+				draw_set_next_color(palette->text);
+				draw_push_text(frame->string, text_pos);
 			}
+
+			draw_pop_font();
+			draw_pop_font_size();
 		}
 		
 		// custom draw
 		if (frame->flags & ui_frame_flag_draw_custom) {
 			if (frame->custom_draw_func != 0) {
 				frame->custom_draw_func(frame);
-			}
-		}
-
-		
-		// debug draw
-		if (0) {
-
-			if (!frame->is_transient) {
-				// draw rect
-				gfx_set_next_color(color(0xff1515ff));
-				gfx_set_next_thickness(1.0f);
-				gfx_set_next_softness(0.0f);
-				gfx_draw_quad(frame->rect);
 			}
 		}
 		
@@ -506,14 +492,15 @@ ui_end_frame() {
 			
 			// pop clips
 			if (f->flags & ui_frame_flag_clip) {
-				gfx_pop_clip();
+				//gfx_pop_clip();
 			}
 		}
 
 		frame = recursion.next;
 	}
 
-
+	// submit
+	draw_submit();
 }
 
 // widgets
@@ -526,6 +513,7 @@ ui_button(str_t label) {
 		ui_frame_flag_draw;
 
 	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 
@@ -1027,11 +1015,10 @@ ui_slider_draw_function(ui_frame_t* frame) {
 	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
 
 	color_t color = frame->palette->accent;
-	color.a = 0.6f;
-	gfx_set_next_color(color);
-	gfx_set_next_radii(frame->rounding);
-	gfx_draw_quad(bar_rect);
-	
+	color.a = 0.3f;
+	draw_set_next_color(color);
+	draw_set_next_radius(frame->rounding);
+	draw_push_rect(bar_rect);
 }
 
 function void 
@@ -1061,21 +1048,21 @@ ui_color_hue_bar(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++)  {
-			gfx_set_next_color0(segments[i + 0]);
-			gfx_set_next_color1(segments[i + 0]);
-			gfx_set_next_color2(segments[i + 1]);
-			gfx_set_next_color3(segments[i + 1]);
+			draw_set_next_color0(segments[i + 0]);
+			draw_set_next_color1(segments[i + 0]);
+			draw_set_next_color2(segments[i + 1]);
+			draw_set_next_color3(segments[i + 1]);
 
 			// TODO: this is a hack and looks ugly. find a better way to fix this.
 			f32 fix = 0.0f;
 
 			// frame rounding
 			if (i == 0) {
-				gfx_set_next_radius2(frame->rounding.z);
-				gfx_set_next_radius3(frame->rounding.w);
+				draw_set_next_radius2(frame->rounding.z);
+				draw_set_next_radius3(frame->rounding.w);
 			} else if (i == 5) {
-				gfx_set_next_radius0(frame->rounding.x);
-				gfx_set_next_radius1(frame->rounding.y);
+				draw_set_next_radius0(frame->rounding.x);
+				draw_set_next_radius1(frame->rounding.y);
 			} else {
 				fix = 1.0f;
 			}
@@ -1083,7 +1070,7 @@ ui_color_hue_bar(ui_frame_t* frame) {
 			f32 x0 = roundf(frame->rect.x0 + (step *( i + 0)) * frame_width) - fix;
 			f32 x1 = roundf(frame->rect.x0 + (step * (i + 1)) * frame_width) + fix;
 			rect_t segment = rect(x0, frame->rect.y0, x1, frame->rect.y1);
-			gfx_draw_quad(segment);
+			draw_push_rect(segment);
 		}
 
 	}
@@ -1093,15 +1080,15 @@ ui_color_hue_bar(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		//gfx_set_next_color(color(0x151515ff));
+		//gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		//gfx_set_next_color(color(0xe2e2e2ff));
+		//gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_set_next_color(hue_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		//gfx_set_next_color(hue_col);
+		//gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 }
 
@@ -1120,12 +1107,12 @@ ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 
 	// draw hue quad
-	gfx_set_next_color0(color(0xffffffff));
-	gfx_set_next_color1(color(0x000000ff));
-	gfx_set_next_color2(hue_col);
-	gfx_set_next_color3(color(0x000000ff));
-	gfx_set_next_radii(frame->rounding);
-	gfx_draw_quad(frame->rect);
+	draw_set_next_color0(color(0xffffffff));
+	draw_set_next_color1(color(0x000000ff));
+	draw_set_next_color2(hue_col);
+	draw_set_next_color3(color(0x000000ff));
+	draw_set_next_radius(frame->rounding);
+	draw_push_rect(frame->rect);
 
 	// draw indicator
 	vec2_t indicator_pos = vec2(
@@ -1135,15 +1122,15 @@ ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 
 	{
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_set_next_color(rgb_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_set_next_color(rgb_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 
 
@@ -1175,9 +1162,9 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 	// draw hue wheel
 	{
 		// draw shadow
-		gfx_set_next_color(frame->palette->shadow);
-		gfx_set_next_thickness(wheel_thickness);
-		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
+		draw_set_next_color(frame->palette->shadow);
+		draw_set_next_thickness(wheel_thickness);
+		draw_push_circle(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
 
 		// draw hue arcs
 		f32 step = 1.0f / 6.0f;
@@ -1192,24 +1179,29 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_set_next_color0(segments[i + 0]);
-			gfx_set_next_color1(segments[i + 1]);
-			gfx_set_next_color2(segments[i + 0]);
-			gfx_set_next_color3(segments[i + 1]);
-			gfx_set_next_thickness(wheel_thickness);
+			draw_set_next_color0(segments[i + 0]);
+			draw_set_next_color1(segments[i + 1]);
+			draw_set_next_color2(segments[i + 0]);
+			draw_set_next_color3(segments[i + 1]);
+			draw_set_next_thickness(wheel_thickness);
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle);
+			draw_push_circle(frame_center, wheel_radius, start_angle, end_angle);
 		}
 	}
 	
 	// draw sat val triangle
 	{	
-		gfx_set_next_color0(hue_col);
-		gfx_set_next_color1(color(0xffffffff));
-		gfx_set_next_color2(color(0x000000ff));
-		gfx_draw_tri(tri_p0, tri_p1, tri_p2);
+
+		// border
+		draw_set_next_color(frame->palette->shadow);
+		draw_push_tri(vec2_add(tri_p0, 1.0f), vec2_add(tri_p1, 1.0f), vec2_add(tri_p2, 1.0f));
+
+		draw_set_next_color0(hue_col);
+		draw_set_next_color1(color(0xffffffff));
+		draw_set_next_color2(color(0x000000ff));
+		draw_push_tri(tri_p0, tri_p1, tri_p2);
 	}
 	
 	// draw hue indicator
@@ -1217,15 +1209,15 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius - (wheel_thickness * 0.5f)));
 
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
-		// color
-		gfx_set_next_color(hue_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		//color
+		draw_set_next_color(hue_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 
 	// draw sat val indicator
@@ -1233,15 +1225,15 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_lerp(vec2_lerp(tri_p1, tri_p0, clamp_01(data->sat)), tri_p2, clamp_01(1.0f - data->val));
 
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_set_next_color(rgb_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_set_next_color(rgb_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 
 }
@@ -1267,8 +1259,8 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 	// draw hue sat circle
 	{
 		// draw shadow
-		gfx_set_next_color(frame->palette->shadow);
-		gfx_draw_radial(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
+		draw_set_next_color(frame->palette->shadow);
+		draw_push_circle(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
 
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
@@ -1283,14 +1275,14 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		};
 
 		for (i32 i = 0; i < 6; i++) {
-			gfx_set_next_color0(color(0xffffffff));
-			gfx_set_next_color1(color(0xffffffff));
-			gfx_set_next_color2(segments[i + 0]);
-			gfx_set_next_color3(segments[i + 1]);
+			//gfx_set_next_color0(color(0xffffffff));
+			//gfx_set_next_color1(color(0xffffffff));
+			//gfx_set_next_color2(segments[i + 0]);
+			//gfx_set_next_color3(segments[i + 1]);
 
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
-			gfx_draw_radial(frame_center, wheel_radius, start_angle, end_angle);
+			draw_push_circle(frame_center, wheel_radius, start_angle, end_angle);
 		}
 	}
 
@@ -1299,15 +1291,15 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
 
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_set_next_color(hue_sat_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_set_next_color(hue_sat_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 
 }
@@ -1328,12 +1320,12 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 
 	// draw val bar
 	{
-		gfx_set_next_color0(color(0x000000ff));
-		gfx_set_next_color1(color(0x000000ff));
-		gfx_set_next_color2(hue_sat_col);
-		gfx_set_next_color3(hue_sat_col);
-		gfx_set_next_radii(frame->rounding);
-		gfx_draw_quad(frame->rect);
+		draw_set_next_color0(color(0x000000ff));
+		draw_set_next_color1(color(0x000000ff));
+		draw_set_next_color2(hue_sat_col);
+		draw_set_next_color3(hue_sat_col);
+		draw_set_next_radius(frame->rounding);
+		draw_push_rect(frame->rect);
 	}
 
 	// draw hue indicator
@@ -1341,15 +1333,15 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		// borders
-		gfx_set_next_color(color(0x151515ff));
-		gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		gfx_set_next_color(color(0xe2e2e2ff));
-		gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		gfx_set_next_color(rgb_col);
-		gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_set_next_color(rgb_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 
 }
@@ -1367,7 +1359,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		ui_state.mark_target_pos.x = mark_offset;
 
 		// draw cursor
-		gfx_set_next_color(frame->palette->accent);
+		draw_set_next_color(frame->palette->accent);
 
 		f32 left = ui_state.cursor_pos.x;
 		f32 right = cursor_offset;
@@ -1384,19 +1376,19 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 			frame->rect.x0 + text_start.x + right + 1.0f,
 			frame->rect.y1 - 2.0f
 		);
-		gfx_draw_quad(cursor_rect);
+		draw_push_rect(cursor_rect);
 
 		// draw mark
 		color_t mark_color = frame->palette->accent;
 		mark_color.a = 0.3f;
-		gfx_set_next_color(mark_color);
+		draw_set_next_color(mark_color);
 		rect_t mark_rect = rect(
 			frame->rect.x0 + text_start.x + cursor_offset, 
 			frame->rect.y0 + 2.0f,
 			frame->rect.x0 + text_start.x + mark_offset + 2.0f,
 			frame->rect.y1 - 2.0f
 		);
-		gfx_draw_quad(mark_rect);
+		draw_push_rect(mark_rect);
 
 	}
 
@@ -1556,12 +1548,12 @@ ui_size_em(f32 value, f32 strictness) {
 // alignment functions
 
 function vec2_t
-ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment alignment) {
+ui_text_align(font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment alignment) {
 
 	vec2_t result = { 0 };
 
-	gfx_font_metrics_t font_metrics = gfx_font_get_metrics(font, size);
-	result.y = roundf((rect.y0 + rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent) + 2.0f; // temp fix
+	font_metrics_t font_metrics = font_get_metrics(font, size);
+	result.y = roundf((rect.y0 + rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent); // temp fix
 
 	switch (alignment) {
 		default:
@@ -1571,14 +1563,14 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 		}
 
 		case ui_text_alignment_center: {
-			f32 text_width = gfx_font_text_width(font, size, text); // TODO: cache string size.
+			f32 text_width = font_text_get_width(font, size, text); // TODO: cache string size.
 			result.x = roundf((rect.x0 + rect.x1 - text_width) * 0.5f);
 			result.x = max(result.x, rect.x0 + 4.0f);
 			break;
 		}
 
 		case ui_text_alignment_right: {
-			f32 text_width = gfx_font_text_width(font, size, text); // TODO: cache string size.
+			f32 text_width = font_text_get_width(font, size, text); // TODO: cache string size.
 			result.x = roundf(rect.x1 - text_width - 4.0f); // TODO: also this one.
 			result.x = max(result.x, rect.x0 + 4.0f);
 			break;
@@ -1591,24 +1583,24 @@ ui_text_align(gfx_font_t* font, f32 size, str_t text, rect_t rect, ui_text_align
 }
 
 function f32
-ui_text_offset_from_index(gfx_font_t* font, f32 font_size, str_t string, u32 index) {
+ui_text_offset_from_index(font_t* font, f32 font_size, str_t string, u32 index) {
 	f32 width = 0.0f;
 	for (u32 offset = 0; offset < index; offset++) {
 		char c = *(string.data + offset);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, (u8)c, font_size);
+		font_glyph_t* glyph = font_get_glyph(font, (u8)c, font_size);
 		width += glyph->advance;
 	}
 	return width;
 }
 
 function u32 
-ui_text_index_from_offset(gfx_font_t* font, f32 font_size, str_t string, f32 offset) {
+ui_text_index_from_offset(font_t* font, f32 font_size, str_t string, f32 offset) {
 	u32 result = 0;
 	f32 advance = 0.0f;
 
 	for (u32 index = 0; index < string.size; index++) {
 		char c = *(string.data + index);
-		gfx_font_glyph_t* glyph = gfx_font_get_glyph(font, (u8)c, font_size);
+		font_glyph_t* glyph = font_get_glyph(font, (u8)c, font_size);
 		if (offset < advance + (glyph->advance * 0.5f)) {
 			result = index;
 			break;
@@ -2683,7 +2675,7 @@ ui_stack_impl(rounding_10, f32)
 ui_stack_impl(rounding_11, f32)
 ui_stack_impl(palette, ui_palette_t*)
 ui_stack_impl(texture, gfx_texture_t*)
-ui_stack_impl(font, gfx_font_t*)
+ui_stack_impl(font, font_t*)
 ui_stack_impl(font_size, f32)
 ui_stack_impl(focus_hot, ui_focus_type)
 ui_stack_impl(focus_active, ui_focus_type)

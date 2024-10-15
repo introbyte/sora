@@ -194,7 +194,7 @@ struct gfx_render_target_t; // defined in backends.
 struct gfx_resource_t;
 struct gfx_resource_list_t;
 struct gfx_render_pass_t;
-typedef void gfx_render_pass_func(gfx_render_target_t*);
+typedef void gfx_render_pass_func(gfx_render_target_t*, gfx_render_target_t*);
 
 // renderer
 struct gfx_renderer_t; // define in backends.

@@ -149,6 +149,7 @@ enum {
 };
 
 enum os_cursor {
+	os_cursor_null,
 	os_cursor_pointer,
 	os_cursor_I_beam,
 	os_cursor_resize_EW,

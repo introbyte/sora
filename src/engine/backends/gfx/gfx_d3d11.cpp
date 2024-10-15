@@ -213,6 +213,8 @@ gfx_init() {
 	// blend state
 	{
 		D3D11_BLEND_DESC blend_state_desc = { 0 };
+		//blend_state_desc.AlphaToCoverageEnable = TRUE;
+		//blend_state_desc.IndependentBlendEnable = FALSE;
 		blend_state_desc.RenderTarget[0].BlendEnable = TRUE;
 		blend_state_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
 		blend_state_desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
@@ -575,6 +577,7 @@ function void
 gfx_renderer_submit(gfx_renderer_t* renderer) {
 
 	gfx_state.renderer_active = renderer;
+	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
 
 	// go through pass list
 	for (gfx_render_pass_t* pass = renderer->pass_first; pass != 0; pass = pass->next) {
@@ -587,7 +590,7 @@ gfx_renderer_submit(gfx_renderer_t* renderer) {
 			prev_render_target = pass->prev->render_target;
 		}
 
-		pass->pass_function(prev_render_target);
+		pass->pass_function(pass->render_target, prev_render_target);
 
 	}
 	// copy last pass to screen
@@ -843,7 +846,7 @@ gfx_texture_blit(gfx_texture_t* texture_dst, gfx_texture_t* texture_src) {
 		if (texture_src->desc.sample_count > 1) {
 			gfx_state.device_context->ResolveSubresource(texture_dst->id, 0, texture_src->id, 0, _texture_format_to_dxgi_format(texture_dst->desc.format));
 		} else {
-			gfx_state.device_context->CopyResource(texture_dst->id, texture_dst->id);
+			gfx_state.device_context->CopyResource(texture_dst->id, texture_src->id);
 		}
 	}
 }

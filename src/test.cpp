@@ -5,12 +5,16 @@
 #include "engine/base.h"
 #include "engine/os.h"
 #include "engine/gfx.h"
+#include "engine/font.h"
 #include "engine/draw.h"
+#include "engine/ui.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
+#include "engine/font.cpp"
 #include "engine/draw.cpp"
+#include "engine/ui.cpp"
 
 #include "utils/mesh.h"
 #include "utils/camera.h"
@@ -34,6 +38,11 @@ struct light_constants_t {
 	f32 unused;
 };
 
+struct constants_2d_t {
+	vec2_t window_size;
+	vec2_t time;
+};
+
 // globals
 
 global os_window_t* window;
@@ -46,6 +55,7 @@ global gfx_shader_t* shader;
 global gfx_shader_t* shadow_pass_shader;
 global mesh_t* mesh;
 global light_constants_t light_constants;
+global constants_2d_t constants_2d;
 
 function void
 frame_stats_update(f32 dt) {
@@ -85,14 +95,14 @@ function void
 app_init() {
 
 	// allocate arenas
-	resource_arena = arena_create(megabytes(64));
+	resource_arena = arena_create(gigabytes(2));
 	scratch_arena = arena_create(megabytes(1));
 
 	// init frame stats
 	frame_stats.index = frame_stats.count = frame_stats.tick = 0;
 
 	// load assets
-	gfx_shader_attribute_t attributes[] = {
+	global gfx_shader_attribute_t attributes[] = {
 		{"POSITION", 0, gfx_vertex_format_float3, gfx_vertex_class_per_vertex},
 		{"NORMAL", 0, gfx_vertex_format_float3, gfx_vertex_class_per_vertex},
 		{"TANGENT", 0, gfx_vertex_format_float3, gfx_vertex_class_per_vertex},
@@ -129,15 +139,26 @@ app_update() {
 		}
 
 		camera_update(camera);
+
+		// update light
+		if (os_key_press(window, os_key_L)) {
+			light_constants.light_dir = camera->position;
+			mat4_t projection = mat4_orthographic(-10.0f, 10.0f, 10.0f, -10.0f, 0.01f, 100.0f);
+			mat4_t view = mat4_lookat(light_constants.light_dir, vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+			light_constants.shadow_view_projection = mat4_mul(projection, view);
+		}
+
+		constants_2d.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
+		constants_2d.time = vec2((f32)window->elasped_time, (f32)window->delta_time);
 	}
 
 }
 
 function void
-shadow_pass(gfx_render_target_t* prev_render_target) {
+shadow_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_render_target) {
 	
 	// set light constants
-	draw_set_constants(&light_constants, sizeof(light_constants_t));
+	draw_push_constants(&light_constants, sizeof(light_constants_t));
 	
 	// set pipeline
 	gfx_pipeline_t pipeline = gfx_pipeline_create();
@@ -153,11 +174,11 @@ shadow_pass(gfx_render_target_t* prev_render_target) {
 }
 
 function void
-scene_pass(gfx_render_target_t* prev_render_target) {
+scene_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_render_target) {
 
 	// set constants
-	draw_set_constants(&camera->constants, sizeof(camera_constants_t), 0);
-	draw_set_constants(&light_constants, sizeof(light_constants), 1);
+	draw_push_constants(&camera->constants, sizeof(camera_constants_t), 0);
+	draw_push_constants(&light_constants, sizeof(light_constants), 1);
 
 	// set pipeline
 	gfx_pipeline_t pipeline = gfx_pipeline_create();
@@ -168,6 +189,7 @@ scene_pass(gfx_render_target_t* prev_render_target) {
 	draw_push_vertices(mesh->vertices, mesh->vertex_size, mesh->vertex_count);
 
 	// set shadow map
+	gfx_set_texture(font_state.atlas_texture, 0);
 	gfx_set_texture(prev_render_target->depthbuffer, 1);
 
 	// submit
@@ -175,9 +197,48 @@ scene_pass(gfx_render_target_t* prev_render_target) {
 }
 
 function void
+ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_rander_target) {
+
+	// copy last render target
+	gfx_texture_blit(current_render_target->colorbuffer, prev_rander_target->colorbuffer);
+
+	ui_begin_frame(renderer);
+
+	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
+	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+
+	ui_button(str("button"));
+	ui_button(str("button2"));
+	persist f32 slider_value = 0.3f;
+	ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
+	persist b8 checkbox_value = false;
+	ui_checkbox(str("checkbox"), &checkbox_value);
+
+	persist b8 expander_value = false;
+	ui_expander(str("expander"), &expander_value);
+
+	persist color_t hsv_color = color(0.6f, 0.4f, 0.3f, 1.0f, color_format_hsv);
+	ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+	ui_color_sat_val_quad(str("sat_val_quad"), hsv_color.h, &hsv_color.s, &hsv_color.v);
+
+	ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+	ui_color_wheel(str("color_wheel"), &hsv_color.h, &hsv_color.s, &hsv_color.v);
+
+
+	ui_pop_pref_width();
+	ui_pop_pref_height();
+
+	ui_end_frame();
+
+}
+
+function void
 app_release() {
 
 }
+
+
+// entry point
 
 function i32
 app_entry_point(i32 argc, char** argv) {
@@ -185,7 +246,9 @@ app_entry_point(i32 argc, char** argv) {
 	// init layers
 	os_init();
 	gfx_init();
+	font_init();
 	draw_init();
+	ui_init();
 
 	// create contexts
 	window = os_window_open(str("3d test"), 1280, 960);
@@ -202,11 +265,19 @@ app_entry_point(i32 argc, char** argv) {
 	// add scene pass
 	gfx_render_target_desc_t scene_render_target_desc = { 0 };
 	scene_render_target_desc.size = renderer->resolution;
-	scene_render_target_desc.sample_count = 8;
+	scene_render_target_desc.sample_count = 1;
 	scene_render_target_desc.flags = 0;
 	scene_render_target_desc.colorbuffer_format = gfx_texture_format_rgba8;
-	scene_render_target_desc.depthbuffer_format = gfx_texture_format_d32;
+	scene_render_target_desc.depthbuffer_format = gfx_texture_format_d24s8;
 	gfx_renderer_add_pass(renderer, str("scene"), scene_pass, scene_render_target_desc);
+
+	// add ui pass
+	gfx_render_target_desc_t ui_render_target_desc = { 0 };
+	ui_render_target_desc.size = renderer->resolution;
+	ui_render_target_desc.sample_count = 1;
+	ui_render_target_desc.flags = gfx_render_target_flag_no_depth;
+	ui_render_target_desc.colorbuffer_format = gfx_texture_format_rgba8;
+	gfx_renderer_add_pass(renderer, str("ui"), ui_pass, ui_render_target_desc);
 
 	// init
 	app_init();
@@ -234,7 +305,9 @@ app_entry_point(i32 argc, char** argv) {
 	os_window_close(window);
 
 	// release layers
+	ui_release();
 	draw_release();
+	font_release();
 	gfx_release();
 	os_release();
 

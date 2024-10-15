@@ -68,20 +68,26 @@ float shadow_pcf(float4 light_position, float n_dot_l) {
     float shadow = 0.0f;
     float bias = 0.00001 * tan(acos(n_dot_l));
     bias = clamp(bias, 0, 0.001);
-    float filter_radius = 1.0f / 4096.0f;
+    float filter_radius = 1.0f / 2048.0f;
+    
+    int sample_count = 3;
     
     [unroll]
-    for (int x = -2; x <= 2; ++x) {
+    for (int x = -sample_count; x <= sample_count; ++x) {
         [unroll]
-        for (int y = -2; y <= 2; ++y) {
+        for (int y = -sample_count; y <= sample_count; ++y) {
             float2 offset = filter_radius * float2(x, y);
             float shadow_sample = sample_shadow_map(shadow_uv + offset);
             shadow += (shadow_depth - bias) > shadow_sample ? 1.0f : 0.0f;
         }
     }
     
-    return clamp(1.0f - (shadow / 25.0f), 0.0f, 1.0f);
+    float sum = (sample_count * sample_count * 4.0f) + (sample_count * 4.0f) + 1.0f;
+    
+    return clamp(1.0f - (shadow / sum), 0.0f, 1.0f);
 }
+
+
 
 float4 ps_main(vs_out input) : SV_TARGET {
     
@@ -94,7 +100,9 @@ float4 ps_main(vs_out input) : SV_TARGET {
     // shadow
     float shadow_factor = shadow_pcf(input.light_position, n_dot_l);
     
-    float diffuse = clamp(n_dot_l * shadow_factor, 0.2f, 1.0f);
+    float diffuse = clamp(n_dot_l * shadow_factor, 0.0f, 1.0f);
     
-    return float4(color * diffuse, 1.0f);
+    float3 light_color = color * lerp(float3(0.170f, 0.203f, 0.313f), float3(0.913f, 0.518f, 0.443f), diffuse);
+    
+    return float4(color * light_color, 1.0f);
 }
