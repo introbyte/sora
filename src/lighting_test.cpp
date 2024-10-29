@@ -1,4 +1,4 @@
-// 3d_test.cpp
+// lighting_test.cpp
 
 // includes
 
@@ -43,6 +43,12 @@ struct constants_2d_t {
 	vec2_t time;
 };
 
+struct material_constants_t {
+	i32 type; // -1 = none, 0 = vertex, 1 = pixel, 2 = texel
+	f32 roughness;
+	f32 metallic;
+};
+
 // globals
 
 global os_window_t* window;
@@ -56,6 +62,9 @@ global gfx_shader_t* shadow_pass_shader;
 global mesh_t* mesh;
 global light_constants_t light_constants;
 global constants_2d_t constants_2d;
+global material_constants_t material_constants;
+global gfx_texture_t* texture;
+
 
 function void
 frame_stats_update(f32 dt) {
@@ -110,19 +119,29 @@ app_init() {
 		{"TEXCOORD", 0, gfx_vertex_format_float2, gfx_vertex_class_per_vertex},
 		{"COLOR", 0, gfx_vertex_format_float4, gfx_vertex_class_per_vertex},
 	};
-	shader = gfx_shader_load(str("res/shaders/shader_3d.hlsl"), attributes, 6);
+	shader = gfx_shader_load(str("res/shaders/shader_texel_pbr.hlsl"), attributes, 6);
 	shadow_pass_shader = gfx_shader_load(str("res/shaders/shadow_pass.hlsl"), attributes, 6);
 
+	// texture
+	texture = gfx_texture_load(str("res/textures/texture.png"));
+
+	// mesh
 	mesh = mesh_load(resource_arena, scratch_arena, str("res/models/scene.obj"));
 
 	// create camera
 	camera = camera_create(resource_arena, renderer, 75.0f, 0.01f, 100.0f);
-
+	
 	// set light constants
 	light_constants.light_dir = vec3(5.0f, 7.0f, 2.0f);
 	mat4_t projection = mat4_orthographic(-10.0f, 10.0f, 10.0f, -10.0f, 0.01f, 100.0f);
 	mat4_t view = mat4_lookat(light_constants.light_dir, vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
 	light_constants.shadow_view_projection = mat4_mul(projection, view);
+	
+	// set material constants
+	material_constants.type = 1;
+	material_constants.roughness = 0.1f;
+	material_constants.metallic = 0.25f;
+
 
 }
 
@@ -150,6 +169,7 @@ app_update() {
 
 		constants_2d.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
 		constants_2d.time = vec2((f32)window->elasped_time, (f32)window->delta_time);
+		
 	}
 
 }
@@ -177,15 +197,18 @@ function void
 scene_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_render_target) {
 
 	// set constants
-	draw_push_constants(&camera->constants, sizeof(camera_constants_t), 0);
+	draw_push_constants(&camera->constants, sizeof(camera->constants), 0);
 	draw_push_constants(&light_constants, sizeof(light_constants), 1);
+	draw_push_constants(&material_constants, sizeof(material_constants), 2);
 
 	// set pipeline
 	gfx_pipeline_t pipeline = gfx_pipeline_create();
+	pipeline.filter_mode = gfx_filter_nearest;
 	draw_push_pipeline(pipeline);
 
 	// draw scene
 	draw_set_next_shader(shader);
+	draw_push_texture(texture);
 	draw_push_vertices(mesh->vertices, mesh->vertex_size, mesh->vertex_count);
 
 	// set shadow map
@@ -207,26 +230,15 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
 	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-	if (ui_button(str("close")) & ui_interaction_left_clicked) {
-		os_window_close(window);
-	}
-	ui_button(str("button2"));
-	persist f32 slider_value = 0.3f;
-	ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
-	persist b8 checkbox_value = false;
-	ui_checkbox(str("checkbox"), &checkbox_value);
-
-	persist b8 expander_value = false;
-	ui_expander(str("expander"), &expander_value);
-
-	persist color_t hsv_color = color(0.6f, 0.4f, 0.3f, 1.0f, color_format_hsv);
-	ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-	ui_color_sat_val_quad(str("sat_val_quad"), hsv_color.h, &hsv_color.s, &hsv_color.v);
-
-	ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-	ui_color_wheel(str("color_wheel"), &hsv_color.h, &hsv_color.s, &hsv_color.v);
+	// frame stats
+	ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
+	ui_labelf("min: %.2f ms", frame_stats.min);
+	ui_labelf("max: %.2f ms", frame_stats.max);
 
 
+	cstr types[] = { "per vertex", "per pixel", "per texel" };
+	ui_combo(str("lighting type"), &material_constants.type, types, 3);
+	
 	ui_pop_pref_width();
 	ui_pop_pref_height();
 
@@ -238,7 +250,6 @@ function void
 app_release() {
 
 }
-
 
 // entry point
 

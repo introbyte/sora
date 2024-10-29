@@ -301,6 +301,14 @@ str(char* cstr) {
 }
 
 function str_t
+str(cstr cstr) {
+	str_t string;
+	string.data = (u8*)cstr;
+	string.size = cstr_length(cstr);
+	return string;
+}
+
+function str_t
 str(char* cstr, u32 size) {
 	str_t string;
 	string.data = (u8*)cstr;

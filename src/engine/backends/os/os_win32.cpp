@@ -7,6 +7,8 @@
 #pragma comment(lib, "user32")
 #pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
+#pragma comment(lib, "dwmapi")
+
 
 // implementation
 
@@ -286,7 +288,7 @@ os_key_is_down(os_key key) {
 // window functions
 
 function os_window_t*
-os_window_open(str_t title, u32 width, u32 height) {
+os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 
 	// find window
 	os_window_t* window = nullptr;
@@ -300,20 +302,24 @@ os_window_open(str_t title, u32 width, u32 height) {
 
 	dll_push_back(os_state.first_window, os_state.last_window, window);
 
+
 	// adjust window size
+	DWORD style = WS_OVERLAPPEDWINDOW;
 	RECT rect = { 0, 0, width, height };
-	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+	AdjustWindowRect(&rect, style, FALSE);
 	i32 adjusted_width = rect.right - rect.left;
 	i32 adjusted_height = rect.bottom - rect.top;
 
 	// open window
 	window->handle = CreateWindowExA(0, "sora_window_class", (char*)title.data,
-		WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
+		style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
 		nullptr, nullptr, GetModuleHandle(NULL), nullptr);
 	window->hdc = GetDC(window->handle);
 	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
 	ShowWindow(window->handle, SW_SHOW);
 
+	// fill stuct
+	window->flags = flags;
 	window->title = title;
 	window->resolution = uvec2(width, height);
 	window->resize_function = nullptr;
@@ -325,7 +331,7 @@ os_window_open(str_t title, u32 width, u32 height) {
 
 	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
-
+	
 	window->is_running = true;
 
 	return window;
@@ -333,6 +339,7 @@ os_window_open(str_t title, u32 width, u32 height) {
 
 function void
 os_window_close(os_window_t* window) {
+	window->is_running = false;
 	dll_remove(os_state.first_window, os_state.last_window, window);
 	stack_push(os_state.free_window, window);
 	if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
@@ -654,6 +661,14 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 	switch (msg) {
 
+		//case WM_PAINT: {
+		//	PAINTSTRUCT ps;
+		//	HDC hdc = BeginPaint(handle, &ps);
+
+		//	EndPaint(handle, &ps);
+		//	break;
+		//}
+
 		case WM_CLOSE:
 		{
 			if (window->close_function != nullptr) {
@@ -665,11 +680,13 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_SIZE:
 		{
-			UINT width = LOWORD(lparam);
-			UINT height = HIWORD(lparam);
-			window->resolution = uvec2(width, height);
-			if (window->resize_function != nullptr) {
-				window->resize_function();
+			if (window != nullptr) {
+				UINT width = LOWORD(lparam);
+				UINT height = HIWORD(lparam);
+				window->resolution = uvec2(width, height);
+				if (window->resize_function != nullptr) {
+					window->resize_function();
+				}
 			}
 			result = DefWindowProcA(handle, msg, wparam, lparam);
 			break;
@@ -771,9 +788,8 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			os_state.mouse_buttons[event->mouse] = false;
 			break;
 		}
-
-		default:
-		{
+		
+		default: {
 			result = DefWindowProcA(handle, msg, wparam, lparam);
 			break;
 		}

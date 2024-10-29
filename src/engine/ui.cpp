@@ -513,7 +513,6 @@ ui_button(str_t label) {
 		ui_frame_flag_draw;
 
 	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 
@@ -1003,6 +1002,77 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 	return interaction;
 }
 
+function ui_interaction
+ui_combo(str_t label, i32* current, const char** items, u32 item_count) {
+
+	// build parent frame
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_layout_axis(ui_layout_axis_x);
+
+	u32 flags =
+		ui_frame_flag_clickable | ui_frame_flag_draw_background_light |
+		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
+		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border_light;
+	ui_key_t key = ui_key_from_string({ 0 }, label);
+	ui_frame_t* parent_frame = ui_frame_from_key(key, flags);
+	
+	// set combo text
+
+	ui_push_parent(parent_frame);
+	{
+		str_t combo_label = label;
+		if (*current >= 0) {
+			combo_label = str(items[*current]);
+		}
+
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(combo_label);
+
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_set_next_font(ui_state.default_icon_font);
+		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
+		ui_frame_set_display_text(icon_frame, str("v"));
+
+	}
+	ui_pop_parent();
+
+	b8 frame_focused = ui_key_equals(ui_state.focused_frame_key, key);
+
+	// popup
+	if (frame_focused) {
+		ui_set_next_fixed_x(parent_frame->rect.x0);
+		ui_set_next_fixed_y(parent_frame->rect.y1);
+		ui_set_next_pref_width(ui_top_pref_width());
+		ui_set_next_pref_width(ui_size_by_child(1.0f));
+		ui_frame_t* popup_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_background_dark | ui_frame_flag_floating | ui_frame_flag_fixed_size);
+	
+		ui_push_parent(popup_frame);
+		
+		for (i32 i = 0; i < item_count; i++) {
+			
+			if (*current == i) {
+				//ui_palette_t palette = ui_state.default_palette;
+				//palette.dark_background = palette.accent;
+				//ui_set_next_palette(&palette);
+			}
+
+			ui_set_next_text_alignment(ui_text_alignment_left);
+			ui_interaction item_interaction = ui_buttonf("%s##%s", items[i], label.data);
+			if (item_interaction & ui_interaction_left_pressed) {
+				*current = i;
+			}
+		}
+
+		ui_pop_parent();
+
+	}
+
+	ui_interaction interaction = ui_frame_interaction(parent_frame);
+
+	return interaction;
+}
+
 // widget draw functions
 
 function void 
@@ -1080,15 +1150,15 @@ ui_color_hue_bar(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		// borders
-		//gfx_set_next_color(color(0x151515ff));
-		//gfx_draw_radial(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0x151515ff));
+		draw_push_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
 
-		//gfx_set_next_color(color(0xe2e2e2ff));
-		//gfx_draw_radial(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_push_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
 
 		// color
-		//gfx_set_next_color(hue_col);
-		//gfx_draw_radial(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_set_next_color(hue_col);
+		draw_push_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
 	}
 }
 

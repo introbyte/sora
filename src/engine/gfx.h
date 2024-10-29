@@ -281,6 +281,9 @@ function b8 _texture_format_is_depth(gfx_texture_format);
 
 #define GFX_BACKEND_D3D11
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "vendor/stb_image.h"
+
 #ifdef GFX_BACKEND_D3D11
 	#include "backends/gfx/gfx_d3d11.h"
 #elif defined(GFX_BACKEND_OPENGL)

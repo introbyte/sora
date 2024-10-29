@@ -5,11 +5,15 @@
 #include "engine/base.h"
 #include "engine/os.h"
 #include "engine/gfx.h"
+#include "engine/font.h"
+#include "engine/draw.h"
 #include "engine/ui.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
+#include "engine/font.cpp"
+#include "engine/draw.cpp"
 #include "engine/ui.cpp"
 
 struct frame_stats_t {
@@ -25,16 +29,21 @@ struct frame_stats_t {
 	u32 tick;
 };
 
+struct constants_2d_t {
+	vec2_t window_size;
+	vec2_t time;
+};
+
 // globals
 
 global os_window_t* window;
 global gfx_renderer_t* renderer;
-global arena_t* scratch;
-global gfx_font_t* font_system;
-
+global arena_t* resource_arena;
+global arena_t* scratch_arena;
 global frame_stats_t frame_stats;
+global constants_2d_t constants_2d;
 
-function void 
+function void
 frame_stats_update(f32 dt) {
 
 	// frame times
@@ -68,21 +77,20 @@ frame_stats_update(f32 dt) {
 
 }
 
-
-
-function void 
+function void
 app_init() {
 
 	// allocate arenas
-	scratch = arena_create(megabytes(1));
+	resource_arena = arena_create(gigabytes(2));
+	scratch_arena = arena_create(megabytes(1));
 
 	// init frame stats
 	frame_stats.index = frame_stats.count = frame_stats.tick = 0;
-
+	
 }
 
 function void
-app_update_and_render() {
+app_update() {
 
 	// update 
 	{
@@ -92,133 +100,51 @@ app_update_and_render() {
 		if (os_key_release(window, os_key_F11)) {
 			os_window_fullscreen(window);
 		}
-		
+
+		constants_2d.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
+		constants_2d.time = vec2((f32)window->elasped_time, (f32)window->delta_time);
 	}
 
-	// render
-	{
-		persist char buffer[128] = "Hello World this is a textbox";
-		persist u32 string_size = 29;
-		persist b8 basic_widgets_group = false;
-		persist b8 color_picker_group = false;
-		persist b8 scroll_group = false;
-		persist b8 checkbox_value = false;
-		persist f32 slider_1_value = 0.75f;
-		persist color_t hsv_col = color(0.6f, 0.5f, 0.9f, 1.0f, color_format_hsv);
-		
-		ui_begin_frame(renderer);
-		ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
-		ui_push_pref_height(ui_size_pixel(21.0f, 1.0f));
+}
 
-		// frame stats
-		{
-			ui_labelf("frame_time: %.2f ms", frame_stats.dt);
-			ui_labelf("min: %.2f ms", frame_stats.min);
-			ui_labelf("max: %.2f ms", frame_stats.max);
-			ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
-		}
+function void
+ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_rander_target) {
 
-		ui_text_edit(str("text_edit"), buffer, 128, &string_size);
+	ui_begin_frame(renderer);
 
-		// basic widgets
-		ui_expander(str("Basic Widgets"), &basic_widgets_group);
-		if (basic_widgets_group) {
-			ui_interaction interaction = ui_button(str("Button##1"));
-			
-			ui_set_next_text_alignment(ui_text_alignment_center);
-			ui_button(str("Button##2"));
+	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
+	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-			ui_set_next_text_alignment(ui_text_alignment_right);
-			ui_button(str("Button##3"));
-
-			ui_checkbox(str("Checkbox"), &checkbox_value);
-
-			ui_slider(str("Slider"), &slider_1_value, 0.0f, 1.0f);
-		}
-
-		ui_expander(str("Color Picker Widgets"), &color_picker_group);
-		if (color_picker_group) {
-			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-			ui_color_wheel(str("color_wheel"), &hsv_col.h, &hsv_col.s, &hsv_col.v);
-
-			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-			ui_color_hue_sat_circle(str("color_circle"), &hsv_col.h, &hsv_col.s, hsv_col.v);
-
-			ui_color_val_bar(str("color_hue_bar"), hsv_col.h, hsv_col.s, &hsv_col.v);
-
-			ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
-			ui_color_sat_val_quad(str("color_quad"), hsv_col.h, &hsv_col.s, &hsv_col.v);
-
-			ui_color_hue_bar(str("color_val_bar"), &hsv_col.h, hsv_col.s, hsv_col.v);
-
-			color_t rgb_col = color_hsv_to_rgb(hsv_col);
-
-			ui_interaction interaction = ui_interaction_none; 
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("red:")); 
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			interaction |= ui_slider(str("slider_red"), &rgb_col.r, 0.0f, 1.0f);
-			ui_row_end();
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("green:"));
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			interaction |= ui_slider(str("slider_green"), &rgb_col.g, 0.0f, 1.0f);
-			ui_row_end();
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("blue:"));
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			interaction |= ui_slider(str("slider_blue"), &rgb_col.b, 0.0f, 1.0f);
-			ui_row_end();
-		
-			if (interaction & ui_interaction_left_dragging) {
-				hsv_col = color_rgb_to_hsv(rgb_col);
-			}
-
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("hue:"));
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			ui_slider(str("slider_hue"), &hsv_col.h, 0.0f, 1.0f);
-			ui_row_end();
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("sat:"));
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			ui_slider(str("slider_sat"), &hsv_col.s, 0.0f, 1.0f);
-			ui_row_end();
-			ui_row_begin();
-			ui_set_next_pref_width(ui_size_percent(0.25f));
-			ui_label(str("val:"));
-			ui_set_next_pref_width(ui_size_percent(0.75f));
-			ui_slider(str("slider_val"), &hsv_col.v, 0.0f, 1.0f);
-			ui_row_end();
-		}
-
-
-		ui_expander(str("Scroll Regions"), &scroll_group);
-		if (scroll_group) {
-			ui_set_next_pref_height(ui_size_pixel(210.0f, 1.0f));
-			ui_frame_t* holder = ui_frame_from_string(str("scroll_holder"), ui_frame_flag_draw_background_dark | ui_frame_flag_view_scroll | ui_frame_flag_view_clamp | ui_frame_flag_clip);
-			ui_interaction interaction = ui_frame_interaction(holder);
-		
-			ui_push_parent(holder);
-
-			for (i32 i = 0; i < 25; i++) {
-				ui_buttonf("Test Button %u", i);
-			}
-
-			ui_pop_parent();
-		}
-
-		
-		ui_pop_pref_width();
-		ui_pop_pref_height();
-
-		ui_end_frame();
+	if (ui_button(str("close")) & ui_interaction_left_clicked) {
+		os_window_close(window);
 	}
+	ui_button(str("button"));
+	persist f32 slider_value = 0.3f;
+	ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
+
+	cstr items[] = { "item_1", "item_2", "item_3" };
+	persist i32 index = -1;
+	ui_combo(str("combo"), &index, items, 3);
+	persist b8 checkbox_value = false;
+	ui_checkbox(str("checkbox"), &checkbox_value);
+
+	persist b8 expander_value = false;
+	ui_expander(str("expander"), &expander_value);
+	if (expander_value) {
+		persist color_t hsv_color = color(0.6f, 0.4f, 0.3f, 1.0f, color_format_hsv);
+		ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+		ui_color_sat_val_quad(str("sat_val_quad"), hsv_color.h, &hsv_color.s, &hsv_color.v);
+
+		ui_color_hue_bar(str("hue_quad"), &hsv_color.h, hsv_color.s, hsv_color.v);
+
+		ui_set_next_pref_height(ui_size_pixel(200.0f, 1.0f));
+		ui_color_wheel(str("color_wheel"), &hsv_color.h, &hsv_color.s, &hsv_color.v);
+
+	}
+	ui_pop_pref_width();
+	ui_pop_pref_height();
+
+	ui_end_frame();
 
 }
 
@@ -227,39 +153,59 @@ app_release() {
 
 }
 
+// entry point
+
 function i32
 app_entry_point(i32 argc, char** argv) {
 
 	// init layers
 	os_init();
 	gfx_init();
+	font_init();
+	draw_init();
 	ui_init();
 
 	// create contexts
-	window = os_window_open(str("sora ui test"), 1280, 960);
-	renderer = gfx_renderer_create(window, { color(0x303030ff), 1 });
+	window = os_window_open(str("ui test"), 1280, 960, os_window_flag_custom_border);
+	renderer = gfx_renderer_create(window, color(0x050505ff));
+	
+	// add ui pass
+	gfx_render_target_desc_t ui_render_target_desc = { 0 };
+	ui_render_target_desc.size = renderer->resolution;
+	ui_render_target_desc.sample_count = 1;
+	ui_render_target_desc.flags = gfx_render_target_flag_no_depth;
+	ui_render_target_desc.colorbuffer_format = gfx_texture_format_rgba8;
+	gfx_renderer_add_pass(renderer, str("ui"), ui_pass, ui_render_target_desc);
 
 	// init
 	app_init();
 
 	// main loop
-	while (os_any_window_exist()) {
+	while (os_window_is_running(window)) {
 
 		// update layers
 		os_update();
 		gfx_update();
+		draw_update();
 
-		gfx_renderer_begin_frame(renderer);
-		app_update_and_render();
-		gfx_renderer_end_frame(renderer);
+		// update app
+		app_update();
+
+		// submit to renderer
+		gfx_renderer_submit(renderer);
 	}
 
 	// release
 	app_release();
+
+	// release context
 	gfx_renderer_release(renderer);
+	os_window_close(window);
 
 	// release layers
 	ui_release();
+	draw_release();
+	font_release();
 	gfx_release();
 	os_release();
 

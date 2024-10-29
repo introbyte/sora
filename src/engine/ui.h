@@ -600,6 +600,7 @@ function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
 function ui_interaction ui_color_hue_sat_circle(str_t, f32*, f32*, f32*);
 function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
 function ui_interaction ui_text_edit(str_t, char*, u32, u32*);
+function ui_interaction ui_combo(str_t, i32*, char**, u32);
 
 // widget draw functions
 function void ui_slider_draw_function(ui_frame_t*);

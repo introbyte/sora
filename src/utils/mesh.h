@@ -25,6 +25,9 @@ function mesh_t* mesh_create(arena_t*, str_t, u32, u32);
 function mesh_t* mesh_load(arena_t*, arena_t*, str_t);
 function void mesh_release(mesh_t*);
 
+function void mesh_calculate_normals(mesh_t*);
+function void mesh_calculate_binormals(mesh_t*);
+
 // implementation
 
 
@@ -117,12 +120,90 @@ mesh_load(arena_t* arena, arena_t* scratch, str_t filepath) {
 
 	arena_clear(scratch);
 
+	// calculate normals and binormals
+	//mesh_calculate_normals(mesh);
+	mesh_calculate_binormals(mesh);
+
 	return mesh;
 }
 
 function void
 mesh_release(mesh_t* mesh) {
 	
+}
+
+function void
+mesh_calculate_normals(mesh_t* mesh) {
+
+	for (i32 i = 0; i < mesh->vertex_count; i += 3) {
+
+		vertex_t* vertices = (vertex_t*)mesh->vertices;
+
+		vertex_t* vertex0 = &vertices[i + 0];
+		vertex_t* vertex1 = &vertices[i + 1];
+		vertex_t* vertex2 = &vertices[i + 2];
+
+		vec3_t edge0 = vec3_sub(vertex1->pos, vertex0->pos);
+		vec3_t edge1 = vec3_sub(vertex2->pos, vertex0->pos);
+
+		vec3_t normal = vec3_normalize(vec3_cross(edge0, edge1));
+
+		vertex0->normal = normal;
+		vertex1->normal = normal;
+		vertex2->normal = normal;
+	}
+
+}
+
+function void
+mesh_calculate_binormals(mesh_t* mesh) {
+
+	for (i32 i = 0; i < mesh->vertex_count; i += 3) {
+
+		vertex_t* vertices = (vertex_t*)mesh->vertices;
+
+		vertex_t* vertex0 = &vertices[i + 0];
+		vertex_t* vertex1 = &vertices[i + 1];
+		vertex_t* vertex2 = &vertices[i + 2];
+
+		vec3_t edge0 = vec3_sub(vertex1->pos, vertex0->pos);
+		vec3_t edge1 = vec3_sub(vertex2->pos, vertex0->pos);
+
+		f32 deltaU1 = vertex1->uv.x - vertex0->uv.x;
+		f32 deltaV1 = vertex1->uv.y - vertex0->uv.y;
+
+		f32 deltaU2 = vertex2->uv.x - vertex0->uv.x;
+		f32 deltaV2 = vertex2->uv.y - vertex0->uv.y;
+
+		f32 dividend = (deltaU1 * deltaV2 - deltaU2 * deltaV1);
+		f32 fc = 1.0f / dividend;
+
+		vec3_t tangent = vec3(
+			(fc * (deltaV2 * edge0.x - deltaV1 * edge1.x)),
+			(fc * (deltaV2 * edge0.y - deltaV1 * edge1.y)),
+			(fc * (deltaV2 * edge0.z - deltaV1 * edge1.z))
+		);
+
+		tangent = vec3_normalize(tangent);
+
+
+		f32 sx = deltaU1, sy = deltaU2;
+		f32 tx = deltaV1, ty = deltaV2;
+		f32 handedness = ((tx * sy - ty * sx) < 0.0f) ? -1.0f : 1.0f;
+
+		vec3_t t4 = vec3_mul(tangent, handedness);
+
+		vec3_t bitangent = vec3_cross(tangent, vertex0->normal);
+
+		vertex0->tangent = t4;
+		vertex1->tangent = t4;
+		vertex2->tangent = t4;
+
+		vertex0->bitangent = bitangent;
+		vertex1->bitangent = bitangent;
+		vertex2->bitangent = bitangent;
+	}
+
 }
 
 #endif // MESH_H

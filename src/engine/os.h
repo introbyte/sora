@@ -162,6 +162,13 @@ enum os_cursor {
 	os_cursor_count,
 };
 
+
+typedef u32 os_window_flags;
+enum {
+	os_window_flag_null,
+	os_window_flag_custom_border = (1 << 0),
+};
+
 // structs
 
 struct os_window_t; // defined in backends.
@@ -228,7 +235,7 @@ function b8 os_key_is_down(os_key);
 
 // window
 
-function os_window_t* os_window_open(str_t, u32, u32);
+function os_window_t* os_window_open(str_t, u32, u32, os_window_flags = 0);
 function void os_window_close(os_window_t*);
 function b8 os_window_is_running(os_window_t*);
 function void os_window_minimize(os_window_t*);

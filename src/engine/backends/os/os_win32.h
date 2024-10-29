@@ -6,6 +6,7 @@
 // includes
 #include <windows.h>
 #include <timeapi.h>
+#include <dwmapi.h>
 
 // structs
 
@@ -14,6 +15,9 @@ struct os_window_t {
 	// window list 
 	os_window_t* next;
 	os_window_t* prev;
+
+	// flags
+	os_window_flags flags;
 
 	// win32
 	HWND handle;

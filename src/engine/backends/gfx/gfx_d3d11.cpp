@@ -779,14 +779,19 @@ gfx_texture_create(uvec2_t size, gfx_texture_format format, void* data) {
 
 function gfx_texture_t*
 gfx_texture_load(str_t filepath) {
+	
+	// load file
+	i32 width = 0;
+	i32 height = 0;
+	i32 bpp = 0;
 
-	// load from file
-	void* data = nullptr;
+	stbi_set_flip_vertically_on_load(1);
+	unsigned char* buffer = stbi_load((char*)filepath.data, &width, &height, &bpp, 4);
 
 	// fill description
 	gfx_texture_desc_t desc = { 0 };
 	desc.name = str_get_file_name(filepath);
-	desc.size = uvec2(0, 0);
+	desc.size = uvec2(width, height);
 	desc.format = gfx_texture_format_rgba8;
 	desc.type = gfx_texture_type_2d;
 	desc.sample_count = 1;
@@ -794,7 +799,7 @@ gfx_texture_load(str_t filepath) {
 	desc.render_target = false;
 
 	// create and return texture
-	gfx_texture_t* texture = gfx_texture_create_ex(desc, data);
+	gfx_texture_t* texture = gfx_texture_create_ex(desc, buffer);
 
 	return texture;
 }
