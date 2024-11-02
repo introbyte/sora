@@ -72,9 +72,7 @@ frame_stats_update(f32 dt) {
 			frame_stats.avg += time;
 		}
 		frame_stats.avg /= frame_stats.count;
-
 	}
-
 }
 
 function void
@@ -110,6 +108,10 @@ app_update() {
 function void
 ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_rander_target) {
 
+	persist u64 hovered_id = ui_state.hovered_frame_key.data[0];
+	persist u64 focused_id = ui_state.focused_frame_key.data[0];
+	persist u64 active_id = ui_state.active_frame_key[0].data[0];
+
 	ui_begin_frame(renderer);
 
 	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
@@ -118,6 +120,10 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	if (ui_button(str("close")) & ui_interaction_left_clicked) {
 		os_window_close(window);
 	}
+
+	ui_labelf("hovered key: %u", hovered_id);
+	ui_labelf("focused key: %u", focused_id);
+	ui_labelf("active key: %u", active_id);
 	ui_button(str("button"));
 	persist f32 slider_value = 0.3f;
 	ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
@@ -127,6 +133,10 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	ui_combo(str("combo"), &index, items, 3);
 	persist b8 checkbox_value = false;
 	ui_checkbox(str("checkbox"), &checkbox_value);
+
+	persist char buffer[64] = "Hello, World";
+	persist u32 text_size = 12;
+	ui_text_edit(str("textbox"), buffer, 64, &text_size);
 
 	persist b8 expander_value = false;
 	ui_expander(str("expander"), &expander_value);
@@ -145,6 +155,10 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	ui_pop_pref_height();
 
 	ui_end_frame();
+
+	hovered_id = ui_state.hovered_frame_key.data[0];
+	focused_id = ui_state.focused_frame_key.data[0];
+	active_id = ui_state.active_frame_key[0].data[0];
 
 }
 

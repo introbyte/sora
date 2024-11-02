@@ -334,6 +334,8 @@ draw_push_rect(rect_t pos) {
 	// push data
 	draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
 
+	rect_validate(pos);
+
 	instance->bbox = pos;
 	instance->uv = rect(0.0f, 0.0f, 0.0f, 0.0f);
 	instance->shape = draw_shape_rect;

@@ -4,17 +4,10 @@
 #define BASE_H
 
 
-// TODO:
-//
-// [ ] - finish out math library.
-// [ ] - add simd for math library.
-//
-
-
 // includes
 
-#include <cstdio>
-#include <cmath>
+#include <cstdio> // printf
+#include <cmath> // math functions
 
 // defines
 

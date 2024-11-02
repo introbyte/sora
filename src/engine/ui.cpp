@@ -175,7 +175,6 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	arena_clear(ui_state.event_arena);
 	arena_clear(ui_state.scratch_arena);
 
-
 	// reset event list
 	ui_state.event_list = { 0 };
 	
@@ -287,6 +286,19 @@ ui_begin_frame(gfx_renderer_t* renderer) {
 	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
 	ui_state.root = frame;
 	ui_push_parent(frame);
+
+	// reset active keys if removed
+	for (i32 i = 0; i < os_mouse_button_count; i++) {
+		ui_frame_t* frame = ui_frame_find(ui_state.active_frame_key[i]);
+
+		if (frame == nullptr) {
+			ui_state.active_frame_key[i] = { 0 };
+		}
+
+		//if (!ui_key_equals(ui_state.active_frame_key[i], { 0 })) {
+		//	has_active = true;
+		//}
+	}
 
 	// reset hovered key
 	b8 has_active = false;
@@ -1657,7 +1669,7 @@ ui_text_offset_from_index(font_t* font, f32 font_size, str_t string, u32 index) 
 	f32 width = 0.0f;
 	for (u32 offset = 0; offset < index; offset++) {
 		char c = *(string.data + offset);
-		font_glyph_t* glyph = font_get_glyph(font, (u8)c, font_size);
+		font_glyph_t* glyph = font_get_glyph(font, font_size, (u8)c);
 		width += glyph->advance;
 	}
 	return width;
@@ -1670,7 +1682,7 @@ ui_text_index_from_offset(font_t* font, f32 font_size, str_t string, f32 offset)
 
 	for (u32 index = 0; index < string.size; index++) {
 		char c = *(string.data + index);
-		font_glyph_t* glyph = font_get_glyph(font, (u8)c, font_size);
+		font_glyph_t* glyph = font_get_glyph(font, font_size, (u8)c);
 		if (offset < advance + (glyph->advance * 0.5f)) {
 			result = index;
 			break;
