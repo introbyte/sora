@@ -129,7 +129,6 @@ ui_init() {
 	global gfx_shader_attribute_t ui_shader_attributes[] = {
 		{"BBOX", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
 		{"UV", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"TYPE", 0, gfx_vertex_format_int, gfx_vertex_class_per_instance},
 		{"POS", 0,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
 		{"POS", 1,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
 		{"POS", 2,  gfx_vertex_format_float2, gfx_vertex_class_per_instance},
@@ -140,6 +139,7 @@ ui_init() {
 		{"COL", 3,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
 		{"RAD", 0,  gfx_vertex_format_float4, gfx_vertex_class_per_instance},
 		{"STY", 0,  gfx_vertex_format_float3, gfx_vertex_class_per_instance},
+		{"TYPE", 0, gfx_vertex_format_int, gfx_vertex_class_per_instance},
 	};
 	ui_state.ui_shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), ui_shader_attributes, 13);
 

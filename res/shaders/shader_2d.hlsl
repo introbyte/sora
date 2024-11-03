@@ -7,7 +7,6 @@ cbuffer constants : register(b0) {
 struct vs_in {
     float4 bbox : BBOX;
     float4 uv : UV;
-    int type : TYPE; // 0 - quad, 1 - line, 2 - radial, 3 - tri
     float2 p0 : POS0;
     float2 p1 : POS1;
     float2 p2 : POS2;
@@ -18,6 +17,7 @@ struct vs_in {
     float4 col3 : COL3;
     float4 radii : RAD;
     float3 style : STY;
+    int type : TYPE; // 0 - quad, 1 - line, 2 - radial, 3 - tri
     uint vertex_id : SV_VertexID;
 };
 

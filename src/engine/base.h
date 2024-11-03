@@ -8,8 +8,11 @@
 
 #include <cstdio> // printf
 #include <cmath> // math functions
+#include <xmmintrin.h>
 
 // defines
+
+#define BASE_USE_SIMD 1
 
 #define function static
 #define global static
@@ -148,8 +151,15 @@ struct codepoint_t {
 	u32 advance;
 };
 
-struct vec2_t {
-	f32 x, y;
+union vec2_t {
+	struct {
+		f32 x, y;
+	};
+
+	f32 elements[2];
+
+	inline f32& operator[](i32 index) { return elements[index]; }
+	inline const f32& operator[](i32 index) const { return elements[index]; }
 };
 
 struct ivec2_t {
@@ -160,12 +170,29 @@ struct uvec2_t {
 	u32 x, y;
 };
 
-struct vec3_t {
-	f32 x, y, z;
+union vec3_t {
+	struct {
+		f32 x, y, z;
+	};
+	f32 elements[3];
+
+	inline f32& operator[](i32 index) { return elements[index]; }
+	inline const f32& operator[](i32 index) const { return elements[index]; }
 };
 
-struct vec4_t {
-	f32 x, y, z, w;
+union vec4_t {
+	struct {
+		f32 x, y, z, w;
+	};
+	f32 elements[4];
+
+#if BASE_USE_SIMD
+	__m128 sse;
+#endif
+
+	inline f32& operator[](i32 index) { return elements[index]; }
+	inline const f32& operator[](i32 index) const { return elements[index]; }
+
 };
 
 struct rect_t {
@@ -187,12 +214,41 @@ struct color_t {
 	color_format format;
 };
 
-struct quat_t {
-	f32 x, y, z, w;
+union quat_t {
+	struct {
+		f32 x, y, z, w;
+	};
+
+	f32 elements[4];
+#if BASE_USE_SIMD
+	__m128 sse;
+#endif
 };
 
-struct mat4_t {
-	f32 data[4][4];
+// TODO: implement functions
+union mat2_t {
+	f32 elements[2][2];
+	vec2_t columns[2];
+
+	inline vec2_t& operator[](i32 index) { return columns[index]; }
+	inline const vec2_t& operator[](i32 index) const { return columns[index]; }
+};
+
+// TODO: implement functions
+union mat3_t {
+	f32 elements[3][3];
+	vec3_t columns[3];
+
+	inline vec3_t& operator[](i32 index) { return columns[index]; }
+	inline const vec3_t& operator[](i32 index) const { return columns[index]; }
+};
+
+union mat4_t {
+	f32 elements[4][4];
+	vec4_t columns[4];
+
+	inline vec4_t& operator[](i32 index) { return columns[index]; }
+	inline const vec4_t& operator[](i32 index) const { return columns[index]; }
 };
 
 struct arena_t {
@@ -264,6 +320,7 @@ function f32 radians(f32);
 function f32 degrees(f32);
 function f32 remap(f32, f32, f32, f32, f32);
 function f32 lerp(f32, f32, f32);
+function f32 s_sqrt(f32);
 
 // color
 function color_t color(u32, color_format = color_format_rgb);

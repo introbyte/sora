@@ -58,7 +58,6 @@ struct draw_2d_instance_t {
 
 	rect_t bbox;
 	rect_t uv;
-	draw_shape shape;
 	
 	// position
 	vec2_t p0;
@@ -82,6 +81,7 @@ struct draw_2d_instance_t {
 	f32 thickness;
 	f32 softness;
 	f32 omit_texture;
+	draw_shape shape;
 };
 
 

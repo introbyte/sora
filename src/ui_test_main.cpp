@@ -108,10 +108,6 @@ app_update() {
 function void
 ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_rander_target) {
 
-	persist u64 hovered_id = ui_state.hovered_frame_key.data[0];
-	persist u64 focused_id = ui_state.focused_frame_key.data[0];
-	persist u64 active_id = ui_state.active_frame_key[0].data[0];
-
 	ui_begin_frame(renderer);
 
 	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
@@ -121,9 +117,6 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 		os_window_close(window);
 	}
 
-	ui_labelf("hovered key: %u", hovered_id);
-	ui_labelf("focused key: %u", focused_id);
-	ui_labelf("active key: %u", active_id);
 	ui_button(str("button"));
 	persist f32 slider_value = 0.3f;
 	ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
@@ -155,10 +148,6 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	ui_pop_pref_height();
 
 	ui_end_frame();
-
-	hovered_id = ui_state.hovered_frame_key.data[0];
-	focused_id = ui_state.focused_frame_key.data[0];
-	active_id = ui_state.active_frame_key[0].data[0];
 
 }
 
@@ -193,6 +182,10 @@ app_entry_point(i32 argc, char** argv) {
 
 	// init
 	app_init();
+
+	color_t col = color(1.0f, 0.0f, 0.0f, 1.0f);
+	printf("col: %f %f %f %f\n", col.r, col.g, col.b, col.a);
+	printf("col: %f %f %f %f\n", col.vec.x, col.vec.y, col.vec.z, col.vec.w);
 
 	// main loop
 	while (os_window_is_running(window)) {

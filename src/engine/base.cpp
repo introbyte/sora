@@ -597,6 +597,18 @@ lerp(f32 a, f32 b, f32 t) {
 	return (a * (1.0f - t)) + (b * t);
 }
 
+function f32
+s_sqrt(f32 v) {
+	f32 result;
+#if BASE_USE_SIMD
+	__m128 input = _mm_set_ss(v);
+	__m128 output = _mm_sqrt_ss(input);
+	result = _mm_cvtss_f32(output);
+#else
+	result = sqrtf(v);
+#endif
+	return result;
+}
 
 // color functions
 
@@ -970,44 +982,120 @@ vec3_clamp(vec3_t v, f32 a, f32 b) {
 
 function vec4_t
 vec4(f32 v) {
-	return { v, v, v, v };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_setr_ps(v, v, v, v);
+#else
+	result.x = v;
+	result.y = v;
+	result.z = v;
+	result.w = v;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4(f32 x, f32 y, f32 z, f32 w) {
-	return { x, y, z, w };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_setr_ps(x, y, z, w);
+#else
+	result.x = x;
+	result.y = y;
+	result.z = z;
+	result.w = w;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_add(vec4_t a, vec4_t b) {
-	return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_add_ps(a.sse, b.sse);
+#else
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+	result.w = a.w + b.w;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_add(vec4_t a, f32 b) {
-	return { a.x + b, a.y + b, a.z + b, a.w + b };
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_add_ps(a.sse, _b);
+#else
+	result.x = a.x + b;
+	result.y = a.y + b;
+	result.z = a.z + b;
+	result.w = a.w + b;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_sub(vec4_t a, vec4_t b) {
-	return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_sub_ps(a.sse, b.sse);
+#else
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+	result.w = a.w - b.w;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_sub(vec4_t a, f32 b) {
-	return { a.x - b, a.y - b, a.z - b, a.w - b };
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_sub_ps(a.sse, _b);
+#else
+	result.x = a.x - b;
+	result.y = a.y - b;
+	result.z = a.z - b;
+	result.w = a.w - b;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_mul(vec4_t a, vec4_t b) {
-	return { a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_mul_ps(a.sse, b.sse);
+#else
+	result.x = a.x * b.x;
+	result.y = a.y * b.y;
+	result.z = a.z * b.z;
+	result.w = a.w * b.w;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_mul(vec4_t a, f32 b) {
-	return { a.x * b, a.y * b, a.z * b, a.w * b };
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_mul_ps(a.sse, _b);
+#else
+	result.x = a.x * b;
+	result.y = a.y * b;
+	result.z = a.z * b;
+	result.w = a.w * b;
+#endif
+	return result;
 }
 
+// TODO: implement
 function vec4_t
 vec4_mul(vec4_t a, mat4_t b) {
 	return { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -1015,22 +1103,62 @@ vec4_mul(vec4_t a, mat4_t b) {
 
 function vec4_t
 vec4_div(vec4_t a, vec4_t b) {
-	return { a.x / b.x, a.y / b.y, a.z / b.z, a.w / b.w };
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_div_ps(a.sse, b.sse);
+#else
+	result.x = a.x / b.x;
+	result.y = a.y / b.y;
+	result.z = a.z / b.z;
+	result.w = a.w / b.w;
+#endif
+	return result;
 }
 
 function vec4_t
 vec4_div(vec4_t a, f32 b) {
-	return { a.x / b, a.y / b, a.z / b, a.w / b };
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_div_ps(a.sse, _b);
+#else
+	result.x = a.x / b;
+	result.y = a.y / b;
+	result.z = a.z / b;
+	result.w = a.w / b;
+#endif
+	return result;
 }
 
 function f32
 vec4_dot(vec4_t a, vec4_t b) {
-	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+	f32 result;
+
+#if BASE_USE_SIMD
+	__m128 product = _mm_mul_ps(a.sse, b.sse);
+	__m128 sum = _mm_hadd_ps(product, product);
+	sum = _mm_hadd_ps(sum, sum);
+	result = _mm_cvtss_f32(sum);
+#else
+	result = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+#endif
+	return result;
 }
 
+// TODO: check if correct
 function f32
 vec4_cross(vec4_t a, vec4_t b) {
-	return 0.0f;
+	vec4_t result;
+
+	__m128 a_xyz = _mm_set_ps(0.0f, a.elements[2], a.elements[1], a.elements[0]);
+	__m128 b_xyz = _mm_set_ps(0.0f, b.elements[2], b.elements[1], b.elements[0]);
+
+	__m128 result_y = _mm_sub_ps(_mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
+	__m128 result_x = _mm_sub_ps(_mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
+	__m128 result_z = _mm_sub_ps(_mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
+
+	result.sse = _mm_set_ps(0.0f, _mm_cvtss_f32(result_z), _mm_cvtss_f32(result_y), _mm_cvtss_f32(result_x));
+
 }
 
 function f32
@@ -1339,7 +1467,7 @@ mat4_equals(mat4_t mat1, mat4_t mat2, f32 tolerance = 0.1f) {
 
 	for (i32 i = 0; i < 4; i++) {
 		for (i32 j = 0; j < 4; j++) {
-			if (fabs(mat1.data[i][j] - mat2.data[i][j]) > tolerance) {
+			if (fabs(mat1.elements[i][j] - mat2.elements[i][j]) > tolerance) {
 				return false;
 			}
 		}
@@ -1352,10 +1480,10 @@ function mat4_t
 mat4_transpose(mat4_t m) {
 
 	mat4_t r = { {
-		{m.data[0][0], m.data[0][1], m.data[0][2], m.data[0][3]},
-		{m.data[1][0], m.data[1][1], m.data[1][2], m.data[1][3]},
-		{m.data[2][0], m.data[2][1], m.data[2][2], m.data[2][3]},
-		{m.data[3][0], m.data[3][1], m.data[3][2], m.data[3][3]}
+		{m.elements[0][0], m.elements[0][1], m.elements[0][2], m.elements[0][3]},
+		{m.elements[1][0], m.elements[1][1], m.elements[1][2], m.elements[1][3]},
+		{m.elements[2][0], m.elements[2][1], m.elements[2][2], m.elements[2][3]},
+		{m.elements[3][0], m.elements[3][1], m.elements[3][2], m.elements[3][3]}
 	} };
 
 	return r;
@@ -1384,25 +1512,25 @@ mat4_from_quat(quat_t q) {
 	const f32 z2z = z2 * qz;
 	const f32 z2w = z2 * qw;
 
-	result.data[0][0] = 1.0f - (y2y + z2z);
-	result.data[0][1] = x2y + z2w;
-	result.data[0][2] = x2z - y2w;
-	result.data[0][3] = 0.0f;
+	result.elements[0][0] = 1.0f - (y2y + z2z);
+	result.elements[0][1] = x2y + z2w;
+	result.elements[0][2] = x2z - y2w;
+	result.elements[0][3] = 0.0f;
 
-	result.data[1][0] = x2y - z2w;
-	result.data[1][1] = 1.0f - (x2x + z2z);
-	result.data[1][2] = y2z + x2w;
-	result.data[1][3] = 0.0f;
+	result.elements[1][0] = x2y - z2w;
+	result.elements[1][1] = 1.0f - (x2x + z2z);
+	result.elements[1][2] = y2z + x2w;
+	result.elements[1][3] = 0.0f;
 
-	result.data[2][0] = x2z + y2w;
-	result.data[2][1] = y2z - x2w;
-	result.data[2][2] = 1.0f - (x2x + y2y);
-	result.data[2][3] = 0.0f;
+	result.elements[2][0] = x2z + y2w;
+	result.elements[2][1] = y2z - x2w;
+	result.elements[2][2] = 1.0f - (x2x + y2y);
+	result.elements[2][3] = 0.0f;
 
-	result.data[3][0] = 0.0f;
-	result.data[3][1] = 0.0f;
-	result.data[3][2] = 0.0f;
-	result.data[3][3] = 1.0f;
+	result.elements[3][0] = 0.0f;
+	result.elements[3][1] = 0.0f;
+	result.elements[3][2] = 0.0f;
+	result.elements[3][3] = 1.0f;
 
 	return result;
 }
@@ -1423,9 +1551,9 @@ mat4_translate(vec3_t translate) {
 function mat4_t
 mat4_translate(mat4_t m, vec3_t t) {
 	mat4_t result = m;
-	result.data[0][3] = t.x;
-	result.data[1][3] = t.y;
-	result.data[2][3] = t.z;
+	result.elements[0][3] = t.x;
+	result.elements[1][3] = t.y;
+	result.elements[2][3] = t.z;
 	return result;
 }
 
@@ -1447,10 +1575,10 @@ mat4_mul(mat4_t a, mat4_t b) {
 
 	for (i32 j = 0; j < 4; j++) {
 		for (i32 i = 0; i < 4; i++) {
-			r.data[j][i] = (a.data[j][0] * b.data[0][i] +
-				a.data[j][1] * b.data[1][i] +
-				a.data[j][2] * b.data[2][i] +
-				a.data[j][3] * b.data[3][i]);
+			r.elements[j][i] = (a.elements[j][0] * b.elements[0][i] +
+				a.elements[j][1] * b.elements[1][i] +
+				a.elements[j][2] * b.elements[2][i] +
+				a.elements[j][3] * b.elements[3][i]);
 		}
 	}
 
@@ -1467,128 +1595,128 @@ mat4_inverse(mat4_t m) {
 
 	mat4_t r;
 
-	r.data[0][0] = m.data[1][1] * m.data[2][2] * m.data[3][3] -
-		m.data[1][1] * m.data[2][3] * m.data[3][2] -
-		m.data[2][1] * m.data[1][2] * m.data[3][3] +
-		m.data[2][1] * m.data[1][3] * m.data[3][2] +
-		m.data[3][1] * m.data[1][2] * m.data[2][3] -
-		m.data[3][1] * m.data[1][3] * m.data[2][2];
+	r.elements[0][0] = m.elements[1][1] * m.elements[2][2] * m.elements[3][3] -
+		m.elements[1][1] * m.elements[2][3] * m.elements[3][2] -
+		m.elements[2][1] * m.elements[1][2] * m.elements[3][3] +
+		m.elements[2][1] * m.elements[1][3] * m.elements[3][2] +
+		m.elements[3][1] * m.elements[1][2] * m.elements[2][3] -
+		m.elements[3][1] * m.elements[1][3] * m.elements[2][2];
 
-	r.data[1][0] = -m.data[1][0] * m.data[2][2] * m.data[3][3] +
-		m.data[1][0] * m.data[2][3] * m.data[3][2] +
-		m.data[2][0] * m.data[1][2] * m.data[3][3] -
-		m.data[2][0] * m.data[1][3] * m.data[3][2] -
-		m.data[3][0] * m.data[1][2] * m.data[2][3] +
-		m.data[3][0] * m.data[1][3] * m.data[2][2];
+	r.elements[1][0] = -m.elements[1][0] * m.elements[2][2] * m.elements[3][3] +
+		m.elements[1][0] * m.elements[2][3] * m.elements[3][2] +
+		m.elements[2][0] * m.elements[1][2] * m.elements[3][3] -
+		m.elements[2][0] * m.elements[1][3] * m.elements[3][2] -
+		m.elements[3][0] * m.elements[1][2] * m.elements[2][3] +
+		m.elements[3][0] * m.elements[1][3] * m.elements[2][2];
 
-	r.data[2][0] = m.data[1][0] * m.data[2][1] * m.data[3][3] -
-		m.data[1][0] * m.data[2][3] * m.data[3][1] -
-		m.data[2][0] * m.data[1][1] * m.data[3][3] +
-		m.data[2][0] * m.data[1][3] * m.data[3][1] +
-		m.data[3][0] * m.data[1][1] * m.data[2][3] -
-		m.data[3][0] * m.data[1][3] * m.data[2][1];
+	r.elements[2][0] = m.elements[1][0] * m.elements[2][1] * m.elements[3][3] -
+		m.elements[1][0] * m.elements[2][3] * m.elements[3][1] -
+		m.elements[2][0] * m.elements[1][1] * m.elements[3][3] +
+		m.elements[2][0] * m.elements[1][3] * m.elements[3][1] +
+		m.elements[3][0] * m.elements[1][1] * m.elements[2][3] -
+		m.elements[3][0] * m.elements[1][3] * m.elements[2][1];
 
-	r.data[3][0] = -m.data[1][0] * m.data[2][1] * m.data[3][2] +
-		m.data[1][0] * m.data[2][2] * m.data[3][1] +
-		m.data[2][0] * m.data[1][1] * m.data[3][2] -
-		m.data[2][0] * m.data[1][2] * m.data[3][1] -
-		m.data[3][0] * m.data[1][1] * m.data[2][2] +
-		m.data[3][0] * m.data[1][2] * m.data[2][1];
+	r.elements[3][0] = -m.elements[1][0] * m.elements[2][1] * m.elements[3][2] +
+		m.elements[1][0] * m.elements[2][2] * m.elements[3][1] +
+		m.elements[2][0] * m.elements[1][1] * m.elements[3][2] -
+		m.elements[2][0] * m.elements[1][2] * m.elements[3][1] -
+		m.elements[3][0] * m.elements[1][1] * m.elements[2][2] +
+		m.elements[3][0] * m.elements[1][2] * m.elements[2][1];
 
-	r.data[0][1] = -m.data[0][1] * m.data[2][2] * m.data[3][3] +
-		m.data[0][1] * m.data[2][3] * m.data[3][2] +
-		m.data[2][1] * m.data[0][2] * m.data[3][3] -
-		m.data[2][1] * m.data[0][3] * m.data[3][2] -
-		m.data[3][1] * m.data[0][2] * m.data[2][3] +
-		m.data[3][1] * m.data[0][3] * m.data[2][2];
+	r.elements[0][1] = -m.elements[0][1] * m.elements[2][2] * m.elements[3][3] +
+		m.elements[0][1] * m.elements[2][3] * m.elements[3][2] +
+		m.elements[2][1] * m.elements[0][2] * m.elements[3][3] -
+		m.elements[2][1] * m.elements[0][3] * m.elements[3][2] -
+		m.elements[3][1] * m.elements[0][2] * m.elements[2][3] +
+		m.elements[3][1] * m.elements[0][3] * m.elements[2][2];
 
-	r.data[1][1] = m.data[0][0] * m.data[2][2] * m.data[3][3] -
-		m.data[0][0] * m.data[2][3] * m.data[3][2] -
-		m.data[2][0] * m.data[0][2] * m.data[3][3] +
-		m.data[2][0] * m.data[0][3] * m.data[3][2] +
-		m.data[3][0] * m.data[0][2] * m.data[2][3] -
-		m.data[3][0] * m.data[0][3] * m.data[2][2];
+	r.elements[1][1] = m.elements[0][0] * m.elements[2][2] * m.elements[3][3] -
+		m.elements[0][0] * m.elements[2][3] * m.elements[3][2] -
+		m.elements[2][0] * m.elements[0][2] * m.elements[3][3] +
+		m.elements[2][0] * m.elements[0][3] * m.elements[3][2] +
+		m.elements[3][0] * m.elements[0][2] * m.elements[2][3] -
+		m.elements[3][0] * m.elements[0][3] * m.elements[2][2];
 
-	r.data[2][1] = -m.data[0][0] * m.data[2][1] * m.data[3][3] +
-		m.data[0][0] * m.data[2][3] * m.data[3][1] +
-		m.data[2][0] * m.data[0][1] * m.data[3][3] -
-		m.data[2][0] * m.data[0][3] * m.data[3][1] -
-		m.data[3][0] * m.data[0][1] * m.data[2][3] +
-		m.data[3][0] * m.data[0][3] * m.data[2][1];
+	r.elements[2][1] = -m.elements[0][0] * m.elements[2][1] * m.elements[3][3] +
+		m.elements[0][0] * m.elements[2][3] * m.elements[3][1] +
+		m.elements[2][0] * m.elements[0][1] * m.elements[3][3] -
+		m.elements[2][0] * m.elements[0][3] * m.elements[3][1] -
+		m.elements[3][0] * m.elements[0][1] * m.elements[2][3] +
+		m.elements[3][0] * m.elements[0][3] * m.elements[2][1];
 
-	r.data[3][1] = m.data[0][0] * m.data[2][1] * m.data[3][2] -
-		m.data[0][0] * m.data[2][2] * m.data[3][1] -
-		m.data[2][0] * m.data[0][1] * m.data[3][2] +
-		m.data[2][0] * m.data[0][2] * m.data[3][1] +
-		m.data[3][0] * m.data[0][1] * m.data[2][2] -
-		m.data[3][0] * m.data[0][2] * m.data[2][1];
+	r.elements[3][1] = m.elements[0][0] * m.elements[2][1] * m.elements[3][2] -
+		m.elements[0][0] * m.elements[2][2] * m.elements[3][1] -
+		m.elements[2][0] * m.elements[0][1] * m.elements[3][2] +
+		m.elements[2][0] * m.elements[0][2] * m.elements[3][1] +
+		m.elements[3][0] * m.elements[0][1] * m.elements[2][2] -
+		m.elements[3][0] * m.elements[0][2] * m.elements[2][1];
 
-	r.data[0][2] = m.data[0][1] * m.data[1][2] * m.data[3][3] -
-		m.data[0][1] * m.data[1][3] * m.data[3][2] -
-		m.data[1][1] * m.data[0][2] * m.data[3][3] +
-		m.data[1][1] * m.data[0][3] * m.data[3][2] +
-		m.data[3][1] * m.data[0][2] * m.data[1][3] -
-		m.data[3][1] * m.data[0][3] * m.data[1][2];
+	r.elements[0][2] = m.elements[0][1] * m.elements[1][2] * m.elements[3][3] -
+		m.elements[0][1] * m.elements[1][3] * m.elements[3][2] -
+		m.elements[1][1] * m.elements[0][2] * m.elements[3][3] +
+		m.elements[1][1] * m.elements[0][3] * m.elements[3][2] +
+		m.elements[3][1] * m.elements[0][2] * m.elements[1][3] -
+		m.elements[3][1] * m.elements[0][3] * m.elements[1][2];
 
-	r.data[1][2] = -m.data[0][0] * m.data[1][2] * m.data[3][3] +
-		m.data[0][0] * m.data[1][3] * m.data[3][2] +
-		m.data[1][0] * m.data[0][2] * m.data[3][3] -
-		m.data[1][0] * m.data[0][3] * m.data[3][2] -
-		m.data[3][0] * m.data[0][2] * m.data[1][3] +
-		m.data[3][0] * m.data[0][3] * m.data[1][2];
+	r.elements[1][2] = -m.elements[0][0] * m.elements[1][2] * m.elements[3][3] +
+		m.elements[0][0] * m.elements[1][3] * m.elements[3][2] +
+		m.elements[1][0] * m.elements[0][2] * m.elements[3][3] -
+		m.elements[1][0] * m.elements[0][3] * m.elements[3][2] -
+		m.elements[3][0] * m.elements[0][2] * m.elements[1][3] +
+		m.elements[3][0] * m.elements[0][3] * m.elements[1][2];
 
-	r.data[2][2] = m.data[0][0] * m.data[1][1] * m.data[3][3] -
-		m.data[0][0] * m.data[1][3] * m.data[3][1] -
-		m.data[1][0] * m.data[0][1] * m.data[3][3] +
-		m.data[1][0] * m.data[0][3] * m.data[3][1] +
-		m.data[3][0] * m.data[0][1] * m.data[1][3] -
-		m.data[3][0] * m.data[0][3] * m.data[1][1];
+	r.elements[2][2] = m.elements[0][0] * m.elements[1][1] * m.elements[3][3] -
+		m.elements[0][0] * m.elements[1][3] * m.elements[3][1] -
+		m.elements[1][0] * m.elements[0][1] * m.elements[3][3] +
+		m.elements[1][0] * m.elements[0][3] * m.elements[3][1] +
+		m.elements[3][0] * m.elements[0][1] * m.elements[1][3] -
+		m.elements[3][0] * m.elements[0][3] * m.elements[1][1];
 
-	r.data[3][2] = -m.data[0][0] * m.data[1][1] * m.data[3][2] +
-		m.data[0][0] * m.data[1][2] * m.data[3][1] +
-		m.data[1][0] * m.data[0][1] * m.data[3][2] -
-		m.data[1][0] * m.data[0][2] * m.data[3][1] -
-		m.data[3][0] * m.data[0][1] * m.data[1][2] +
-		m.data[3][0] * m.data[0][2] * m.data[1][1];
+	r.elements[3][2] = -m.elements[0][0] * m.elements[1][1] * m.elements[3][2] +
+		m.elements[0][0] * m.elements[1][2] * m.elements[3][1] +
+		m.elements[1][0] * m.elements[0][1] * m.elements[3][2] -
+		m.elements[1][0] * m.elements[0][2] * m.elements[3][1] -
+		m.elements[3][0] * m.elements[0][1] * m.elements[1][2] +
+		m.elements[3][0] * m.elements[0][2] * m.elements[1][1];
 
-	r.data[0][3] = -m.data[0][1] * m.data[1][2] * m.data[2][3] +
-		m.data[0][1] * m.data[1][3] * m.data[2][2] +
-		m.data[1][1] * m.data[0][2] * m.data[2][3] -
-		m.data[1][1] * m.data[0][3] * m.data[2][2] -
-		m.data[2][1] * m.data[0][2] * m.data[1][3] +
-		m.data[2][1] * m.data[0][3] * m.data[1][2];
+	r.elements[0][3] = -m.elements[0][1] * m.elements[1][2] * m.elements[2][3] +
+		m.elements[0][1] * m.elements[1][3] * m.elements[2][2] +
+		m.elements[1][1] * m.elements[0][2] * m.elements[2][3] -
+		m.elements[1][1] * m.elements[0][3] * m.elements[2][2] -
+		m.elements[2][1] * m.elements[0][2] * m.elements[1][3] +
+		m.elements[2][1] * m.elements[0][3] * m.elements[1][2];
 
-	r.data[1][3] = m.data[0][0] * m.data[1][2] * m.data[2][3] -
-		m.data[0][0] * m.data[1][3] * m.data[2][2] -
-		m.data[1][0] * m.data[0][2] * m.data[2][3] +
-		m.data[1][0] * m.data[0][3] * m.data[2][2] +
-		m.data[2][0] * m.data[0][2] * m.data[1][3] -
-		m.data[2][0] * m.data[0][3] * m.data[1][2];
+	r.elements[1][3] = m.elements[0][0] * m.elements[1][2] * m.elements[2][3] -
+		m.elements[0][0] * m.elements[1][3] * m.elements[2][2] -
+		m.elements[1][0] * m.elements[0][2] * m.elements[2][3] +
+		m.elements[1][0] * m.elements[0][3] * m.elements[2][2] +
+		m.elements[2][0] * m.elements[0][2] * m.elements[1][3] -
+		m.elements[2][0] * m.elements[0][3] * m.elements[1][2];
 
-	r.data[2][3] = -m.data[0][0] * m.data[1][1] * m.data[2][3] +
-		m.data[0][0] * m.data[1][3] * m.data[2][1] +
-		m.data[1][0] * m.data[0][1] * m.data[2][3] -
-		m.data[1][0] * m.data[0][3] * m.data[2][1] -
-		m.data[2][0] * m.data[0][1] * m.data[1][3] +
-		m.data[2][0] * m.data[0][3] * m.data[1][1];
+	r.elements[2][3] = -m.elements[0][0] * m.elements[1][1] * m.elements[2][3] +
+		m.elements[0][0] * m.elements[1][3] * m.elements[2][1] +
+		m.elements[1][0] * m.elements[0][1] * m.elements[2][3] -
+		m.elements[1][0] * m.elements[0][3] * m.elements[2][1] -
+		m.elements[2][0] * m.elements[0][1] * m.elements[1][3] +
+		m.elements[2][0] * m.elements[0][3] * m.elements[1][1];
 
-	r.data[3][3] = m.data[0][0] * m.data[1][1] * m.data[2][2] -
-		m.data[0][0] * m.data[1][2] * m.data[2][1] -
-		m.data[1][0] * m.data[0][1] * m.data[2][2] +
-		m.data[1][0] * m.data[0][2] * m.data[2][1] +
-		m.data[2][0] * m.data[0][1] * m.data[1][2] -
-		m.data[2][0] * m.data[0][2] * m.data[1][1];
+	r.elements[3][3] = m.elements[0][0] * m.elements[1][1] * m.elements[2][2] -
+		m.elements[0][0] * m.elements[1][2] * m.elements[2][1] -
+		m.elements[1][0] * m.elements[0][1] * m.elements[2][2] +
+		m.elements[1][0] * m.elements[0][2] * m.elements[2][1] +
+		m.elements[2][0] * m.elements[0][1] * m.elements[1][2] -
+		m.elements[2][0] * m.elements[0][2] * m.elements[1][1];
 
-	f32 det = m.data[0][0] * r.data[0][0] +
-		m.data[0][1] * r.data[1][0] +
-		m.data[0][2] * r.data[2][0] +
-		m.data[0][3] * r.data[3][0];
+	f32 det = m.elements[0][0] * r.elements[0][0] +
+		m.elements[0][1] * r.elements[1][0] +
+		m.elements[0][2] * r.elements[2][0] +
+		m.elements[0][3] * r.elements[3][0];
 
 	det = 1.0f / det;
 
 	for (i32 i = 0; i < 4; i++) {
 		for (i32 j = 0; j < 4; j++) {
-			r.data[i][j] = r.data[i][j] * det;
+			r.elements[i][j] = r.elements[i][j] * det;
 		}
 	}
 
