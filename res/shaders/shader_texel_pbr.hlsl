@@ -6,6 +6,7 @@ cbuffer camera_constants : register(b0) {
     float4x4 projection;
     float4x4 inv_view;
     float4x4 inv_projection;
+    float3 camera_pos;
     float2 window_size;
     float2 time;
 }
@@ -62,7 +63,7 @@ vs_out vs_main(vs_in input) {
     output.position = float4(input.position, 1.0f);
     output.world_position = output.position;
     output.shadow_position = mul(output.position, light_view_projection);
-    output.position = mul(output.position, view_projection);
+    output.position = mul(view_projection, output.position);
     
     output.normal = input.normal;
     output.tangent = input.tangent;
@@ -75,7 +76,7 @@ vs_out vs_main(vs_in input) {
         
         float3 l = normalize(light_pos);
         float3 n = normalize(input.normal);
-        float3 v = normalize(inv_view[3].xyz - output.world_position.xyz);
+        float3 v = normalize(camera_pos - output.world_position.xyz);
         float3 color = calculate_light(l, n, v);
         
         output.color = float4(color, 1.0f);
@@ -134,7 +135,7 @@ float4 ps_main(vs_out input) : SV_TARGET {
     // per pixel lighting
     float3 p = input.world_position.xyz;
     float3 n = normalize(input.normal);
-    float3 v = normalize(inv_view[3].xyz - p);
+    float3 v = normalize(camera_pos - p);
     
     // per texel lighting
     if (type == 2) {
@@ -142,7 +143,7 @@ float4 ps_main(vs_out input) : SV_TARGET {
         float4 texel_size = get_texel_size(color_texture);
         p = texel_snap(input.world_position.xyz, input.texcoord, texel_size);
         n = texel_snap(input.normal, input.texcoord, texel_size);
-        v = normalize(inv_view[3].xyz - p);
+        v = normalize(camera_pos - p);
     }
      
     // pbr lighting

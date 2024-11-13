@@ -141,7 +141,7 @@ ui_init() {
 		{"STY", 0,  gfx_vertex_format_float3, gfx_vertex_class_per_instance},
 		{"TYPE", 0, gfx_vertex_format_int, gfx_vertex_class_per_instance},
 	};
-	ui_state.ui_shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), ui_shader_attributes, 13);
+	ui_state.ui_shader = gfx_shader_load(str("res/shaders/shader_ui.hlsl"), ui_shader_attributes, 13);
 
 }
 
@@ -565,6 +565,34 @@ ui_labelf(char* fmt, ...) {
 
 	ui_interaction interaction = ui_label(display_string);
 	
+	return interaction;
+}
+
+function ui_interaction 
+ui_slider(str_t label, i32* value, i32 min, i32 max) {
+	ui_frame_flags flags =
+		ui_frame_flag_clickable |
+		ui_frame_flag_draw;
+
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_text_alignment(ui_text_alignment_center);
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	str_t text = str_format(ui_state.per_frame_arena, "%i", *value);
+	ui_frame_set_display_text(frame, text);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_slider_data_t* data = (ui_slider_data_t*)arena_alloc(ui_state.per_frame_arena, sizeof(ui_slider_data_t));
+	ui_frame_set_custom_draw(frame, ui_slider_draw_function, data);
+
+	// interaction
+	if (interaction & ui_interaction_left_dragging) {
+		vec2_t mouse_pos = ui_state.mouse_pos;
+		*value = remap(mouse_pos.x, frame->rect.x0, frame->rect.x1, min, max);
+		*value = clamp(*value, min, max);
+	}
+
+	f32 percent = remap(*value, min, max, 0.0f, 1.0f);
+	data->value = percent;
+
 	return interaction;
 }
 

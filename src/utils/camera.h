@@ -27,6 +27,7 @@ struct camera_constants_t {
 	mat4_t projection;
 	mat4_t inv_view;
 	mat4_t inv_projection;
+	vec3_t camera_pos;
 	vec2_t window_size;
 	vec2_t time;
 };
@@ -80,7 +81,7 @@ camera_create(arena_t* arena, gfx_renderer_t* renderer, f32 fov, f32 z_near, f32
 	// fill struct
 	camera->window = renderer->window;
 	camera->renderer = renderer;
-	camera->mode = camera_mode_first_person;
+	camera->mode = camera_mode_free;
 	camera->target_fov = fov;
 	camera->fov = fov;
 	camera->z_near = z_near;
@@ -97,6 +98,8 @@ camera_create(arena_t* arena, gfx_renderer_t* renderer, f32 fov, f32 z_near, f32
 	camera->max_roll = 0.0f;
 	camera->fps_lock = true;
 	camera->last_mouse_pos = vec2(0.0f, 0.0f);
+
+	os_set_cursor(os_cursor_null);
 
 	return camera;
 }
@@ -116,6 +119,11 @@ camera_update(camera_t* camera) {
 	// toggle fps lock
 	if (os_key_press(camera->window, os_key_tab)) {
 		camera->fps_lock = !camera->fps_lock;
+		if (camera->fps_lock) {
+			os_set_cursor(os_cursor_null);
+		} else {
+			os_set_cursor(os_cursor_pointer);
+		}
 	}
 
 	// get input
@@ -127,10 +135,10 @@ camera_update(camera_t* camera) {
 	f32 yaw_input = 0.0f;
 	f32 speed = 1.2f;
 
-	forward_input = (f32)(os_key_is_down(os_key_S) - os_key_is_down(os_key_W));
+	forward_input = (f32)(os_key_is_down(os_key_W) - os_key_is_down(os_key_S));
 	right_input = (f32)(os_key_is_down(os_key_D) - os_key_is_down(os_key_A));
 	up_input = (f32)(os_key_is_down(os_key_space) - os_key_is_down(os_key_ctrl));
-	roll_input = (f32)(os_key_is_down(os_key_Q) - os_key_is_down(os_key_E));
+	roll_input = (f32)(os_key_is_down(os_key_E) - os_key_is_down(os_key_Q));
 	speed = os_key_is_down(os_key_shift) ? 5.0f : 1.2f;
 
 	// mouse delta
@@ -163,29 +171,28 @@ camera_update(camera_t* camera) {
 
 	const f32 sensitivity = 0.6f;
 	f32 zoom_adjustment = (camera->fov / 130.0f);
-	quat_t pitch = quat_axis_angle({ 1.0f, 0.0f, 0.0f }, zoom_adjustment * sensitivity * pitch_input * dt);
-	quat_t yaw = quat_axis_angle({ 0.0f, 1.0f, 0.0f }, zoom_adjustment * sensitivity * yaw_input * dt);
-	quat_t roll = quat_axis_angle({ 0.0f, 0.0f, 1.0f }, 2.5f * sensitivity * roll_input * dt);
+	quat_t pitch = quat_from_axis_angle({ 1.0f, 0.0f, 0.0f }, zoom_adjustment * sensitivity * pitch_input * dt);
+	quat_t yaw = quat_from_axis_angle({ 0.0f, 1.0f, 0.0f }, zoom_adjustment * sensitivity * yaw_input * dt);
+	quat_t roll = quat_from_axis_angle({ 0.0f, 0.0f, 1.0f }, 2.5f * sensitivity * roll_input * dt);
 
 	// orientation
 	if (camera->mode & camera_mode_disable_roll) {
-		camera->target_orientation = quat_mul(camera->target_orientation, pitch);
-		camera->target_orientation = quat_mul(yaw, camera->target_orientation);
-	} else {
-		camera->target_orientation = quat_mul(camera->target_orientation, pitch);
+		camera->target_orientation = quat_mul(pitch, camera->target_orientation);
 		camera->target_orientation = quat_mul(camera->target_orientation, yaw);
-		camera->target_orientation = quat_mul(camera->target_orientation, roll);
+	} else {
+		camera->target_orientation = quat_mul(pitch, camera->target_orientation);
+		camera->target_orientation = quat_mul(yaw, camera->target_orientation);
+		camera->target_orientation = quat_mul(roll, camera->target_orientation);
 	}
 
 	// smooth orientation
-	camera->orientation = quat_slerp(camera->orientation, camera->target_orientation, 30.0f * dt);
-	camera->orientation = quat_normalize(camera->orientation);
+	camera->orientation = quat_slerp(camera->orientation, camera->target_orientation, 60.0f * dt);
 
 	// translate
 	vec3_t translation = vec3_mul(vec3_normalize(vec3(right_input, up_input, forward_input)), dt * speed);
 	vec3_t rotated_translation = vec3_rotate(translation, camera->orientation);
 	camera->target_position = vec3_add(camera->target_position, rotated_translation);
-	camera->position = vec3_lerp(camera->position, camera->target_position, 30.0f * dt);
+	camera->position = vec3_lerp(camera->position, camera->target_position, 60.0f * dt);
 
 	// update fov
 	f32 scroll_delta = os_mouse_scroll(camera->window);
@@ -197,8 +204,9 @@ camera_update(camera_t* camera) {
 	camera->constants.view = mat4_mul(mat4_from_quat(camera->orientation), mat4_translate(vec3_negate(camera->position)));
 	camera->constants.inv_view = mat4_inverse(camera->constants.view);
 	camera->constants.projection = mat4_perspective(camera->fov, (f32)camera->window->resolution.x / (f32)camera->window->resolution.y, camera->z_near, camera->z_far);
-	camera->constants.inv_projection = mat4_inverse(camera->constants.projection);
+	camera->constants.inv_projection = mat4_inv_perspective(camera->constants.projection);
 	camera->constants.view_projection = mat4_mul(camera->constants.projection, camera->constants.view);
+	camera->constants.camera_pos = camera->position;
 	camera->constants.window_size = { (f32)camera->window->resolution.x, (f32)camera->window->resolution.y };
 	camera->constants.time = vec2(camera->window->elasped_time, camera->window->delta_time);
 }

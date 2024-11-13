@@ -130,7 +130,7 @@ app_init() {
 
 	// create camera
 	camera = camera_create(resource_arena, renderer, 75.0f, 0.01f, 100.0f);
-	
+
 	// set light constants
 	light_constants.light_dir = vec3(5.0f, 7.0f, 2.0f);
 	mat4_t projection = mat4_orthographic(-10.0f, 10.0f, 10.0f, -10.0f, 0.01f, 100.0f);
@@ -203,6 +203,7 @@ scene_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev
 
 	// set pipeline
 	gfx_pipeline_t pipeline = gfx_pipeline_create();
+	pipeline.cull_mode = gfx_cull_mode_front;
 	pipeline.filter_mode = gfx_filter_nearest;
 	draw_push_pipeline(pipeline);
 
@@ -234,7 +235,8 @@ ui_pass(gfx_render_target_t* current_render_target, gfx_render_target_t* prev_ra
 	ui_labelf("avg: %.2f ms (fps: %.1f)", frame_stats.avg, 1000.0f / frame_stats.avg);
 	ui_labelf("min: %.2f ms", frame_stats.min);
 	ui_labelf("max: %.2f ms", frame_stats.max);
-
+	
+	ui_labelf("pos: %.2f, %.2f, %.2f", camera->position.x, camera->position.y, camera->position.z);
 
 	cstr types[] = { "per vertex", "per pixel", "per texel" };
 	ui_combo(str("lighting type"), &material_constants.type, types, 3);
@@ -291,7 +293,7 @@ app_entry_point(i32 argc, char** argv) {
 	ui_render_target_desc.flags = gfx_render_target_flag_no_depth;
 	ui_render_target_desc.colorbuffer_format = gfx_texture_format_rgba8;
 	gfx_renderer_add_pass(renderer, str("ui"), ui_pass, ui_render_target_desc);
-
+	
 	// init
 	app_init();
 

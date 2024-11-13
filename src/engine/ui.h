@@ -591,6 +591,7 @@ function ui_interaction ui_button(str_t);
 function ui_interaction ui_buttonf(char*, ...);
 function ui_interaction ui_label(str_t);
 function ui_interaction ui_labelf(char*, ...);
+function ui_interaction ui_slider(str_t, i32*, i32, i32);
 function ui_interaction ui_slider(str_t, f32*, f32, f32);
 function ui_interaction ui_checkbox(str_t, b8*);
 function ui_interaction ui_expander(str_t, b8*);

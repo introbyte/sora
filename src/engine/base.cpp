@@ -574,45 +574,1351 @@ str_to_str16(arena_t* arena, str_t string) {
 
 }
 
+// random
+
+function void
+random_seed(u32 seed) {
+	random_state = seed;
+}
+
+function u32
+random_u32() {
+	random_state += 0xe120fc12;
+	u64 temp;
+	temp = (u64)random_state * 0x4139b70d;
+	u32 m1 = (temp >> 32) ^ temp;
+	temp = (u64)m1 * 0x12fad5c9;
+	u32 m2 = (temp >> 32) ^ temp;
+	return m2;
+}
+
+function u32
+random_u32_range(u32 min_value, u32 max_value) {
+	return (random_u32() % (max_value - min_value + 1)) + min_value;
+}
+
+function f32
+random_f32() {
+	return ((f32)random_u32() / (f32)u32_max);
+}
+
+function f32
+random_f32_range(f32 min_value, f32 max_value) {
+	return min_value + random_f32() * (max_value - min_value);
+}
 
 // math
 
-function f32
+inlnfunc f32
 radians(f32 degrees) {
 	return degrees * 0.0174533f;
 }
 
-function f32
+inlnfunc f32
 degrees(f32 radians) {
 	return radians * 57.2958f;
 }
 
-function f32
+inlnfunc f32
 remap(f32 value, f32 from_min, f32 from_max, f32 to_min, f32 to_max) {
 	return to_min + (value - from_min) * (to_max - to_min) / (from_max - from_min);
 }
 
-function f32
+inlnfunc f32
 lerp(f32 a, f32 b, f32 t) {
 	return (a * (1.0f - t)) + (b * t);
 }
 
-function f32
-s_sqrt(f32 v) {
-	f32 result;
+
+// vec2 
+
+inlnfunc vec2_t
+vec2(f32 v = 0.0f) {
+	vec2_t result;
+	result.x = v;
+	result.y = v;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2(f32 x, f32 y) {
+	vec2_t result;
+	result.x = x;
+	result.y = y;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_add(vec2_t a, vec2_t b) {
+	vec2_t result;
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_add(vec2_t a, f32 b) {
+	vec2_t result;
+	result.x = a.x + b;
+	result.y = a.y + b;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_sub(vec2_t a, vec2_t b) {
+	vec2_t result;
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_sub(vec2_t a, f32 b) {
+	vec2_t result;
+	result.x = a.x - b;
+	result.y = a.y - b;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_mul(vec2_t a, vec2_t b) {
+	vec2_t result;
+	result.x = a.x * b.x;
+	result.y = a.y * b.y;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_mul(vec2_t a, f32 b) {
+	vec2_t result;
+	result.x = a.x * b;
+	result.y = a.y * b;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_div(vec2_t a, vec2_t b) {
+	vec2_t result;
+	result.x = a.x / b.x;
+	result.y = a.y / b.y;
+	return result;
+}
+
+inlnfunc vec2_t
+vec2_div(vec2_t a, f32 b) {
+	vec2_t result;
+	result.x = a.x / b;
+	result.y = a.y / b;
+	return result;
+}
+
+inlnfunc b8 
+vec2_equals(vec2_t a, vec2_t b) {
+	return (a.x == b.x && a.y == b.y);
+}
+
+inlnfunc f32
+vec2_dot(vec2_t a, vec2_t b) {
+	return (a.x * b.x) + (a.y * b.y);
+}
+
+inlnfunc f32
+vec2_cross(vec2_t a, vec2_t b) {
+	return (a.x * b.y) - (a.y * b.x);
+}
+
+inlnfunc f32
+vec2_length(vec2_t a) {
+	return sqrtf(vec2_dot(a,a));
+}
+
+inlnfunc vec2_t
+vec2_normalize(vec2_t a) {
+	return vec2_mul(a, 1.0f / vec2_length(a));
+}
+
+inlnfunc vec2_t 
+vec2_direction(vec2_t a, vec2_t b) {
+	vec2_t result;
+	result.x = b.x - a.x;
+	result.y = b.y - a.y;
+	return result;
+}
+
+inlnfunc f32
+vec2_to_angle(vec2_t a) {
+	return atan2f(a.y, a.x);
+}
+
+inlnfunc vec2_t 
+vec2_from_angle(f32 a, f32 m) {
+	return { m * cosf(a), m * sinf(a) };
+}
+
+inlnfunc vec2_t
+vec2_rotate(vec2_t v, f32 a) {
+	return { v.x * cosf(a) - v.y * sinf(a), v.x * sinf(a) - v.y * cosf(a) };
+}
+
+inlnfunc vec2_t
+vec2_lerp(vec2_t a, vec2_t b, f32 t) {
+	return vec2_add(vec2_mul(a, 1.0f - t), vec2_mul(b, t));
+}
+
+// ivec2
+
+inlnfunc ivec2_t 
+ivec2(i32 v = 0) {
+	return { v, v };
+}
+
+inlnfunc ivec2_t 
+ivec2(i32 x, i32 y) {
+	return { x, y };
+}
+
+inlnfunc b8
+ivec2_equals(ivec2_t a, ivec2_t b) {
+	return ((a.x == b.x) && (a.y == b.y));
+}
+
+// uvec2
+
+inlnfunc uvec2_t 
+uvec2(u32 v = 0) {
+	return { v, v };
+}
+
+inlnfunc uvec2_t 
+uvec2(u32 x, u32 y) {
+	return { x, y };
+}
+
+inlnfunc b8 
+uvec2_equals(uvec2_t a, uvec2_t b) {
+	return ((a.x == b.x) && (a.y == b.y));
+}
+
+// vec3
+
+inlnfunc vec3_t
+vec3(f32 v = 0.0f) {
+	vec3_t result;
+	result.x = v;
+	result.y = v;
+	result.z = v;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3(f32 x, f32 y, f32 z) {
+	vec3_t result;
+	result.x = x;
+	result.y = y;
+	result.z = z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3(vec2_t xy, f32 z = 0.0f) {
+	vec3_t result;
+	result.xy = xy;
+	result.z = z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_add(vec3_t a, vec3_t b) {
+	vec3_t result;
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_add(vec3_t a, f32 b) {
+	vec3_t result;
+	result.x = a.x + b;
+	result.y = a.y + b;
+	result.z = a.z + b;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_sub(vec3_t a, vec3_t b) {
+	vec3_t result;
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_sub(vec3_t a, f32 b) {
+	vec3_t result;
+	result.x = a.x - b;
+	result.y = a.y - b;
+	result.z = a.z - b;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_mul(vec3_t a, vec3_t b) {
+	vec3_t result;
+	result.x = a.x * b.x;
+	result.y = a.y * b.y;
+	result.z = a.z * b.z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_mul(vec3_t a, f32 b) {
+	vec3_t result;
+	result.x = a.x * b;
+	result.y = a.y * b;
+	result.z = a.z * b;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_div(vec3_t a, vec3_t b) {
+	vec3_t result;
+	result.x = a.x / b.x;
+	result.y = a.y / b.y;
+	result.z = a.z / b.z;
+	return result;
+}
+
+inlnfunc vec3_t
+vec3_div(vec3_t a, f32 b) {
+	vec3_t result;
+	result.x = a.x / b;
+	result.y = a.y / b;
+	result.z = a.z / b;
+	return result;
+}
+
+inlnfunc b8 
+vec3_equals(vec3_t a, vec3_t b) {
+	if (a.x == b.x && a.y == b.y && a.z == b.z);
+}
+
+inlnfunc f32
+vec3_dot(vec3_t a, vec3_t b) {
+	return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+inlnfunc vec3_t
+vec3_cross(vec3_t a, vec3_t b) {
+	vec3_t result;
+	result.x = (a.y * b.z) - (a.z * b.y);
+	result.y = (a.z * b.x) - (a.x * b.z);
+	result.z = (a.x * b.y) - (a.y * b.x);
+	return result;
+}
+
+inlnfunc f32
+vec3_length(vec3_t a) {
+	return sqrtf(vec3_dot(a, a));
+}
+
+inlnfunc vec3_t
+vec3_normalize(vec3_t v) {
+	if (v.x == 0.0f && v.y == 0.0f && v.z == 0.0f) return vec3(0.0f);
+	return vec3_mul(v, 1.0f / vec3_length(v));
+}
+
+inlnfunc vec3_t
+vec3_negate(vec3_t v) {
+	return vec3(-v.x, -v.y, -v.z);
+}
+
+inlnfunc vec3_t
+vec3_lerp(vec3_t a, vec3_t b, f32 t) {
+	return vec3_add(vec3_mul(a, 1.0f - t), vec3_mul(b, t));
+}
+
+inlnfunc f32
+vec3_angle_between(vec3_t a, vec3_t b) {
+	return acosf(vec3_dot(a, b) / (vec3_length(a) * vec3_length(b)));
+}
+
+inlnfunc vec3_t
+vec3_project(vec3_t a, vec3_t b) {
+	return vec3_mul(b, vec3_dot(a, b) / vec3_dot(b, b));
+}
+
+inlnfunc vec3_t
+vec3_rotate(vec3_t v, quat_t q) {
+	vec3_t t = vec3_mul(vec3_cross(v, q.xyz), 2.0f);
+	return vec3_add(v, vec3_add(vec3_mul(t, q.w), vec3_cross(t, q.xyz)));
+}
+
+inlnfunc vec3_t 
+vec3_clamp(vec3_t v, f32 a, f32 b) {
+	return { clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b) };
+}
+
+// vec4
+
+inlnfunc vec4_t
+vec4(f32 v) {
+	vec4_t result;
 #if BASE_USE_SIMD
-	__m128 input = _mm_set_ss(v);
-	__m128 output = _mm_sqrt_ss(input);
-	result = _mm_cvtss_f32(output);
+	result.sse = _mm_setr_ps(v, v, v, v);
 #else
-	result = sqrtf(v);
+	result.x = v;
+	result.y = v;
+	result.z = v;
+	result.w = v;
 #endif
 	return result;
 }
 
-// color functions
+inlnfunc vec4_t
+vec4(f32 x, f32 y, f32 z, f32 w) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_setr_ps(x, y, z, w);
+#else
+	result.x = x;
+	result.y = y;
+	result.z = z;
+	result.w = w;
+#endif
+	return result;
+}
 
-function color_t 
+inlnfunc vec4_t 
+vec4(vec3_t xyz, f32 w = 0.0f) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_setr_ps(xyz.x, xyz.y, xyz.z, w);
+#else
+	result.xyz = xyz;
+	result.w = w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_add(vec4_t a, vec4_t b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_add_ps(a.sse, b.sse);
+#else
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+	result.w = a.w + b.w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_add(vec4_t a, f32 b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_add_ps(a.sse, _b);
+#else
+	result.x = a.x + b;
+	result.y = a.y + b;
+	result.z = a.z + b;
+	result.w = a.w + b;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_sub(vec4_t a, vec4_t b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_sub_ps(a.sse, b.sse);
+#else
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+	result.w = a.w - b.w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_sub(vec4_t a, f32 b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_sub_ps(a.sse, _b);
+#else
+	result.x = a.x - b;
+	result.y = a.y - b;
+	result.z = a.z - b;
+	result.w = a.w - b;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_mul(vec4_t a, vec4_t b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_mul_ps(a.sse, b.sse);
+#else
+	result.x = a.x * b.x;
+	result.y = a.y * b.y;
+	result.z = a.z * b.z;
+	result.w = a.w * b.w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_mul(vec4_t a, f32 b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_mul_ps(a.sse, _b);
+#else
+	result.x = a.x * b;
+	result.y = a.y * b;
+	result.z = a.z * b;
+	result.w = a.w * b;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_mul(vec4_t a, mat4_t b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_mul_ps(_mm_shuffle_ps(a.sse, a.sse, 0x00), b.columns[0].sse);
+	result.sse = _mm_add_ps(result.sse, _mm_mul_ps(_mm_shuffle_ps(a.sse, a.sse, 0x55), b.columns[1].sse));
+	result.sse = _mm_add_ps(result.sse, _mm_mul_ps(_mm_shuffle_ps(a.sse, a.sse, 0xaa), b.columns[2].sse));
+	result.sse = _mm_add_ps(result.sse, _mm_mul_ps(_mm_shuffle_ps(a.sse, a.sse, 0xff), b.columns[3].sse));
+#else
+	result.x = a.data[0] * b.columns[0].x;
+	result.y = a.data[0] * b.columns[0].y;
+	result.z = a.data[0] * b.columns[0].z;
+	result.w = a.data[0] * b.columns[0].w;
+
+	result.x += a.data[1] * b.columns[1].x;
+	result.y += a.data[1] * b.columns[1].y;
+	result.z += a.data[1] * b.columns[1].z;
+	result.w += a.data[1] * b.columns[1].w;
+
+	result.x += a.data[2] * b.columns[2].x;
+	result.y += a.data[2] * b.columns[2].y;
+	result.z += a.data[2] * b.columns[2].z;
+	result.w += a.data[2] * b.columns[2].w;
+
+	result.x += a.data[3] * b.columns[3].x;
+	result.y += a.data[3] * b.columns[3].y;
+	result.z += a.data[3] * b.columns[3].z;
+	result.w += a.data[3] * b.columns[3].w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_div(vec4_t a, vec4_t b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_div_ps(a.sse, b.sse);
+#else
+	result.x = a.x / b.x;
+	result.y = a.y / b.y;
+	result.z = a.z / b.z;
+	result.w = a.w / b.w;
+#endif
+	return result;
+}
+
+inlnfunc vec4_t
+vec4_div(vec4_t a, f32 b) {
+	vec4_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_div_ps(a.sse, _b);
+#else
+	result.x = a.x / b;
+	result.y = a.y / b;
+	result.z = a.z / b;
+	result.w = a.w / b;
+#endif
+	return result;
+}
+
+inlnfunc b8 
+vec4_equals(vec4_t a, vec4_t b) {
+	return (a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w);
+}
+
+inlnfunc f32
+vec4_dot(vec4_t a, vec4_t b) {
+	f32 result;
+
+#if BASE_USE_SIMD
+	// TODO: check
+	//__m128 product = _mm_mul_ps(a.sse, b.sse);
+	//__m128 sum = _mm_hadd_ps(product, product);
+	//sum = _mm_hadd_ps(sum, sum);
+	//result = _mm_cvtss_f32(sum);
+
+	__m128 sseresultone = _mm_mul_ps(a.sse, b.sse);
+	__m128 sseresulttwo = _mm_shuffle_ps(sseresultone, sseresultone, _MM_SHUFFLE(2, 3, 0, 1));
+	sseresultone = _mm_add_ps(sseresultone, sseresulttwo);
+	sseresulttwo = _mm_shuffle_ps(sseresultone, sseresultone, _MM_SHUFFLE(0, 1, 2, 3));
+	sseresultone = _mm_add_ps(sseresultone, sseresulttwo);
+	_mm_store_ss(&result, sseresultone);
+#else
+	result = (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
+#endif
+	return result;
+}
+
+inlnfunc f32
+vec4_length(vec4_t a) {
+	return sqrtf(vec4_dot(a,a));
+}
+
+inlnfunc vec4_t
+vec4_normalize(vec4_t a) {
+	return vec4_mul(a, 1.0f / vec4_length(a));
+}
+
+inlnfunc vec4_t
+vec4_lerp(vec4_t a, vec4_t b, f32 t) {
+	return vec4_add(vec4_mul(a, 1.0f - t), vec4_mul(b, t));
+}
+
+inlnfunc f32
+vec4_angle_between(vec4_t a, vec4_t b) {
+	return acosf(vec4_dot(a, b) / (vec4_length(a) * vec4_length(b)));
+}
+
+inlnfunc vec4_t
+vec4_project(vec4_t a, vec4_t b) {
+	return vec4_mul(b, vec4_dot(a, b) / vec4_dot(b, b));
+}
+
+// quat
+
+inlnfunc quat_t
+quat(f32 x, f32 y, f32 z, f32 w) {
+	quat_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_setr_ps(x, y, z, w);
+#else
+	result.x = x;
+	result.y = y;
+	result.z = z;
+	result.w = w;
+#endif
+	return result;
+}
+
+inlnfunc quat_t 
+quat(vec4_t v) {
+	quat_t result;
+#if BASE_USE_SIMD
+	result.sse = v.sse;
+#else
+	result.x = v.x;
+	result.y = v.y;
+	result.z = v.z;
+	result.w = v.w;
+#endif 
+	return result;
+}
+
+inlnfunc quat_t
+quat_from_axis_angle(vec3_t axis, f32 angle) {
+	quat_t result;
+
+	vec3_t axis_normalized = vec3_normalize(axis);
+	f32 sine_of_rotation = sinf(angle / 2.0f);
+
+	result.xyz = vec3_mul(axis_normalized, sine_of_rotation);
+	result.w = cosf(angle / 2.0f);
+
+	return result;
+}
+
+inlnfunc quat_t
+quat_from_euler_angle(vec3_t euler) {
+	quat_t result = { 0.0f };
+
+	f32 cy = cosf(euler.z * 0.5f);
+	f32 sy = sinf(euler.z * 0.5f);
+	f32 cp = cosf(euler.y * 0.5f);
+	f32 sp = sinf(euler.y * 0.5f);
+	f32 cr = cosf(euler.x * 0.5f);
+	f32 sr = sinf(euler.x * 0.5f);
+
+	result.w = cr * cp * cy + sr * sp * sy;
+	result.x = sr * cp * cy - cr * sp * sy;
+	result.y = cr * sp * cy + sr * cp * sy;
+	result.z = cr * cp * sy - sr * sp * cy;
+
+	return result;
+}
+
+inlnfunc vec3_t
+quat_to_euler_angle(quat_t quat) {
+
+	vec3_t result;
+
+	const f32 xx = quat.x;
+	const f32 yy = quat.y;
+	const f32 zz = quat.z;
+	const f32 ww = quat.w;
+	const f32 xsq = xx * xx;
+	const f32 ysq = yy * yy;
+	const f32 zsq = zz * zz;
+
+	return vec3(
+		atan2f(2.0f * (xx * ww - yy * zz), 1.0f - 2.0f * (xsq + zsq)),
+		atan2f(2.0f * (yy * ww + xx * zz), 1.0f - 2.0f * (ysq + zsq)),
+		asinf(2.0f * (xx * yy + zz * ww))
+	);
+}
+
+inlnfunc vec3_t
+quat_to_dir(quat_t q) {
+	vec3_t dir;
+	dir.x = -(2.0f * (q.x * q.z + q.w * q.y));
+	dir.y = -(2.0f * (q.y * q.z - q.w * q.x));
+	dir.z = -(1.0f - 2.0f * (q.x * q.x + q.y * q.y));
+	return dir;
+}
+
+inlnfunc quat_t
+quat_add(quat_t a, quat_t b) {
+	quat_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_add_ps(a.sse, b.sse);
+#else
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+	result.w = a.w + b.w;
+#endif
+	return result;
+}
+
+inlnfunc quat_t
+quat_sub(quat_t a, quat_t b) {
+	quat_t result;
+#if BASE_USE_SIMD
+	result.sse = _mm_sub_ps(a.sse, b.sse);
+#else
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+	result.w = a.w - b.w;
+#endif
+	return result;
+}
+
+inlnfunc quat_t
+quat_mul(quat_t a, quat_t b) {
+	quat_t result;
+#if BASE_USE_SIMD
+	__m128 sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(0, 0, 0, 0)), _mm_setr_ps(0.0f, -0.0f, 0.0f, -0.0f));
+	__m128 sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(0, 1, 2, 3));
+	__m128 sseresultthree = _mm_mul_ps(sseresulttwo, sseresultone);
+
+	sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(1, 1, 1, 1)), _mm_setr_ps(0.0f, 0.0f, -0.0f, -0.0f));
+	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(1, 0, 3, 2));
+	sseresultthree = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
+
+	sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(2, 2, 2, 2)), _mm_setr_ps(-0.0f, 0.0f, 0.0f, -0.0f));
+	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(2, 3, 0, 1));
+	sseresultthree = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
+
+	sseresultone = _mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(3, 3, 3, 3));
+	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(3, 2, 1, 0));
+	result.sse = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
+#else
+	result.x = b.data[3] * +a.data[0];
+	result.y = b.data[2] * -a.data[0];
+	result.z = b.data[1] * +a.data[0];
+	result.w = b.data[0] * -a.data[0];
+
+	result.x += b.data[2] * +a.data[1];
+	result.y += b.data[3] * +a.data[1];
+	result.z += b.data[0] * -a.data[1];
+	result.w += b.data[1] * -a.data[1];
+
+	result.x += b.data[1] * -a.data[2];
+	result.y += b.data[0] * +a.data[2];
+	result.z += b.data[3] * +a.data[2];
+	result.w += b.data[2] * -a.data[2];
+
+	result.x += b.data[0] * +a.data[3];
+	result.y += b.data[1] * +a.data[3];
+	result.z += b.data[2] * +a.data[3];
+	result.w += b.data[3] * +a.data[3];
+#endif
+	return result;
+}
+
+inlnfunc quat_t
+quat_mul(quat_t a, f32 b) {
+	quat_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_mul_ps(a.sse, _b);
+#else
+	result.x = a.x * b;
+	result.y = a.y * b;
+	result.z = a.z * b;
+	result.w = a.w * b;
+#endif
+	return result;
+}
+
+inlnfunc quat_t
+quat_div(quat_t a, f32 b) {
+	quat_t result;
+#if BASE_USE_SIMD
+	__m128 _b = _mm_set1_ps(b);
+	result.sse = _mm_div_ps(a.sse, _b);
+#else
+	result.x = a.x / b;
+	result.y = a.y / b;
+	result.z = a.z / b;
+	result.w = a.w / b;
+#endif
+	return result;
+}
+
+inlnfunc f32
+quat_dot(quat_t a, quat_t b) {
+
+	f32 result;
+#if BASE_USE_SIMD
+	__m128 sseresultone = _mm_mul_ps(a.sse, b.sse);
+	__m128 sseresulttwo = _mm_shuffle_ps(sseresultone, sseresultone, _MM_SHUFFLE(2, 3, 0, 1));
+	sseresultone = _mm_add_ps(sseresultone, sseresulttwo);
+	sseresulttwo = _mm_shuffle_ps(sseresultone, sseresultone, _MM_SHUFFLE(0, 1, 2, 3));
+	sseresultone = _mm_add_ps(sseresultone, sseresulttwo);
+	_mm_store_ss(&result, sseresultone);
+#else
+	result = (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
+#endif
+
+	return result;
+}
+
+inlnfunc quat_t
+quat_inverse(quat_t q) {
+	quat_t result;
+	result.x = -q.x;
+	result.y = -q.y;
+	result.z = -q.z;
+	result.w = q.w;
+	return quat_div(result, (quat_dot(q, q)));
+}
+
+inlnfunc f32
+quat_length(quat_t q) {
+	return sqrtf(quat_dot(q, q));
+}
+
+inlnfunc quat_t
+quat_normalize(quat_t q) {
+	quat_t result = q;
+	f32 inv_len = 1.0f / quat_length(q);
+	if (inv_len > 0.0f) {
+		result = quat_mul(q, 1.0f / quat_length(q));
+	}
+	return result;
+}
+
+inlnfunc quat_t
+quat_negate(quat_t a) {
+	return { -a.x, -a.y, -a.z, -a.w };
+}
+
+inlnfunc quat_t
+quat_mix(quat_t a, f32 t_a, quat_t b, f32 t_b) {
+
+	quat_t result;
+
+#if BASE_USE_SIMD
+	__m128 scalar_a = _mm_set1_ps(t_a);
+	__m128 scalar_b = _mm_set1_ps(t_b);
+	__m128 sse_result_one = _mm_mul_ps(a.sse, scalar_a);
+	__m128 sse_result_two = _mm_mul_ps(b.sse, scalar_b);
+	result.sse = _mm_add_ps(sse_result_one, sse_result_two);
+#else 
+	result.x = a.x * t_a + b.x * t_b;
+	result.y = a.y * t_a + b.y * t_b;
+	result.z = a.z * t_a + b.z * t_b;
+	result.w = a.w * t_a + b.w * t_b;
+#endif
+	return result;
+}
+
+inlnfunc quat_t
+quat_lerp(quat_t a, quat_t b, f32 t) {
+	return quat_normalize(quat_mix(a, 1.0f - t, b, t));
+}
+
+inlnfunc quat_t
+quat_slerp(quat_t a, quat_t b, f32 t) {
+
+	quat_t result;
+
+	f32 cos_theta = quat_dot(a, b);
+
+	if (cos_theta < 0.0f) {
+		cos_theta = -cos_theta;
+		b = quat(-b.x, -b.y, -b.z, -b.w);
+	}
+
+	if (cos_theta > 0.9995f) {
+		result = quat_lerp(a, b, t);
+	} else {
+		f32 angle = acosf(cos_theta);
+		f32 mix_a = sinf((1.0f - t) * angle);
+		f32 mix_b = sinf(t * angle);
+
+		result = quat_normalize(quat_mix(a, mix_a, b, mix_b));
+	}
+
+	return result;
+}
+
+
+// mat3
+
+inlnfunc mat3_t
+mat3(f32 v = 1.0f) {
+	mat3_t result = { 0.0f };
+	result[0][0] = v;
+	result[1][1] = v;
+	result[2][2] = v;
+	return result;
+}
+
+// mat4
+
+inlnfunc mat4_t
+mat4(f32 v = 1.0f) {
+	mat4_t result = { 0.0f };
+	result[0][0] = v;
+	result[1][1] = v;
+	result[2][2] = v;
+	result[3][3] = v;
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_transpose(mat4_t m) {
+	mat4_t result;
+#if BASE_USE_SIMD
+	result = m;
+	__m128 _tmp3, _tmp2, _tmp1, _tmp0; 
+	_tmp0 = _mm_shuffle_ps(result.columns[0].sse, result.columns[1].sse, 0x44); 
+	_tmp2 = _mm_shuffle_ps(result.columns[0].sse, result.columns[1].sse, 0xee); 
+	_tmp1 = _mm_shuffle_ps(result.columns[2].sse, result.columns[3].sse, 0x44); 
+	_tmp3 = _mm_shuffle_ps(result.columns[2].sse, result.columns[3].sse, 0xee); 
+	result.columns[0].sse = _mm_shuffle_ps(_tmp0, _tmp1, 0x88);
+	result.columns[1].sse = _mm_shuffle_ps(_tmp0, _tmp1, 0xdd); 
+	result.columns[2].sse = _mm_shuffle_ps(_tmp2, _tmp3, 0x88); 
+	result.columns[3].sse = _mm_shuffle_ps(_tmp2, _tmp3, 0xdd); 
+#else
+	result[0][0] = m[0][0];
+	result[0][1] = m[1][0];
+	result[0][2] = m[2][0];
+	result[0][3] = m[3][0];
+	result[1][0] = m[0][1];
+	result[1][1] = m[1][1];
+	result[1][2] = m[2][1];
+	result[1][3] = m[3][1];
+	result[2][0] = m[0][2];
+	result[2][1] = m[1][2];
+	result[2][2] = m[2][2];
+	result[2][3] = m[3][2];
+	result[3][0] = m[0][3];
+	result[3][1] = m[1][3];
+	result[3][2] = m[2][3];
+	result[3][3] = m[3][3];
+#endif 
+
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_add(mat4_t a, mat4_t b) {
+	mat4_t result;
+	result.columns[0] = vec4_add(a.columns[0], b.columns[0]);
+	result.columns[1] = vec4_add(a.columns[1], b.columns[1]);
+	result.columns[2] = vec4_add(a.columns[2], b.columns[2]);
+	result.columns[3] = vec4_add(a.columns[3], b.columns[3]);
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_sub(mat4_t a, mat4_t b) {
+	mat4_t result;
+	result.columns[0] = vec4_sub(a.columns[0], b.columns[0]);
+	result.columns[1] = vec4_sub(a.columns[1], b.columns[1]);
+	result.columns[2] = vec4_sub(a.columns[2], b.columns[2]);
+	result.columns[3] = vec4_sub(a.columns[3], b.columns[3]);
+	return result;
+}
+
+inlnfunc mat4_t 
+mat4_mul(mat4_t a, mat4_t b) {
+	mat4_t result;
+
+	result.columns[0] = vec4_mul(b.columns[0], a);
+	result.columns[1] = vec4_mul(b.columns[1], a);
+	result.columns[2] = vec4_mul(b.columns[2], a);
+	result.columns[3] = vec4_mul(b.columns[3], a);
+	
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_mul(mat4_t a, f32 b) {
+	mat4_t result;
+
+#if BASE_USE_SIMD
+	__m128 scalar = _mm_set1_ps(b);
+	result.columns[0].sse = _mm_mul_ps(a.columns[0].sse, scalar);
+	result.columns[1].sse = _mm_mul_ps(a.columns[1].sse, scalar);
+	result.columns[2].sse = _mm_mul_ps(a.columns[2].sse, scalar);
+	result.columns[3].sse = _mm_mul_ps(a.columns[3].sse, scalar);
+#else 
+	result[0][0] = a[0][0] * b;
+	result[0][1] = a[0][1] * b;
+	result[0][2] = a[0][2] * b;
+	result[0][3] = a[0][3] * b;
+	result[1][0] = a[1][0] * b;
+	result[1][1] = a[1][1] * b;
+	result[1][2] = a[1][2] * b;
+	result[1][3] = a[1][3] * b;
+	result[2][0] = a[2][0] * b;
+	result[2][1] = a[2][1] * b;
+	result[2][2] = a[2][2] * b;
+	result[2][3] = a[2][3] * b;
+	result[3][0] = a[3][0] * b;
+	result[3][1] = a[3][1] * b;
+	result[3][2] = a[3][2] * b;
+	result[3][3] = a[3][3] * b;
+#endif 
+	return result;
+}
+
+inlnfunc vec4_t
+mat4_mul(mat4_t a, vec4_t b) {
+	return vec4_mul(b, a);
+}
+
+inlnfunc mat4_t
+mat4_div(mat4_t a, f32 b) {
+	mat4_t result;
+
+#if BASE_USE_SIMD
+	__m128 scalar = _mm_set1_ps(b);
+	result.columns[0].sse = _mm_div_ps(a.columns[0].sse, scalar);
+	result.columns[1].sse = _mm_div_ps(a.columns[1].sse, scalar);
+	result.columns[2].sse = _mm_div_ps(a.columns[2].sse, scalar);
+	result.columns[3].sse = _mm_div_ps(a.columns[3].sse, scalar);
+#else 
+	result[0][0] = a[0][0] / b;
+	result[0][1] = a[0][1] / b;
+	result[0][2] = a[0][2] / b;
+	result[0][3] = a[0][3] / b;
+	result[1][0] = a[1][0] / b;
+	result[1][1] = a[1][1] / b;
+	result[1][2] = a[1][2] / b;
+	result[1][3] = a[1][3] / b;
+	result[2][0] = a[2][0] / b;
+	result[2][1] = a[2][1] / b;
+	result[2][2] = a[2][2] / b;
+	result[2][3] = a[2][3] / b;
+	result[3][0] = a[3][0] / b;
+	result[3][1] = a[3][1] / b;
+	result[3][2] = a[3][2] / b;
+	result[3][3] = a[3][3] / b;
+#endif 
+	return result;
+}
+
+inlnfunc f32
+mat4_det(mat4_t m) {
+
+	vec3_t c01 = vec3_cross(m.columns[0].xyz, m.columns[1].xyz);
+	vec3_t c23 = vec3_cross(m.columns[2].xyz, m.columns[3].xyz);
+	vec3_t b10 = vec3_sub(vec3_mul(m.columns[0].xyz, m.columns[1].w), vec3_mul(m.columns[1].xyz, m.columns[0].w));
+	vec3_t b32 = vec3_sub(vec3_mul(m.columns[2].xyz, m.columns[3].w), vec3_mul(m.columns[3].xyz, m.columns[2].w));
+
+	return vec3_dot(c01, b32) + vec3_dot(c23, b10);
+}
+
+inlnfunc mat4_t 
+mat4_inverse(mat4_t m) {
+
+	vec3_t c01 = vec3_cross(m.columns[0].xyz, m.columns[1].xyz);
+	vec3_t c23 = vec3_cross(m.columns[2].xyz, m.columns[3].xyz);
+	vec3_t b10 = vec3_sub(vec3_mul(m.columns[0].xyz, m.columns[1].w), vec3_mul(m.columns[1].xyz, m.columns[0].w));
+	vec3_t b32 = vec3_sub(vec3_mul(m.columns[2].xyz, m.columns[3].w), vec3_mul(m.columns[3].xyz, m.columns[2].w));
+
+	f32 inv_determinant = 1.0f / (vec3_dot(c01, b32) + vec3_dot(c23, b10));
+	c01 = vec3_mul(c01, inv_determinant);
+	c23 = vec3_mul(c23, inv_determinant);
+	b10 = vec3_mul(b10, inv_determinant);
+	b32 = vec3_mul(b32, inv_determinant);
+
+	mat4_t result;
+	result.columns[0] = vec4(vec3_add(vec3_cross(m.columns[1].xyz, b32), vec3_mul(c23, m.columns[1].w)), -vec3_dot(m.columns[1].xyz, c23));
+	result.columns[1] = vec4(vec3_sub(vec3_cross(b32, m.columns[0].xyz), vec3_mul(c23, m.columns[0].w)), +vec3_dot(m.columns[0].xyz, c23));
+	result.columns[2] = vec4(vec3_add(vec3_cross(m.columns[3].xyz, b10), vec3_mul(c01, m.columns[3].w)), -vec3_dot(m.columns[3].xyz, c01));
+	result.columns[3] = vec4(vec3_sub(vec3_cross(b10, m.columns[2].xyz), vec3_mul(c01, m.columns[2].w)), +vec3_dot(m.columns[2].xyz, c01));
+
+	return mat4_transpose(result);
+}
+
+inlnfunc mat4_t 
+mat4_inv_perspective(mat4_t m) {
+
+	mat4_t result = { 0 };
+
+	result[0][0] = 1.0f / m[0][0];
+	result[1][1] = 1.0f / m[1][1];
+	result[2][2] = 0.0f;
+
+	result[2][3] = 1.0f / m[3][2];
+	result[3][3] = m[2][2] * -result[2][3];
+	result[3][2] = m[2][3];
+
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_from_quat(quat_t q) {
+	mat4_t result;
+
+	quat_t normalizedq = quat_normalize(q);
+
+	f32 xx, yy, zz,
+		xy, xz, yz,
+		wx, wy, wz;
+
+	xx = normalizedq.x * normalizedq.x;
+	yy = normalizedq.y * normalizedq.y;
+	zz = normalizedq.z * normalizedq.z;
+	xy = normalizedq.x * normalizedq.y;
+	xz = normalizedq.x * normalizedq.z;
+	yz = normalizedq.y * normalizedq.z;
+	wx = normalizedq.w * normalizedq.x;
+	wy = normalizedq.w * normalizedq.y;
+	wz = normalizedq.w * normalizedq.z;
+
+	result[0][0] = 1.0f - 2.0f * (yy + zz);
+	result[0][1] = 2.0f * (xy + wz);
+	result[0][2] = 2.0f * (xz - wy);
+	result[0][3] = 0.0f;
+
+	result[1][0] = 2.0f * (xy - wz);
+	result[1][1] = 1.0f - 2.0f * (xx + zz);
+	result[1][2] = 2.0f * (yz + wx);
+	result[1][3] = 0.0f;
+
+	result[2][0] = 2.0f * (xz + wy);
+	result[2][1] = 2.0f * (yz - wx);
+	result[2][2] = 1.0f - 2.0f * (xx + yy);
+	result[2][3] = 0.0f;
+
+	result[3][0] = 0.0f;
+	result[3][1] = 0.0f;
+	result[3][2] = 0.0f;
+	result[3][3] = 1.0f;
+
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_translate(vec3_t translate) {
+	mat4_t result = mat4(1.0f);
+	result[3][0] = translate.x;
+	result[3][1] = translate.y;
+	result[3][2] = translate.z;
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_translate(mat4_t m, vec3_t t) {
+	mat4_t result = m;
+	result[0][3] = t.x;
+	result[1][3] = t.y;
+	result[2][3] = t.z;
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_scale(vec3_t scale) {
+	mat4_t result = mat4(1.0f);
+	result[0][0] = scale.x;
+	result[1][1] = scale.y;
+	result[2][2] = scale.z;
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_orthographic(f32 left, f32 right, f32 top, f32 bottom, f32 z_near, f32 z_far) {
+	mat4_t r;
+	return r;
+}
+
+inlnfunc mat4_t
+mat4_perspective(f32 fov, f32 ar, f32 n, f32 f) {
+
+	mat4_t result = {0};
+	
+	f32 theta = tanf(radians(fov) / 2.0f);
+	result[0][0] = 1.0f / theta;
+	result[1][1] = ar / theta;
+	result[2][2] = -(n + f) / (n - f);
+	result[2][3] = 1.0f;
+	result[3][2] = (2.0f * n * f) / (n - f);
+
+	return result;
+}
+
+inlnfunc mat4_t
+mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
+
+	vec3_t f = vec3_normalize(vec3_sub(to, from));
+	vec3_t r = vec3_normalize(vec3_cross(f, up));
+	vec3_t u = vec3_cross(r, f);
+
+	mat4_t v;
+
+	return v;
+}
+
+function void 
+mat4_print(mat4_t m) {
+	printf("         c0:     c1:     c2:     c3:\n");
+	for (i32 row = 0; row < 4; row++) {
+		printf("r%i: [ %7.2f %7.2f %7.2f %7.2f ]\n", row, m[0][row], m[1][row], m[2][row], m[3][row]);
+	}
+}
+
+// rect
+
+inlnfunc rect_t
+rect(f32 x0, f32 y0, f32 x1, f32 y1) {
+	return { x0, y0, x1, y1 };
+}
+
+inlnfunc rect_t
+rect(vec2_t p0, vec2_t p1) {
+	return { p0.x, p0.y, p1.x, p1.y };
+}
+
+inlnfunc void
+rect_validate(rect_t& r) {
+	if (r.x0 > r.x1) {
+		f32 temp = r.x0;
+		r.x0 = r.x1;
+		r.x1 = temp;
+	}
+	if (r.y0 > r.y1) {
+		f32 temp = r.y0;
+		r.y0 = r.y1;
+		r.y1 = temp;
+	}
+}
+
+inlnfunc b8
+rect_contains(rect_t r, vec2_t p) {
+	return (p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1);
+}
+
+inlnfunc b8
+rect_contains(rect_t a, rect_t b) {
+	return (a.x0 <= b.x0 && a.x1 >= b.x1 && a.y0 <= b.y0 && a.y1 >= b.y1);
+}
+
+inlnfunc rect_t
+rect_intersection(rect_t a, rect_t b) {
+	return { max(a.x0, b.x0), max(a.y0, b.y0), min(a.x1, b.x1), min(a.y1, b.y1) };
+}
+
+inlnfunc f32
+rect_width(rect_t r) {
+	return fabsf(r.x1 - r.x0);
+}
+
+inlnfunc f32
+rect_height(rect_t r) {
+	return fabsf(r.y1 - r.y0);
+}
+
+inlnfunc vec2_t
+rect_center(rect_t r) {
+	return { (r.x0 + r.x1) * 0.5f, (r.y0 + r.y1) * 0.5f };
+}
+
+inlnfunc rect_t
+rect_grow(rect_t r, f32 a) {
+	return { r.x0 - a, r.y0 - a, r.x1 + a, r.y1 + a };
+}
+
+inlnfunc rect_t
+rect_grow(rect_t r, vec2_t a) {
+	return { r.x0 - a.x, r.y0 - a.y, r.x1 + a.x, r.y1 + a.y };
+}
+
+inlnfunc rect_t
+rect_shrink(rect_t r, f32 a) {
+	return { r.x0 + a, r.y0 + a, r.x1 - a, r.y1 - a };
+}
+
+inlnfunc rect_t
+rect_shrink(rect_t r, vec2_t a) {
+	return { r.x0 + a.x, r.y0 + a.y, r.x1 - a.x, r.y1 - a.y };
+}
+
+inlnfunc rect_t
+rect_translate(rect_t r, f32 a) {
+	return { r.x0 + a, r.y0 + a, r.x1 + a, r.y1 + a };
+}
+
+inlnfunc rect_t
+rect_translate(rect_t r, vec2_t a) {
+	return { r.x0 + a.x, r.y0 + a.y, r.x1 + a.x, r.y1 + a.y };
+}
+
+inlnfunc rect_t
+rect_bbox(vec2_t* points, u32 count) {
+	rect_t result = { f32_max, f32_max, f32_min, f32_min };
+
+	for (i32 i = 0; i < count; i++) {
+		vec2_t p = points[i];
+
+		if (p.x < result.x0) { result.x0 = p.x; }
+		if (p.y < result.y0) { result.y0 = p.y; }
+		if (p.x > result.x1) { result.x1 = p.x; }
+		if (p.y > result.y1) { result.y1 = p.y; }
+	}
+
+	return result;
+}
+
+
+// color 
+
+inlnfunc color_t
 color(u32 hex, color_format format) {
 	color_t result = { 0 };
 	result.r = (f32)((hex & 0xff000000) >> 24) / 255.0f;
@@ -623,7 +1929,7 @@ color(u32 hex, color_format format) {
 	return result;
 }
 
-function color_t
+inlnfunc color_t
 color(f32 r, f32 g, f32 b, f32 a, color_format format) {
 	color_t col;
 	col.r = r;
@@ -634,27 +1940,27 @@ color(f32 r, f32 g, f32 b, f32 a, color_format format) {
 	return col;
 }
 
-function color_t 
+inlnfunc color_t
 color_add(color_t a, f32 b) {
 	return { clamp_01(a.r + b), clamp_01(a.g + b), clamp_01(a.b + b), clamp_01(a.a + b) };
 }
 
-function color_t 
+inlnfunc color_t
 color_add(color_t a, color_t b) {
-	return { clamp_01(a.r + b.r), clamp_01(a.g + b.g), clamp_01(a.b + b.b), clamp_01(a.a + b.a)};
+	return { clamp_01(a.r + b.r), clamp_01(a.g + b.g), clamp_01(a.b + b.b), clamp_01(a.a + b.a) };
 }
 
-function color_t 
+inlnfunc color_t
 color_lerp(color_t a, color_t b, f32 t) {
-	return { 
+	return {
 		lerp(a.r, b.r, t),
 		lerp(a.g, b.g, t),
 		lerp(a.b, b.b, t),
-		lerp(a.a, b.a, t) 
+		lerp(a.a, b.a, t)
 	};
 }
 
-function color_t
+inlnfunc color_t
 color_rgb_to_hsv(color_t rgb) {
 	if (rgb.format == color_format_hsv) { return rgb; }
 
@@ -679,11 +1985,11 @@ color_rgb_to_hsv(color_t rgb) {
 
 }
 
-function color_t
+inlnfunc color_t
 color_hsv_to_rgb(color_t hsv) {
 
-	if (hsv.format == color_format_rgb) { 
-		return hsv; 
+	if (hsv.format == color_format_rgb) {
+		return hsv;
 	}
 
 	f32 h = fmodf(hsv.h * 360.0f, 360.0f);
@@ -723,7 +2029,7 @@ color_hsv_to_rgb(color_t hsv) {
 		g = 0.0f;
 		b = x;
 	}
-	
+
 	color_t rgb_color;
 	rgb_color.r = clamp_01(r + m);
 	rgb_color.g = clamp_01(g + m);
@@ -733,1039 +2039,6 @@ color_hsv_to_rgb(color_t hsv) {
 
 	return rgb_color;
 }
-
-
-// vec2 
-
-function vec2_t
-vec2(f32 v = 0.0f) {
-	return { v, v };
-}
-
-function vec2_t
-vec2(f32 x, f32 y) {
-	return { x, y };
-}
-
-function vec2_t
-vec2_add(vec2_t a, vec2_t b) {
-	return { a.x + b.x, a.y + b.y };
-}
-
-function vec2_t
-vec2_add(vec2_t a, f32 b) {
-	return { a.x + b, a.y + b };
-}
-
-function vec2_t
-vec2_sub(vec2_t a, vec2_t b) {
-	return { a.x - b.x, a.y - b.y };
-}
-
-function vec2_t
-vec2_sub(vec2_t a, f32 b) {
-	return { a.x - b, a.y - b };
-}
-
-function vec2_t
-vec2_mul(vec2_t a, vec2_t b) {
-	return { a.x * b.x, a.y * b.y };
-}
-
-function vec2_t
-vec2_mul(vec2_t a, f32 b) {
-	return { a.x * b, a.y * b };
-}
-
-function vec2_t
-vec2_div(vec2_t a, vec2_t b) {
-	return { a.x / b.x, a.y / b.y };
-}
-
-function vec2_t
-vec2_div(vec2_t a, f32 b) {
-	return { a.x / b, a.y / b };
-}
-
-function f32
-vec2_dot(vec2_t a, vec2_t b) {
-	return a.x * b.x + a.y * b.y;
-}
-
-function f32
-vec2_cross(vec2_t a, vec2_t b) {
-	return a.x * b.y - a.y * b.x;
-}
-
-function f32
-vec2_length(vec2_t a) {
-	return sqrtf(a.x * a.x + a.y * a.y);
-}
-
-function vec2_t
-vec2_normalize(vec2_t a) {
-	f32 inv_dem = 1.0f / vec2_length(a);
-	return { a.x * inv_dem , a.y * inv_dem };
-}
-
-function vec2_t 
-vec2_direction(vec2_t a, vec2_t b) {
-	return { b.x - a.x, b.y - a.y };
-}
-
-function f32
-vec2_to_angle(vec2_t a) {
-	return atan2f(a.y, a.x);
-}
-
-function vec2_t 
-vec2_from_angle(f32 a, f32 m) {
-	return { m * cosf(a), m * sinf(a) };
-}
-
-function vec2_t
-vec2_rotate(vec2_t v, f32 a) {
-	return { v.x * cosf(a) - v.y * sinf(a), v.x * sinf(a) - v.y * cosf(a) };
-}
-
-function vec2_t
-vec2_lerp(vec2_t a, vec2_t b, f32 t) {
-	return { lerp(a.x, b.x, t), lerp(a.y, b.y, t) };
-}
-
-// ivec2
-
-function ivec2_t 
-ivec2(i32 v = 0) {
-	return { v, v };
-}
-
-function ivec2_t 
-ivec2(i32 x, i32 y) {
-	return { x, y };
-}
-
-function b8
-ivec2_equals(ivec2_t a, ivec2_t b) {
-	return ((a.x == b.x) && (a.y == b.y));
-}
-
-// uvec2
-
-function uvec2_t 
-uvec2(u32 v = 0) {
-	return { v, v };
-}
-
-function uvec2_t 
-uvec2(u32 x, u32 y) {
-	return { x, y };
-}
-
-function b8 
-uvec2_equals(uvec2_t a, uvec2_t b) {
-	return ((a.x == b.x) && (a.y == b.y));
-}
-
-// vec3
-
-function vec3_t
-vec3(f32 v = 0.0f) {
-	return { v, v, v };
-}
-
-function vec3_t
-vec3(f32 x, f32 y, f32 z) {
-	return { x, y, z };
-}
-
-function vec3_t
-vec3_add(vec3_t a, vec3_t b) {
-	return { a.x + b.x, a.y + b.y, a.z + b.z };
-}
-
-function vec3_t
-vec3_add(vec3_t a, f32 b) {
-	return { a.x + b, a.y + b, a.z + b };
-}
-
-function vec3_t
-vec3_sub(vec3_t a, vec3_t b) {
-	return { a.x - b.x, a.y - b.y, a.z - b.z };
-}
-
-function vec3_t
-vec3_sub(vec3_t a, f32 b) {
-	return { a.x - b, a.y - b, a.z - b };
-}
-
-function vec3_t
-vec3_mul(vec3_t a, vec3_t b) {
-	return { a.x * b.x, a.y * b.y, a.z * b.z };
-}
-
-function vec3_t
-vec3_mul(vec3_t a, f32 b) {
-	return { a.x * b, a.y * b, a.z * b };
-}
-
-function vec3_t
-vec3_div(vec3_t a, vec3_t b) {
-	return { a.x / b.x, a.y / b.y, a.z / b.z };
-}
-
-function vec3_t
-vec3_div(vec3_t a, f32 b) {
-	return { a.x / b, a.y / b, a.z / b };
-}
-
-function f32
-vec3_length(vec3_t a) {
-	return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
-}
-
-function vec3_t
-vec3_normalize(vec3_t a) {
-	f32 d = vec3_length(a);
-	if (d < f32_epsilon) {
-		return a;
-	}
-	f32 inv_dem = 1.0f / vec3_length(a);
-	return { a.x * inv_dem , a.y * inv_dem, a.z * inv_dem };
-}
-
-function f32
-vec3_dot(vec3_t a, vec3_t b) {
-	return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-function vec3_t
-vec3_cross(vec3_t a, vec3_t b) {
-	return { a.y * b.z - a.z * b.y,  a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
-}
-
-function vec3_t
-vec3_lerp(vec3_t a, vec3_t b, f32 t) {
-	return { lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t) };
-}
-
-function f32
-vec3_angle_between(vec3_t a, vec3_t b) {
-	return acosf(vec3_dot(a, b) / (vec3_length(a) * vec3_length(b)));
-}
-
-function vec3_t
-vec3_project(vec3_t a, vec3_t b) {
-	return vec3_mul(b, vec3_dot(a, b) / vec3_dot(b, b));
-}
-
-function vec3_t
-vec3_rotate(vec3_t v, quat_t q) {
-	const quat_t tmp0 = { -q.x, -q.y, -q.z, q.w };
-	const quat_t qv = { v.x, v.y, v.z, 0.0f };
-	const quat_t tmp1 = quat_mul(qv, tmp0);
-	const quat_t result = quat_mul(q, tmp1);
-	return { result.x, result.y, result.z };
-}
-
-function vec3_t
-vec3_negate(vec3_t v) {
-	return vec3(-v.x, -v.y, -v.z);
-}
-
-function vec3_t 
-vec3_clamp(vec3_t v, f32 a, f32 b) {
-	return { clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b) };
-}
-
-// vec4
-
-function vec4_t
-vec4(f32 v) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_setr_ps(v, v, v, v);
-#else
-	result.x = v;
-	result.y = v;
-	result.z = v;
-	result.w = v;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4(f32 x, f32 y, f32 z, f32 w) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_setr_ps(x, y, z, w);
-#else
-	result.x = x;
-	result.y = y;
-	result.z = z;
-	result.w = w;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_add(vec4_t a, vec4_t b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_add_ps(a.sse, b.sse);
-#else
-	result.x = a.x + b.x;
-	result.y = a.y + b.y;
-	result.z = a.z + b.z;
-	result.w = a.w + b.w;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_add(vec4_t a, f32 b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	__m128 _b = _mm_set1_ps(b);
-	result.sse = _mm_add_ps(a.sse, _b);
-#else
-	result.x = a.x + b;
-	result.y = a.y + b;
-	result.z = a.z + b;
-	result.w = a.w + b;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_sub(vec4_t a, vec4_t b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_sub_ps(a.sse, b.sse);
-#else
-	result.x = a.x - b.x;
-	result.y = a.y - b.y;
-	result.z = a.z - b.z;
-	result.w = a.w - b.w;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_sub(vec4_t a, f32 b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	__m128 _b = _mm_set1_ps(b);
-	result.sse = _mm_sub_ps(a.sse, _b);
-#else
-	result.x = a.x - b;
-	result.y = a.y - b;
-	result.z = a.z - b;
-	result.w = a.w - b;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_mul(vec4_t a, vec4_t b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_mul_ps(a.sse, b.sse);
-#else
-	result.x = a.x * b.x;
-	result.y = a.y * b.y;
-	result.z = a.z * b.z;
-	result.w = a.w * b.w;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_mul(vec4_t a, f32 b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	__m128 _b = _mm_set1_ps(b);
-	result.sse = _mm_mul_ps(a.sse, _b);
-#else
-	result.x = a.x * b;
-	result.y = a.y * b;
-	result.z = a.z * b;
-	result.w = a.w * b;
-#endif
-	return result;
-}
-
-// TODO: implement
-function vec4_t
-vec4_mul(vec4_t a, mat4_t b) {
-	return { 0.0f, 0.0f, 0.0f, 0.0f };
-}
-
-function vec4_t
-vec4_div(vec4_t a, vec4_t b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	result.sse = _mm_div_ps(a.sse, b.sse);
-#else
-	result.x = a.x / b.x;
-	result.y = a.y / b.y;
-	result.z = a.z / b.z;
-	result.w = a.w / b.w;
-#endif
-	return result;
-}
-
-function vec4_t
-vec4_div(vec4_t a, f32 b) {
-	vec4_t result;
-#if BASE_USE_SIMD
-	__m128 _b = _mm_set1_ps(b);
-	result.sse = _mm_div_ps(a.sse, _b);
-#else
-	result.x = a.x / b;
-	result.y = a.y / b;
-	result.z = a.z / b;
-	result.w = a.w / b;
-#endif
-	return result;
-}
-
-function f32
-vec4_dot(vec4_t a, vec4_t b) {
-	f32 result;
-
-#if BASE_USE_SIMD
-	__m128 product = _mm_mul_ps(a.sse, b.sse);
-	__m128 sum = _mm_hadd_ps(product, product);
-	sum = _mm_hadd_ps(sum, sum);
-	result = _mm_cvtss_f32(sum);
-#else
-	result = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-#endif
-	return result;
-}
-
-// TODO: check if correct
-function f32
-vec4_cross(vec4_t a, vec4_t b) {
-	vec4_t result;
-
-	__m128 a_xyz = _mm_set_ps(0.0f, a.elements[2], a.elements[1], a.elements[0]);
-	__m128 b_xyz = _mm_set_ps(0.0f, b.elements[2], b.elements[1], b.elements[0]);
-
-	__m128 result_y = _mm_sub_ps(_mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
-	__m128 result_x = _mm_sub_ps(_mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
-	__m128 result_z = _mm_sub_ps(_mm_shuffle_ps(a_xyz, a_xyz, _MM_SHUFFLE(2, 1, 0, 3)), _mm_shuffle_ps(b_xyz, b_xyz, _MM_SHUFFLE(2, 1, 0, 3)));
-
-	result.sse = _mm_set_ps(0.0f, _mm_cvtss_f32(result_z), _mm_cvtss_f32(result_y), _mm_cvtss_f32(result_x));
-
-}
-
-function f32
-vec4_length(vec4_t a) {
-	return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w);
-}
-
-function vec4_t
-vec4_normalize(vec4_t a) {
-	f32 inv_dem = 1.0f / vec4_length(a);
-	return { a.x * inv_dem , a.y * inv_dem, a.z * inv_dem, a.w * inv_dem };
-}
-
-function vec4_t
-vec4_lerp(vec4_t a, vec4_t b, f32 t) {
-	return { lerp(a.x, b.y, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t) };
-}
-
-function f32
-vec4_angle_between(vec4_t a, vec4_t b) {
-	return acosf(vec4_dot(a, b) / (vec4_length(a) * vec4_length(b)));
-}
-
-function vec4_t
-vec4_project(vec4_t a, vec4_t b) {
-	return vec4_mul(b, vec4_dot(a, b) / vec4_dot(b, b));
-}
-
-// rect
-
-function rect_t 
-rect(f32 x0, f32 y0, f32 x1, f32 y1) {
-	return { x0, y0, x1, y1 };
-}
-
-function rect_t 
-rect(vec2_t p0, vec2_t p1) {
-	return { p0.x, p0.y, p1.x, p1.y };
-}
-
-function void 
-rect_validate(rect_t& r) {
-	if (r.x0 > r.x1) {
-		f32 temp = r.x0;
-		r.x0 = r.x1;
-		r.x1 = temp;
-	}
-	if (r.y0 > r.y1) {
-		f32 temp = r.y0;
-		r.y0 = r.y1;
-		r.y1 = temp;
-	}
-}
-
-function b8 
-rect_contains(rect_t r, vec2_t p) {
-	return (p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1);
-}
-
-function b8
-rect_contains(rect_t a, rect_t b) {
-	return (a.x0 <= b.x0 && a.x1 >= b.x1 && a.y0 <= b.y0 && a.y1 >= b.y1);
-}
-
-function rect_t 
-rect_intersection(rect_t a, rect_t b) {
-	return { max(a.x0, b.x0), max(a.y0, b.y0), min(a.x1, b.x1), min(a.y1, b.y1) };
-}
-
-function f32 
-rect_width(rect_t r) {
-	return fabsf(r.x1 - r.x0);
-}
-
-function f32 
-rect_height(rect_t r) {
-	return fabsf(r.y1 - r.y0);
-}
-
-function vec2_t 
-rect_center(rect_t r) {
-	return { (r.x0 + r.x1) * 0.5f, (r.y0 + r.y1) * 0.5f };
-}
-
-function rect_t
-rect_grow(rect_t r, f32 a) {
-	return { r.x0 - a, r.y0 - a, r.x1 + a, r.y1 + a };
-}
-
-function rect_t 
-rect_grow(rect_t r, vec2_t a) {
-	return { r.x0 - a.x, r.y0 - a.y, r.x1 + a.x, r.y1 + a.y };
-}
-
-function rect_t 
-rect_shrink(rect_t r, f32 a) {
-	return { r.x0 + a, r.y0 + a, r.x1 - a, r.y1 - a };
-}
-
-function rect_t 
-rect_shrink(rect_t r, vec2_t a) {
-	return { r.x0 + a.x, r.y0 + a.y, r.x1 - a.x, r.y1 - a.y };
-}
-
-function rect_t 
-rect_translate(rect_t r, f32 a) {
-	return { r.x0 + a, r.y0 + a, r.x1 + a, r.y1 + a };
-}
-
-function rect_t 
-rect_translate(rect_t r, vec2_t a) {
-	return { r.x0 + a.x, r.y0 + a.y, r.x1 + a.x, r.y1 + a.y };
-}
-
-function rect_t 
-rect_bbox(vec2_t* points, u32 count) {
-	rect_t result = {f32_max, f32_max, f32_min, f32_min};
-
-	for (i32 i = 0; i < count; i++) {
-		vec2_t p = points[i];
-
-		if (p.x < result.x0) { result.x0 = p.x; }
-		if (p.y < result.y0) { result.y0 = p.y; }
-		if (p.x > result.x1) { result.x1 = p.x; }
-		if (p.y > result.y1) { result.y1 = p.y; }
-	}
-	
-	return result;
-}
-
-
-// quat
-
-function quat_t
-quat_create(f32 x, f32 y, f32 z, f32 w) {
-	return { x, y, z, w };
-}
-
-function quat_t
-quat_axis_angle(vec3_t axis, f32 angle) {
-	quat_t result = { 0.0f };
-	f32 ha = angle * 0.5f;
-	f32 sa = sinf(ha);
-	result.x = axis.x * sa;
-	result.y = axis.y * sa;
-	result.z = axis.z * sa;
-	result.w = cosf(ha);
-	return result;
-}
-
-function quat_t
-quat_from_euler_angle(vec3_t euler) {
-	quat_t result = { 0.0f };
-
-	f32 cy = cos(euler.z * 0.5f);
-	f32 sy = sin(euler.z * 0.5f);
-	f32 cp = cos(euler.y * 0.5f);
-	f32 sp = sin(euler.y * 0.5f);
-	f32 cr = cos(euler.x * 0.5f);
-	f32 sr = sin(euler.x * 0.5f);
-
-	result.w = cr * cp * cy + sr * sp * sy;
-	result.x = sr * cp * cy - cr * sp * sy;
-	result.y = cr * sp * cy + sr * cp * sy;
-	result.z = cr * cp * sy - sr * sp * cy;
-
-	return result;
-}
-
-function vec3_t
-quat_to_euler_angle(quat_t quat) {
-
-	vec3_t result;
-
-	const f32 xx = quat.x;
-	const f32 yy = quat.y;
-	const f32 zz = quat.z;
-	const f32 ww = quat.w;
-	const f32 xsq = xx * xx;
-	const f32 ysq = yy * yy;
-	const f32 zsq = zz * zz;
-
-	return vec3(
-		atan2f(2.0f * (xx * ww - yy * zz), 1.0f - 2.0f * (xsq + zsq)),
-		atan2f(2.0f * (yy * ww + xx * zz), 1.0f - 2.0f * (ysq + zsq)),
-		asinf(2.0f * (xx * yy + zz * ww))
-	);
-}
-
-function vec3_t
-quat_to_dir(quat_t q) {
-	vec3_t dir;
-	dir.x = -(2.0f * (q.x * q.z + q.w * q.y));
-	dir.y = -(2.0f * (q.y * q.z - q.w * q.x));
-	dir.z = -(1.0f - 2.0f * (q.x * q.x + q.y * q.y));
-	return dir;
-}
-
-function quat_t
-quat_add(quat_t a, quat_t b) {
-	return { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
-}
-
-function quat_t
-quat_sub(quat_t a, quat_t b) {
-	return { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
-}
-
-function quat_t
-quat_mul(quat_t a, quat_t b) {
-	quat_t r;
-
-	const f32 ax = a.x;
-	const f32 ay = a.y;
-	const f32 az = a.z;
-	const f32 aw = a.w;
-
-	const f32 bx = b.x;
-	const f32 by = b.y;
-	const f32 bz = b.z;
-	const f32 bw = b.w;
-
-	r.x = aw * bx + ax * bw + ay * bz - az * by;
-	r.y = aw * by - ax * bz + ay * bw + az * bx;
-	r.z = aw * bz + ax * by - ay * bx + az * bw;
-	r.w = aw * bw - ax * bx - ay * by - az * bz;
-
-	return r;
-}
-
-function quat_t
-quat_mul(quat_t a, f32 b) {
-	return{ a.x * b, a.y * b, a.z * b, a.w * b };
-}
-
-function quat_t
-quat_div(quat_t a, f32 b) {
-	return { a.x / b, a.y / b, a.z / b, a.w / b };
-}
-
-function f32
-quat_dot(quat_t a, quat_t b) {
-	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-function f32
-quat_length(quat_t q) {
-	return sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
-}
-
-function quat_t
-quat_normalize(quat_t q) {
-	const f32 norm = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-	const f32 inv_norm = powf(norm, -0.5f);
-	return { q.x * inv_norm , q.y * inv_norm, q.z * inv_norm, q.w * inv_norm };
-}
-
-function quat_t
-quat_negate(quat_t a) {
-	return { -a.x, -a.y, -a.z, -a.w };
-}
-
-function quat_t
-quat_lerp(quat_t a, quat_t b, f32 t) {
-	return { lerp(a.x, b.x, t), lerp(a.y, b.y, t), lerp(a.z, b.z, t), lerp(a.w, b.w, t) };
-}
-
-function quat_t
-quat_slerp(quat_t a, quat_t b, f32 t) {
-
-	quat_t c = b;
-
-	f32 cos_theta = quat_dot(a, b);
-
-	if (cos_theta < 0.0f) {
-		c = quat_negate(b);
-		cos_theta = -cos_theta;
-	}
-
-	if (cos_theta > (1.0f - 1.19209e-07)) {
-		return quat_lerp(a, c, t);
-	} else {
-		f32 angle = acosf(cos_theta);
-		return quat_div(quat_add(quat_mul(a, sinf((1.0f - t) * angle)), quat_mul(b, sinf(t * angle))), sinf(angle));
-	}
-
-
-}
-
-
-// mat4
-
-function mat4_t
-mat4_identity() {
-	mat4_t r = { {
-		{ 1.0f, 0.0f, 0.0f, 0.0f },
-		{ 0.0f, 1.0f, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, 1.0f, 0.0f },
-		{ 0.0f, 0.0f, 0.0f, 1.0f }
-	} };
-	return r;
-}
-
-function b8
-mat4_equals(mat4_t mat1, mat4_t mat2, f32 tolerance = 0.1f) {
-
-	for (i32 i = 0; i < 4; i++) {
-		for (i32 j = 0; j < 4; j++) {
-			if (fabs(mat1.elements[i][j] - mat2.elements[i][j]) > tolerance) {
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
-function mat4_t
-mat4_transpose(mat4_t m) {
-
-	mat4_t r = { {
-		{m.elements[0][0], m.elements[0][1], m.elements[0][2], m.elements[0][3]},
-		{m.elements[1][0], m.elements[1][1], m.elements[1][2], m.elements[1][3]},
-		{m.elements[2][0], m.elements[2][1], m.elements[2][2], m.elements[2][3]},
-		{m.elements[3][0], m.elements[3][1], m.elements[3][2], m.elements[3][3]}
-	} };
-
-	return r;
-
-}
-
-function mat4_t
-mat4_from_quat(quat_t q) {
-	mat4_t result = mat4_identity();
-
-	const f32 qx = q.x;
-	const f32 qy = q.y;
-	const f32 qz = q.z;
-	const f32 qw = q.w;
-
-	const f32 x2 = qx + qx;
-	const f32 y2 = qy + qy;
-	const f32 z2 = qz + qz;
-	const f32 x2x = x2 * qx;
-	const f32 x2y = x2 * qy;
-	const f32 x2z = x2 * qz;
-	const f32 x2w = x2 * qw;
-	const f32 y2y = y2 * qy;
-	const f32 y2z = y2 * qz;
-	const f32 y2w = y2 * qw;
-	const f32 z2z = z2 * qz;
-	const f32 z2w = z2 * qw;
-
-	result.elements[0][0] = 1.0f - (y2y + z2z);
-	result.elements[0][1] = x2y + z2w;
-	result.elements[0][2] = x2z - y2w;
-	result.elements[0][3] = 0.0f;
-
-	result.elements[1][0] = x2y - z2w;
-	result.elements[1][1] = 1.0f - (x2x + z2z);
-	result.elements[1][2] = y2z + x2w;
-	result.elements[1][3] = 0.0f;
-
-	result.elements[2][0] = x2z + y2w;
-	result.elements[2][1] = y2z - x2w;
-	result.elements[2][2] = 1.0f - (x2x + y2y);
-	result.elements[2][3] = 0.0f;
-
-	result.elements[3][0] = 0.0f;
-	result.elements[3][1] = 0.0f;
-	result.elements[3][2] = 0.0f;
-	result.elements[3][3] = 1.0f;
-
-	return result;
-}
-
-function mat4_t
-mat4_translate(vec3_t translate) {
-
-	mat4_t r = { {
-		{ 1.0f, 0.0f, 0.0f, translate.x },
-		{ 0.0f, 1.0f, 0.0f, translate.y },
-		{ 0.0f, 0.0f, 1.0f, translate.z },
-		{ 0.0f, 0.0f, 0.0f, 1.0f }
-	} };
-
-	return r;
-}
-
-function mat4_t
-mat4_translate(mat4_t m, vec3_t t) {
-	mat4_t result = m;
-	result.elements[0][3] = t.x;
-	result.elements[1][3] = t.y;
-	result.elements[2][3] = t.z;
-	return result;
-}
-
-function mat4_t
-mat4_scale(vec3_t scale) {
-	mat4_t r = { {
-		{ scale.x, 0.0f, 0.0f, 0.0f },
-		{ 0.0f, scale.y, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, scale.z, 0.0f },
-		{ 0.0f, 0.0f, 0.0f, 1.0f }
-	} };
-	return r;
-}
-
-function mat4_t
-mat4_mul(mat4_t a, mat4_t b) {
-
-	mat4_t r = { 0 };
-
-	for (i32 j = 0; j < 4; j++) {
-		for (i32 i = 0; i < 4; i++) {
-			r.elements[j][i] = (a.elements[j][0] * b.elements[0][i] +
-				a.elements[j][1] * b.elements[1][i] +
-				a.elements[j][2] * b.elements[2][i] +
-				a.elements[j][3] * b.elements[3][i]);
-		}
-	}
-
-	return r;
-}
-
-function mat4_t
-mat4_mul(mat4_t a, vec4_t b) {
-
-}
-
-function mat4_t
-mat4_inverse(mat4_t m) {
-
-	mat4_t r;
-
-	r.elements[0][0] = m.elements[1][1] * m.elements[2][2] * m.elements[3][3] -
-		m.elements[1][1] * m.elements[2][3] * m.elements[3][2] -
-		m.elements[2][1] * m.elements[1][2] * m.elements[3][3] +
-		m.elements[2][1] * m.elements[1][3] * m.elements[3][2] +
-		m.elements[3][1] * m.elements[1][2] * m.elements[2][3] -
-		m.elements[3][1] * m.elements[1][3] * m.elements[2][2];
-
-	r.elements[1][0] = -m.elements[1][0] * m.elements[2][2] * m.elements[3][3] +
-		m.elements[1][0] * m.elements[2][3] * m.elements[3][2] +
-		m.elements[2][0] * m.elements[1][2] * m.elements[3][3] -
-		m.elements[2][0] * m.elements[1][3] * m.elements[3][2] -
-		m.elements[3][0] * m.elements[1][2] * m.elements[2][3] +
-		m.elements[3][0] * m.elements[1][3] * m.elements[2][2];
-
-	r.elements[2][0] = m.elements[1][0] * m.elements[2][1] * m.elements[3][3] -
-		m.elements[1][0] * m.elements[2][3] * m.elements[3][1] -
-		m.elements[2][0] * m.elements[1][1] * m.elements[3][3] +
-		m.elements[2][0] * m.elements[1][3] * m.elements[3][1] +
-		m.elements[3][0] * m.elements[1][1] * m.elements[2][3] -
-		m.elements[3][0] * m.elements[1][3] * m.elements[2][1];
-
-	r.elements[3][0] = -m.elements[1][0] * m.elements[2][1] * m.elements[3][2] +
-		m.elements[1][0] * m.elements[2][2] * m.elements[3][1] +
-		m.elements[2][0] * m.elements[1][1] * m.elements[3][2] -
-		m.elements[2][0] * m.elements[1][2] * m.elements[3][1] -
-		m.elements[3][0] * m.elements[1][1] * m.elements[2][2] +
-		m.elements[3][0] * m.elements[1][2] * m.elements[2][1];
-
-	r.elements[0][1] = -m.elements[0][1] * m.elements[2][2] * m.elements[3][3] +
-		m.elements[0][1] * m.elements[2][3] * m.elements[3][2] +
-		m.elements[2][1] * m.elements[0][2] * m.elements[3][3] -
-		m.elements[2][1] * m.elements[0][3] * m.elements[3][2] -
-		m.elements[3][1] * m.elements[0][2] * m.elements[2][3] +
-		m.elements[3][1] * m.elements[0][3] * m.elements[2][2];
-
-	r.elements[1][1] = m.elements[0][0] * m.elements[2][2] * m.elements[3][3] -
-		m.elements[0][0] * m.elements[2][3] * m.elements[3][2] -
-		m.elements[2][0] * m.elements[0][2] * m.elements[3][3] +
-		m.elements[2][0] * m.elements[0][3] * m.elements[3][2] +
-		m.elements[3][0] * m.elements[0][2] * m.elements[2][3] -
-		m.elements[3][0] * m.elements[0][3] * m.elements[2][2];
-
-	r.elements[2][1] = -m.elements[0][0] * m.elements[2][1] * m.elements[3][3] +
-		m.elements[0][0] * m.elements[2][3] * m.elements[3][1] +
-		m.elements[2][0] * m.elements[0][1] * m.elements[3][3] -
-		m.elements[2][0] * m.elements[0][3] * m.elements[3][1] -
-		m.elements[3][0] * m.elements[0][1] * m.elements[2][3] +
-		m.elements[3][0] * m.elements[0][3] * m.elements[2][1];
-
-	r.elements[3][1] = m.elements[0][0] * m.elements[2][1] * m.elements[3][2] -
-		m.elements[0][0] * m.elements[2][2] * m.elements[3][1] -
-		m.elements[2][0] * m.elements[0][1] * m.elements[3][2] +
-		m.elements[2][0] * m.elements[0][2] * m.elements[3][1] +
-		m.elements[3][0] * m.elements[0][1] * m.elements[2][2] -
-		m.elements[3][0] * m.elements[0][2] * m.elements[2][1];
-
-	r.elements[0][2] = m.elements[0][1] * m.elements[1][2] * m.elements[3][3] -
-		m.elements[0][1] * m.elements[1][3] * m.elements[3][2] -
-		m.elements[1][1] * m.elements[0][2] * m.elements[3][3] +
-		m.elements[1][1] * m.elements[0][3] * m.elements[3][2] +
-		m.elements[3][1] * m.elements[0][2] * m.elements[1][3] -
-		m.elements[3][1] * m.elements[0][3] * m.elements[1][2];
-
-	r.elements[1][2] = -m.elements[0][0] * m.elements[1][2] * m.elements[3][3] +
-		m.elements[0][0] * m.elements[1][3] * m.elements[3][2] +
-		m.elements[1][0] * m.elements[0][2] * m.elements[3][3] -
-		m.elements[1][0] * m.elements[0][3] * m.elements[3][2] -
-		m.elements[3][0] * m.elements[0][2] * m.elements[1][3] +
-		m.elements[3][0] * m.elements[0][3] * m.elements[1][2];
-
-	r.elements[2][2] = m.elements[0][0] * m.elements[1][1] * m.elements[3][3] -
-		m.elements[0][0] * m.elements[1][3] * m.elements[3][1] -
-		m.elements[1][0] * m.elements[0][1] * m.elements[3][3] +
-		m.elements[1][0] * m.elements[0][3] * m.elements[3][1] +
-		m.elements[3][0] * m.elements[0][1] * m.elements[1][3] -
-		m.elements[3][0] * m.elements[0][3] * m.elements[1][1];
-
-	r.elements[3][2] = -m.elements[0][0] * m.elements[1][1] * m.elements[3][2] +
-		m.elements[0][0] * m.elements[1][2] * m.elements[3][1] +
-		m.elements[1][0] * m.elements[0][1] * m.elements[3][2] -
-		m.elements[1][0] * m.elements[0][2] * m.elements[3][1] -
-		m.elements[3][0] * m.elements[0][1] * m.elements[1][2] +
-		m.elements[3][0] * m.elements[0][2] * m.elements[1][1];
-
-	r.elements[0][3] = -m.elements[0][1] * m.elements[1][2] * m.elements[2][3] +
-		m.elements[0][1] * m.elements[1][3] * m.elements[2][2] +
-		m.elements[1][1] * m.elements[0][2] * m.elements[2][3] -
-		m.elements[1][1] * m.elements[0][3] * m.elements[2][2] -
-		m.elements[2][1] * m.elements[0][2] * m.elements[1][3] +
-		m.elements[2][1] * m.elements[0][3] * m.elements[1][2];
-
-	r.elements[1][3] = m.elements[0][0] * m.elements[1][2] * m.elements[2][3] -
-		m.elements[0][0] * m.elements[1][3] * m.elements[2][2] -
-		m.elements[1][0] * m.elements[0][2] * m.elements[2][3] +
-		m.elements[1][0] * m.elements[0][3] * m.elements[2][2] +
-		m.elements[2][0] * m.elements[0][2] * m.elements[1][3] -
-		m.elements[2][0] * m.elements[0][3] * m.elements[1][2];
-
-	r.elements[2][3] = -m.elements[0][0] * m.elements[1][1] * m.elements[2][3] +
-		m.elements[0][0] * m.elements[1][3] * m.elements[2][1] +
-		m.elements[1][0] * m.elements[0][1] * m.elements[2][3] -
-		m.elements[1][0] * m.elements[0][3] * m.elements[2][1] -
-		m.elements[2][0] * m.elements[0][1] * m.elements[1][3] +
-		m.elements[2][0] * m.elements[0][3] * m.elements[1][1];
-
-	r.elements[3][3] = m.elements[0][0] * m.elements[1][1] * m.elements[2][2] -
-		m.elements[0][0] * m.elements[1][2] * m.elements[2][1] -
-		m.elements[1][0] * m.elements[0][1] * m.elements[2][2] +
-		m.elements[1][0] * m.elements[0][2] * m.elements[2][1] +
-		m.elements[2][0] * m.elements[0][1] * m.elements[1][2] -
-		m.elements[2][0] * m.elements[0][2] * m.elements[1][1];
-
-	f32 det = m.elements[0][0] * r.elements[0][0] +
-		m.elements[0][1] * r.elements[1][0] +
-		m.elements[0][2] * r.elements[2][0] +
-		m.elements[0][3] * r.elements[3][0];
-
-	det = 1.0f / det;
-
-	for (i32 i = 0; i < 4; i++) {
-		for (i32 j = 0; j < 4; j++) {
-			r.elements[i][j] = r.elements[i][j] * det;
-		}
-	}
-
-	return r;
-}
-
-function mat4_t
-mat4_orthographic(f32 left, f32 right, f32 top, f32 bottom, f32 z_near, f32 z_far) {
-	mat4_t r = { {
-		{2.0f / (right - left), 0.0f                 , 0.0f                   , (left + right) / (left - right)},
-		{0.0f                 , 2.0f / (top - bottom), 0.0f                   , (bottom + top) / (bottom - top)},
-		{0.0f                 , 0.0f                 , 1.0f / (z_near - z_far), (z_near) / (z_near - z_far)},
-		{0.0f                 , 0.0f                 , 0.0f                   , 1.0f}
-	} };
-	return r;
-}
-
-function mat4_t
-mat4_perspective(f32 fov, f32 ar, f32 n, f32 f) {
-
-	f32 cotangent = 1.0f / tanf(radians(fov) / 2.0f);
-
-	mat4_t r = { {
-		{cotangent / ar, 0.0f,      0.0f,                     0.0f},
-		{0.0f,           cotangent, 0.0f,                     0.0f},
-		{0.0f,           0.0f,      (n + f) / (n - f),       (2.0f * n * f) / (n - f)},
-		{0.0f,           0.0f,      -1.0f,                    0.0f}
-	} };
-
-	return r;
-}
-
-function mat4_t
-mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
-
-	vec3_t f = vec3_normalize(vec3_sub(to, from));
-	vec3_t r = vec3_normalize(vec3_cross(f, up));
-	vec3_t u = vec3_cross(r, f);
-
-	mat4_t v = { {
-		{ r.x,  r.y,  r.z, -vec3_dot(from, r)},
-		{ u.x,  u.y,  u.z, -vec3_dot(from, u)},
-		{-f.x, -f.y, -f.z,  vec3_dot(from, f)},
-		{ 0.0f,       0.0,        0.0f,      1.0f}
-	} };
-
-	return v;
-}
-
 
 // misc functions
 

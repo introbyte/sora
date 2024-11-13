@@ -945,7 +945,11 @@ gfx_shader_compile(gfx_shader_t* shader, str_t src) {
 	ID3D11PixelShader* pixel_shader = nullptr;
 	ID3D11InputLayout* input_layout = nullptr;
 
-	u32 compile_flags = D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
+	u32 compile_flags = 0;
+
+#if defined(BUILD_DEBUG)
+	compile_flags |= D3DCOMPILE_DEBUG;
+#endif 
 
 	if (src.size == 0) {
 		goto shader_build_cleanup;

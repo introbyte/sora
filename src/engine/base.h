@@ -3,12 +3,29 @@
 #ifndef BASE_H
 #define BASE_H
 
+// todo:
+// 
+// [~] - add simd support.
+//   [x] - vectors.
+//   [x] - matrices.
+//   [x] - quaternions.
+//   [ ] - color.
+// [ ] - add more math structs
+//   [ ] - mat2.
+//   [ ] - mat3.
+//
+
+
+// this project includes modified code from HandmadeMath.
+// HandmadeMath was released under the CC0 1.0 universal 
+// license, allowing unrestricted use.
+// original source: https://github.com/HandmadeMath/HandmadeMath
 
 // includes
 
 #include <cstdio> // printf
 #include <cmath> // math functions
-#include <xmmintrin.h>
+#include <pmmintrin.h> // simd functions
 
 // defines
 
@@ -17,6 +34,7 @@
 #define function static
 #define global static
 #define persist static
+#define inlnfunc inline static
 
 #define bytes(n)      (n)
 #define kilobytes(n)  (n << 10)
@@ -80,7 +98,7 @@
 
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 
-// typedefs
+// typedefs and enums
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -99,8 +117,6 @@ typedef const char* cstr;
 
 typedef bool b8;
 
-// enums
-
 typedef u32 str_match_flags;
 enum : u32 {
 	str_match_flag_case_insensitive = (1 << 0),
@@ -115,8 +131,18 @@ enum color_format {
 	color_format_hsv,
 };
 
-
 // structs
+
+// memory arena
+
+struct arena_t {
+	u32 pos;
+	u32 commit_pos;
+	u32 align;
+	u32 size;
+};
+
+// strings
 
 struct str_t {
 	u8* data;
@@ -151,15 +177,19 @@ struct codepoint_t {
 	u32 advance;
 };
 
+
+// math
+
 union vec2_t {
+
+	f32 data[2];
+
 	struct {
 		f32 x, y;
 	};
 
-	f32 elements[2];
-
-	inline f32& operator[](i32 index) { return elements[index]; }
-	inline const f32& operator[](i32 index) const { return elements[index]; }
+	inline f32& operator[](i32 index) { return data[index]; }
+	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
 struct ivec2_t {
@@ -171,29 +201,142 @@ struct uvec2_t {
 };
 
 union vec3_t {
+
+	f32 data[3];
+
 	struct {
 		f32 x, y, z;
 	};
-	f32 elements[3];
 
-	inline f32& operator[](i32 index) { return elements[index]; }
-	inline const f32& operator[](i32 index) const { return elements[index]; }
+	struct {
+		vec2_t xy;
+		f32 z;
+	};
+
+	struct {
+		f32 x;
+		vec2_t yz;
+	};
+
+	inline f32& operator[](i32 index) { return data[index]; }
+	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
 union vec4_t {
+
+	f32 data[4];
+	
 	struct {
 		f32 x, y, z, w;
 	};
-	f32 elements[4];
+
+	struct {
+		vec2_t xy;
+		f32 z;
+		f32 w;
+	};
+
+	struct {
+		f32 x;
+		vec2_t yz;
+		f32 w;
+	};
+
+	struct {
+		f32 x;
+		f32 y;
+		vec2_t zw;
+	};
+
+	struct {
+		vec3_t xyz;
+		f32 w;
+	};
+	
+	struct {
+		f32 x;
+		vec3_t yzw;
+	};
 
 #if BASE_USE_SIMD
 	__m128 sse;
 #endif
 
-	inline f32& operator[](i32 index) { return elements[index]; }
-	inline const f32& operator[](i32 index) const { return elements[index]; }
-
+	inline f32& operator[](i32 index) { return data[index]; }
+	inline const f32& operator[](i32 index) const { return data[index]; }
 };
+
+union quat_t {
+
+	f32 data[4];
+
+	struct {
+		f32 x, y, z, w;
+	};
+
+	struct {
+		vec3_t xyz;
+		f32 w;
+	};
+
+#if BASE_USE_SIMD
+	__m128 sse;
+#endif
+};
+
+// matrices:
+//
+//             c0 c1 c2
+//             |  |  | 
+//             v  v  v
+//	   r0 -> [ 1  2  3 ]
+// A = r1 -> [ 4  5  6 ]
+//     r2 -> [ 7  8  9 ]
+// 
+//   column-major:
+// -----------------------------------------  
+//   - accessed like:
+//       A[row][col];
+//	  
+//   - store as:
+//       A = [ 1, 4, 7, 2, 5, 8, 3, 6, 9 ];
+//   
+//   row major:
+// -----------------------------------------  
+//   - accessed like:
+//       A[col][row];
+//   
+//   - stored as:
+//       A = [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ];
+//   
+
+// TODO: implement functions
+union mat2_t {
+	f32 data[4];
+	vec2_t columns[2];
+
+	inline vec2_t& operator[](i32 index) { return columns[index]; }
+	inline const vec2_t& operator[](i32 index) const { return columns[index]; }
+};
+
+// TODO: implement functions
+union mat3_t {
+	f32 data[9];
+	vec3_t columns[3];
+
+	inline vec3_t& operator[](i32 index) { return columns[index]; }
+	inline const vec3_t& operator[](i32 index) const { return columns[index]; }
+};
+
+union mat4_t {
+	f32 data[16];
+	vec4_t columns[4];
+
+	inline vec4_t& operator[](i32 index) { return columns[index]; }
+	inline const vec4_t& operator[](i32 index) const { return columns[index]; }
+};
+
+// misc
 
 struct rect_t {
 	f32 x0, y0;
@@ -214,49 +357,9 @@ struct color_t {
 	color_format format;
 };
 
-union quat_t {
-	struct {
-		f32 x, y, z, w;
-	};
+// globals
 
-	f32 elements[4];
-#if BASE_USE_SIMD
-	__m128 sse;
-#endif
-};
-
-// TODO: implement functions
-union mat2_t {
-	f32 elements[2][2];
-	vec2_t columns[2];
-
-	inline vec2_t& operator[](i32 index) { return columns[index]; }
-	inline const vec2_t& operator[](i32 index) const { return columns[index]; }
-};
-
-// TODO: implement functions
-union mat3_t {
-	f32 elements[3][3];
-	vec3_t columns[3];
-
-	inline vec3_t& operator[](i32 index) { return columns[index]; }
-	inline const vec3_t& operator[](i32 index) const { return columns[index]; }
-};
-
-union mat4_t {
-	f32 elements[4][4];
-	vec4_t columns[4];
-
-	inline vec4_t& operator[](i32 index) { return columns[index]; }
-	inline const vec4_t& operator[](i32 index) const { return columns[index]; }
-};
-
-struct arena_t {
-	u32 pos;
-	u32 commit_pos;
-	u32 align;
-	u32 size;
-};
+global u32 random_state = 0;
 
 // functions
 
@@ -315,146 +418,163 @@ function str16_t str16(u16*);
 function str16_t str16(u16*, u32);
 function str16_t str_to_st16(str_t);
 
+// random
+
+function void random_seed(u32);
+function u32 random_u32();
+function u32 random_u32_range(u32, u32);
+function f32 random_f32();
+function f32 random_f32_range(f32, f32);
+
 // math
-function f32 radians(f32);
-function f32 degrees(f32);
-function f32 remap(f32, f32, f32, f32, f32);
-function f32 lerp(f32, f32, f32);
-function f32 s_sqrt(f32);
+inlnfunc f32 radians(f32);
+inlnfunc f32 degrees(f32);
+inlnfunc f32 remap(f32, f32, f32, f32, f32);
+inlnfunc f32 lerp(f32, f32, f32);
+inlnfunc f32 s_sqrt(f32);
 
 // color
-function color_t color(u32, color_format = color_format_rgb);
-function color_t color(f32, f32, f32, f32, color_format = color_format_rgb);
-function color_t color_add(color_t, f32);
-function color_t color_add(color_t, color_t);
-function color_t color_lerp(color_t, color_t, f32);
-function color_t color_rgb_to_hsv(color_t);
-function color_t color_hsv_to_rgb(color_t);
+inlnfunc color_t color(u32, color_format = color_format_rgb);
+inlnfunc color_t color(f32, f32, f32, f32, color_format = color_format_rgb);
+inlnfunc color_t color_add(color_t, f32);
+inlnfunc color_t color_add(color_t, color_t);
+inlnfunc color_t color_lerp(color_t, color_t, f32);
+inlnfunc color_t color_rgb_to_hsv(color_t);
+inlnfunc color_t color_hsv_to_rgb(color_t);
 
 // vec2 
-function vec2_t vec2(f32);
-function vec2_t vec2(f32, f32);
-function vec2_t vec2_add(vec2_t, f32);
-function vec2_t vec2_add(vec2_t, vec2_t);
-function vec2_t vec2_sub(vec2_t, f32);
-function vec2_t vec2_sub(vec2_t, vec2_t);
-function vec2_t vec2_mul(vec2_t, f32);
-function vec2_t vec2_mul(vec2_t, vec2_t);
-function vec2_t vec2_div(vec2_t, f32);
-function vec2_t vec2_div(vec2_t, vec2_t);
-function f32 vec2_dot(vec2_t, vec2_t);
-function f32 vec2_cross(vec2_t, vec2_t);
-function f32 vec2_length(vec2_t);
-function vec2_t vec2_normalize(vec2_t);
-function vec2_t vec2_direction(vec2_t, vec2_t);
-function f32 vec2_to_angle(vec2_t);
-function vec2_t vec2_from_angle(f32, f32 = 1);
-function vec2_t vec2_rotate(vec2_t, f32);
-function vec2_t vec2_lerp(vec2_t, vec2_t, f32);
+inlnfunc vec2_t vec2(f32);
+inlnfunc vec2_t vec2(f32, f32);
+inlnfunc vec2_t vec2_add(vec2_t, f32);
+inlnfunc vec2_t vec2_add(vec2_t, vec2_t);
+inlnfunc vec2_t vec2_sub(vec2_t, f32);
+inlnfunc vec2_t vec2_sub(vec2_t, vec2_t);
+inlnfunc vec2_t vec2_mul(vec2_t, f32);
+inlnfunc vec2_t vec2_mul(vec2_t, vec2_t);
+inlnfunc vec2_t vec2_div(vec2_t, f32);
+inlnfunc vec2_t vec2_div(vec2_t, vec2_t);
+inlnfunc b8     vec2_equals(vec2_t, vec2_t);
+inlnfunc f32 vec2_dot(vec2_t, vec2_t);
+inlnfunc f32 vec2_cross(vec2_t, vec2_t);
+inlnfunc f32 vec2_length(vec2_t);
+inlnfunc vec2_t vec2_normalize(vec2_t);
+inlnfunc vec2_t vec2_direction(vec2_t, vec2_t);
+inlnfunc f32 vec2_to_angle(vec2_t);
+inlnfunc vec2_t vec2_from_angle(f32, f32 = 1);
+inlnfunc vec2_t vec2_rotate(vec2_t, f32);
+inlnfunc vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 
 // ivec2
-function ivec2_t ivec2(i32);
-function ivec2_t ivec2(i32, i32);
-function b8 ivec2_equals(i32, i32);
+inlnfunc ivec2_t ivec2(i32);
+inlnfunc ivec2_t ivec2(i32, i32);
+inlnfunc b8 ivec2_equals(i32, i32);
 
 // uvec2
-function uvec2_t uvec2(u32);
-function uvec2_t uvec2(u32, u32);
-function b8 uvec2_equals(u32, u32);
+inlnfunc uvec2_t uvec2(u32);
+inlnfunc uvec2_t uvec2(u32, u32);
+inlnfunc b8 uvec2_equals(u32, u32);
 
 // vec3
-function vec3_t vec3(f32, f32, f32);
-function vec3_t vec3_add(vec3_t, vec3_t);
-function vec3_t vec3_add(vec3_t, f32);
-function vec3_t vec3_sub(vec3_t, vec3_t);
-function vec3_t vec3_sub(vec3_t, f32);
-function vec3_t vec3_mul(vec3_t, vec3_t);
-function vec3_t vec3_mul(vec3_t, f32);
-function vec3_t vec3_div(vec3_t, vec3_t);
-function vec3_t vec3_div(vec3_t, f32);
-function f32    vec3_dot(vec3_t, vec3_t);
-function vec3_t vec3_cross(vec3_t, vec3_t);
-function f32    vec3_length(vec3_t);
-function vec3_t vec3_normalize(vec3_t);
-function vec3_t vec3_lerp(vec3_t, vec3_t, f32);
-function f32    vec3_angle_between(vec3_t, vec3_t);
-function vec3_t vec3_project(vec3_t, vec3_t);
-function vec3_t vec3_clamp(vec3_t, f32, f32);
+inlnfunc vec3_t vec3(f32);
+inlnfunc vec3_t vec3(f32, f32, f32);
+inlnfunc vec3_t vec3(vec2_t, f32);
+inlnfunc vec3_t vec3_add(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_add(vec3_t, f32);
+inlnfunc vec3_t vec3_sub(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_sub(vec3_t, f32);
+inlnfunc vec3_t vec3_mul(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_mul(vec3_t, f32);
+inlnfunc vec3_t vec3_div(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_div(vec3_t, f32);
+inlnfunc b8     vec3_equals(vec3_t, vec3_t);
+inlnfunc f32    vec3_dot(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_cross(vec3_t, vec3_t);
+inlnfunc f32    vec3_length(vec3_t);
+inlnfunc vec3_t vec3_normalize(vec3_t);
+inlnfunc vec3_t vec3_negate(vec3_t);
+inlnfunc vec3_t vec3_lerp(vec3_t, vec3_t, f32);
+inlnfunc f32    vec3_angle_between(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_project(vec3_t, vec3_t);
+inlnfunc vec3_t vec3_rotate(vec3_t, quat_t);
+inlnfunc vec3_t vec3_clamp(vec3_t, f32, f32);
 
 // vec4
-function vec4_t vec4(f32);
-function vec4_t vec4(f32, f32, f32, f32);
-function vec4_t vec4_add(vec4_t, vec4_t);
-function vec4_t vec4_add(vec4_t, f32);
-function vec4_t vec4_sub(vec4_t, vec4_t);
-function vec4_t vec4_sub(vec4_t, f32);
-function vec4_t vec4_mul(vec4_t, vec4_t);
-function vec4_t vec4_mul(vec4_t, f32);
-function vec4_t vec4_mul(vec4_t, mat4_t);
-function vec4_t vec4_div(vec4_t, vec4_t);
-function vec4_t vec4_div(vec4_t, f32);
-function f32    vec4_dot(vec4_t, vec4_t);
-function f32    vec4_cross(vec4_t, vec4_t);
-function f32    vec4_length(vec4_t);
-function vec4_t vec4_normalize(vec4_t);
-function vec4_t vec4_lerp(vec4_t, vec4_t, f32);
-function f32    vec4_angle_between(vec4_t, vec4_t);
-function vec4_t vec4_project(vec4_t, vec4_t);
+inlnfunc vec4_t vec4(f32);
+inlnfunc vec4_t vec4(f32, f32, f32, f32);
+inlnfunc vec4_t vec4_add(vec4_t, vec4_t);
+inlnfunc vec4_t vec4_add(vec4_t, f32);
+inlnfunc vec4_t vec4_sub(vec4_t, vec4_t);
+inlnfunc vec4_t vec4_sub(vec4_t, f32);
+inlnfunc vec4_t vec4_mul(vec4_t, vec4_t);
+inlnfunc vec4_t vec4_mul(vec4_t, f32);
+inlnfunc vec4_t vec4_mul(vec4_t, mat4_t);
+inlnfunc vec4_t vec4_div(vec4_t, vec4_t);
+inlnfunc vec4_t vec4_div(vec4_t, f32);
+inlnfunc b8     vec4_equals(vec4_t, vec4_t);
+inlnfunc f32    vec4_dot(vec4_t, vec4_t);
+inlnfunc f32    vec4_length(vec4_t);
+inlnfunc vec4_t vec4_normalize(vec4_t);
+inlnfunc vec4_t vec4_lerp(vec4_t, vec4_t, f32);
+inlnfunc f32    vec4_angle_between(vec4_t, vec4_t);
+inlnfunc vec4_t vec4_project(vec4_t, vec4_t);
 
 // rect
-function rect_t rect(f32, f32, f32, f32);
-function rect_t rect(vec2_t, vec2_t);
-function void rect_validate(rect_t&);
-function b8 rect_contains(rect_t, vec2_t);
-function b8 rect_contains(rect_t, rect_t);
-function rect_t rect_intersection(rect_t, rect_t);
-function f32 rect_width(rect_t);
-function f32 rect_height(rect_t);
-function vec2_t rect_center(rect_t);
-function rect_t rect_grow(rect_t, f32);
-function rect_t rect_grow(rect_t, vec2_t);
-function rect_t rect_shrink(rect_t, f32);
-function rect_t rect_shrink(rect_t, vec2_t);
-function rect_t rect_translate(rect_t, f32);
-function rect_t rect_translate(rect_t, vec2_t);
-function rect_t rect_bbox(vec2_t*, u32);
+inlnfunc rect_t rect(f32, f32, f32, f32);
+inlnfunc rect_t rect(vec2_t, vec2_t);
+inlnfunc void   rect_validate(rect_t&);
+inlnfunc b8     rect_contains(rect_t, vec2_t);
+inlnfunc b8     rect_contains(rect_t, rect_t);
+inlnfunc rect_t rect_intersection(rect_t, rect_t);
+inlnfunc f32    rect_width(rect_t);
+inlnfunc f32    rect_height(rect_t);
+inlnfunc vec2_t rect_center(rect_t);
+inlnfunc rect_t rect_grow(rect_t, f32);
+inlnfunc rect_t rect_grow(rect_t, vec2_t);
+inlnfunc rect_t rect_shrink(rect_t, f32);
+inlnfunc rect_t rect_shrink(rect_t, vec2_t);
+inlnfunc rect_t rect_translate(rect_t, f32);
+inlnfunc rect_t rect_translate(rect_t, vec2_t);
+inlnfunc rect_t rect_bbox(vec2_t*, u32);
 
 // quat
-function quat_t quat_create(f32, f32, f32, f32);
-function quat_t quat_axis_angle(vec3_t, f32);
-function quat_t quat_from_euler_angle(vec3_t);
-function vec3_t quat_to_euler_angle(quat_t);
-function vec3_t quat_to_dir(quat_t);
-function quat_t quat_add(quat_t, quat_t);
-function quat_t quat_sub(quat_t, quat_t);
-function quat_t quat_mul(quat_t, quat_t);
-function quat_t quat_mul(quat_t, f32);
-function quat_t quat_div(quat_t, f32);
-function f32    quat_dot(quat_t, quat_t);
-function f32    quat_length(quat_t);
-function quat_t quat_normalize(quat_t);
-function quat_t quat_negate(quat_t);
-function quat_t quat_lerp(quat_t, quat_t, f32);
-function quat_t quat_slerp(quat_t, quat_t, f32);
+inlnfunc quat_t quat(f32, f32, f32, f32);
+inlnfunc quat_t quat(vec4_t);
+inlnfunc quat_t quat_from_axis_angle(vec3_t, f32);
+inlnfunc quat_t quat_from_euler_angle(vec3_t);
+inlnfunc vec3_t quat_to_euler_angle(quat_t);
+inlnfunc vec3_t quat_to_dir(quat_t);
+inlnfunc quat_t quat_add(quat_t, quat_t);
+inlnfunc quat_t quat_sub(quat_t, quat_t);
+inlnfunc quat_t quat_mul(quat_t, quat_t);
+inlnfunc quat_t quat_mul(quat_t, f32);
+inlnfunc quat_t quat_div(quat_t, f32);
+inlnfunc f32    quat_dot(quat_t, quat_t);
+inlnfunc quat_t quat_inverse(quat_t);
+inlnfunc f32    quat_length(quat_t);
+inlnfunc quat_t quat_normalize(quat_t);
+inlnfunc quat_t quat_negate(quat_t);
+inlnfunc quat_t quat_lerp(quat_t, quat_t, f32);
+inlnfunc quat_t quat_slerp(quat_t, quat_t, f32);
 
 // mat4
-function mat4_t mat4_identity();
-function b8 mat4_equals(mat4_t, mat4_t);
-function mat4_t mat4_transpose(mat4_t);
-function mat4_t mat4_from_quat(quat_t);
+inlnfunc mat4_t mat4(f32);
+inlnfunc b8 mat4_equals(mat4_t, mat4_t);
+inlnfunc mat4_t mat4_transpose(mat4_t);
+inlnfunc mat4_t mat4_from_quat(quat_t);
 
-function mat4_t mat4_translate(vec3_t);
-function mat4_t mat4_translate(mat4_t, vec3_t);
-function mat4_t mat4_scale(vec3_t);
+inlnfunc mat4_t mat4_translate(vec3_t);
+inlnfunc mat4_t mat4_translate(mat4_t, vec3_t);
+inlnfunc mat4_t mat4_scale(vec3_t);
 
-function mat4_t mat4_mul(mat4_t, mat4_t);
-function mat4_t mat4_mul(mat4_t, vec4_t);
-function mat4_t mat4_inverse(mat4_t);
+inlnfunc mat4_t mat4_mul(mat4_t, mat4_t);
+inlnfunc vec4_t mat4_mul(mat4_t, vec4_t);
+inlnfunc mat4_t mat4_inverse(mat4_t);
+inlnfunc mat4_t mat4_inv_perspective(mat4_t);
 
-function mat4_t mat4_orthographic(f32, f32, f32, f32, f32, f32);
-function mat4_t mat4_perspective(f32, f32, f32, f32);
-function mat4_t mat4_lookat(vec3_t, vec3_t, vec3_t);
-
+inlnfunc mat4_t mat4_orthographic(f32, f32, f32, f32, f32, f32);
+inlnfunc mat4_t mat4_perspective(f32, f32, f32, f32);
+inlnfunc mat4_t mat4_lookat(vec3_t, vec3_t, vec3_t);
+function void mat4_print(mat4_t);
 
 // misc
 function vec3_t barycentric(vec2_t, vec2_t, vec2_t, vec2_t);
