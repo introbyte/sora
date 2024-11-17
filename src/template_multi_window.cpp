@@ -183,7 +183,7 @@ app_entry_point(i32 argc, char** argv) {
 	return 0;
 }
 
-// entry point
+// per build entry point
 
 #if defined(BUILD_DEBUG)
 int main(int argc, char** argv) {
