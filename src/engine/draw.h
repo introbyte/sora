@@ -21,7 +21,6 @@
 //    [ ] - add other shapes.
 //
 
-
 // defines
 
 #define draw_max_buffer_size kilobytes(256)
@@ -83,7 +82,6 @@ struct draw_2d_instance_t {
 	f32 omit_texture;
 	draw_shape shape;
 };
-
 
 // batches
 struct draw_batch_state_t {
@@ -218,11 +216,11 @@ function void draw_push_vertices(void*, u32, u32);
 
 function void draw_push_rect(rect_t);
 function void draw_push_quad();
-function void draw_push_line();
-function void draw_push_text(str_t text, vec2_t pos);
+function void draw_push_line(vec2_t, vec2_t);
+function void draw_push_text(str_t, vec2_t);
 function void draw_push_circle(vec2_t, f32);
 function void draw_push_arc();
-function void draw_push_tri(vec2_t p0, vec2_t p1, vec2_t p2);
+function void draw_push_tri(vec2_t, vec2_t, vec2_t);
 
 // stack functions
 

@@ -408,6 +408,59 @@ draw_push_image(rect_t pos, gfx_texture_t* texture) {
 	draw_auto_pop_stacks();
 }
 
+function void
+draw_push_line(vec2_t p0, vec2_t p1) {
+	// find batch
+	draw_batch_state_t state = { 0 };
+	state.textures = draw_top_texture();
+	state.shader = draw_top_shader();
+	state.pipeline_state = draw_top_pipeline();
+	state.instanced = true;
+	state.instance_vertex_count = 4;
+	state.instance_size = sizeof(draw_2d_instance_t);
+	draw_batch_t* batch = draw_batch_find(state);
+
+	f32 thickness = draw_top_thickness();
+	f32 softness = draw_top_softness();
+	rect_t bbox = { p0.x, p0.y, p1.x, p1.y };
+	rect_validate(bbox);
+	bbox = rect_grow(bbox, thickness + softness);
+
+	vec2_t c = rect_center(bbox);
+	vec2_t c_p0 = vec2_sub(c, p0);
+	vec2_t c_p1 = vec2_sub(c, p1);
+
+	// push data
+	draw_2d_instance_t* instance = &((draw_2d_instance_t*)batch->data)[batch->instance_count];
+
+	instance->bbox = bbox;
+	instance->uv = rect(0.0f, 0.0f, 1.0f, 1.0f);
+	instance->shape = draw_shape_line;
+
+	instance->p0 = c_p0;
+	instance->p1 = c_p1;
+	instance->p2 = vec2(0.0f);
+	instance->p3 = vec2(0.0f);
+
+	instance->col0 = draw_top_color0().vec;
+	instance->col1 = draw_top_color1().vec;
+	instance->col2 = draw_top_color2().vec;
+	instance->col3 = draw_top_color3().vec;
+
+	instance->r0 = draw_top_radius0();
+	instance->r1 = draw_top_radius1();
+	instance->r2 = draw_top_radius2();
+	instance->r3 = draw_top_radius3();
+
+	instance->thickness = draw_top_thickness();
+	instance->softness = draw_top_softness();
+	instance->omit_texture = 1.0f;
+
+	batch->instance_count++;
+	draw_auto_pop_stacks();
+
+}
+
 function void 
 draw_push_text(str_t text, vec2_t pos) {
 

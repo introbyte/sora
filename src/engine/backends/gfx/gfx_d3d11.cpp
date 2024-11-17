@@ -441,16 +441,16 @@ gfx_set_render_target(gfx_render_target_t* render_target) {
 	gfx_state.render_target_active = render_target;
 
 	// Set the render targets and clear buffers
-	if (render_target->colorbuffer != nullptr) {
-		gfx_state.device_context->OMSetRenderTargets(1, &render_target->colorbuffer_rtv, render_target->depthbuffer_dsv);
-		gfx_state.device_context->ClearRenderTargetView(render_target->colorbuffer_rtv, clear_color_array);
-	} else {
-		gfx_state.device_context->OMSetRenderTargets(0, nullptr, render_target->depthbuffer_dsv);
-	}
+	//if (render_target->colorbuffer != nullptr) {
+	//	gfx_state.device_context->OMSetRenderTargets(1, &render_target->colorbuffer_rtv, render_target->depthbuffer_dsv);
+	//	gfx_state.device_context->ClearRenderTargetView(render_target->colorbuffer_rtv, clear_color_array);
+	//} else {
+	//	gfx_state.device_context->OMSetRenderTargets(0, nullptr, render_target->depthbuffer_dsv);
+	//}
 
-	if (render_target->depthbuffer != nullptr) {
-		gfx_state.device_context->ClearDepthStencilView(render_target->depthbuffer_dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	}
+	//if (render_target->depthbuffer != nullptr) {
+	//	gfx_state.device_context->ClearDepthStencilView(render_target->depthbuffer_dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	//}
 
 }
 
@@ -548,9 +548,9 @@ gfx_renderer_resize(gfx_renderer_t* renderer, uvec2_t resolution) {
 	// resize all passes
 	for (gfx_render_pass_t* pass = renderer->pass_first; pass != 0; pass = pass->next) {
 		// only resize if not fixed size
-		if (!(pass->render_target->desc.flags & gfx_render_target_flag_fixed_size)) {
-			gfx_render_target_resize(pass->render_target, resolution);
-		}
+		//if (!(pass->render_target->desc.flags & gfx_render_target_flag_fixed_size)) {
+		//	gfx_render_target_resize(pass->render_target, resolution);
+		//}
 	}
 
 	// set new resolution
@@ -594,11 +594,11 @@ gfx_renderer_submit(gfx_renderer_t* renderer) {
 
 	}
 	// copy last pass to screen
-	if (renderer->pass_last->render_target->desc.sample_count > 1) {
-		gfx_state.device_context->ResolveSubresource(renderer->framebuffer, 0, renderer->pass_last->render_target->colorbuffer->id, 0, _texture_format_to_dxgi_format(renderer->pass_last->render_target->desc.colorbuffer_format));
-	} else {
-		gfx_state.device_context->CopyResource(renderer->framebuffer, renderer->pass_last->render_target->colorbuffer->id);
-	}
+	//if (renderer->pass_last->render_target->desc.sample_count > 1) {
+	//	gfx_state.device_context->ResolveSubresource(renderer->framebuffer, 0, renderer->pass_last->render_target->colorbuffer->id, 0, _texture_format_to_dxgi_format(renderer->pass_last->render_target->desc.colorbuffer_format));
+	//} else {
+	//	gfx_state.device_context->CopyResource(renderer->framebuffer, renderer->pass_last->render_target->colorbuffer->id);
+	//}
 	renderer->swapchain->Present(1, 0);
 	gfx_state.device_context->ClearState();
 
@@ -1045,7 +1045,7 @@ gfx_render_target_create_ex(gfx_render_target_desc_t desc) {
 	dll_push_back(gfx_state.render_target_first, gfx_state.render_target_last, render_target);
 
 	// fill description
-	render_target->desc = desc;
+	//render_target->desc = desc;
 
 	// create textures
 	_gfx_render_target_create_resources(render_target);
@@ -1078,72 +1078,72 @@ gfx_render_target_create(uvec2_t size, gfx_render_target_flags flags, gfx_textur
 
 function void 
 gfx_render_target_resize(gfx_render_target_t* render_target, uvec2_t size) {
-	if (size.x > 0 && size.y > 0) {
-		render_target->desc.size = size;
-		_gfx_render_target_create_resources(render_target);
-	}
+	//if (size.x > 0 && size.y > 0) {
+	//	render_target->desc.size = size;
+	//	_gfx_render_target_create_resources(render_target);
+	//}
 }
 
 function void 
 _gfx_render_target_create_resources(gfx_render_target_t* render_target) {
 
-	gfx_render_target_desc_t desc = render_target->desc;
-	HRESULT hr = 0;
+	////gfx_render_target_desc_t desc = render_target->desc;
+	//HRESULT hr = 0;
 
-	// create colorbuffer
-	if (!(desc.flags & gfx_render_target_flag_no_color)) {
+	//// create colorbuffer
+	//if (!(desc.flags & gfx_render_target_flag_no_color)) {
 
-		gfx_texture_desc_t colorbuffer_desc = { 0 };
-		colorbuffer_desc.name = str("");
-		colorbuffer_desc.size = desc.size;
-		colorbuffer_desc.format = desc.colorbuffer_format;
-		colorbuffer_desc.type = gfx_texture_type_2d;
-		colorbuffer_desc.sample_count = desc.sample_count;
-		colorbuffer_desc.usage = gfx_usage_dynamic;
-		colorbuffer_desc.render_target = true;
-		render_target->colorbuffer = gfx_texture_create_ex(colorbuffer_desc);
+	//	gfx_texture_desc_t colorbuffer_desc = { 0 };
+	//	colorbuffer_desc.name = str("");
+	//	colorbuffer_desc.size = desc.size;
+	//	colorbuffer_desc.format = desc.colorbuffer_format;
+	//	colorbuffer_desc.type = gfx_texture_type_2d;
+	//	colorbuffer_desc.sample_count = desc.sample_count;
+	//	colorbuffer_desc.usage = gfx_usage_dynamic;
+	//	colorbuffer_desc.render_target = true;
+	//	//render_target->colorbuffer = gfx_texture_create_ex(colorbuffer_desc);
 
-		// create rtv
-		D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = { 0 };
-		rtv_desc.Format = _texture_format_to_dxgi_format(desc.colorbuffer_format);
-		if (desc.sample_count > 1) {
-			rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
-		} else {
-			rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-			rtv_desc.Texture2D.MipSlice = 0;
-		}
+	//	// create rtv
+	//	D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = { 0 };
+	//	rtv_desc.Format = _texture_format_to_dxgi_format(desc.colorbuffer_format);
+	//	if (desc.sample_count > 1) {
+	//		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
+	//	} else {
+	//		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	//		rtv_desc.Texture2D.MipSlice = 0;
+	//	}
 
-		hr = gfx_state.device->CreateRenderTargetView(render_target->colorbuffer->id, &rtv_desc, &render_target->colorbuffer_rtv);
-		gfx_check_error(hr, "failed to create the color rtv for render target.");
+	//	//hr = gfx_state.device->CreateRenderTargetView(render_target->colorbuffer->id, &rtv_desc, &render_target->colorbuffer_rtv);
+	//	gfx_check_error(hr, "failed to create the color rtv for render target.");
 
-	}
+	//}
 
-	// create depth buffer
-	if (!(desc.flags & gfx_render_target_flag_no_depth)) {
+	//// create depth buffer
+	//if (!(desc.flags & gfx_render_target_flag_no_depth)) {
 
-		gfx_texture_desc_t depthbuffer_desc = { 0 };
-		depthbuffer_desc.name = str("");
-		depthbuffer_desc.size = desc.size;
-		depthbuffer_desc.format = desc.depthbuffer_format;
-		depthbuffer_desc.type = gfx_texture_type_2d;
-		depthbuffer_desc.sample_count = desc.sample_count;
-		depthbuffer_desc.usage = gfx_usage_dynamic;
-		depthbuffer_desc.render_target = true;
-		render_target->depthbuffer = gfx_texture_create_ex(depthbuffer_desc);
-		
-		// create depth stencil view
-		D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = { 0 };
-		dsv_desc.Format = _texture_format_to_dsv_dxgi_format(desc.depthbuffer_format);
-		if (desc.sample_count > 1) {
-			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
-		} else {
-			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-			dsv_desc.Texture2D.MipSlice = 0;
-		}
-		hr = gfx_state.device->CreateDepthStencilView(render_target->depthbuffer->id, &dsv_desc, &render_target->depthbuffer_dsv);
-		gfx_check_error(hr, "failed to create the depth dsv for render target.");
+	//	gfx_texture_desc_t depthbuffer_desc = { 0 };
+	//	depthbuffer_desc.name = str("");
+	//	depthbuffer_desc.size = desc.size;
+	//	depthbuffer_desc.format = desc.depthbuffer_format;
+	//	depthbuffer_desc.type = gfx_texture_type_2d;
+	//	depthbuffer_desc.sample_count = desc.sample_count;
+	//	depthbuffer_desc.usage = gfx_usage_dynamic;
+	//	depthbuffer_desc.render_target = true;
+	//	render_target->depthbuffer = gfx_texture_create_ex(depthbuffer_desc);
+	//	
+	//	// create depth stencil view
+	//	D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = { 0 };
+	//	dsv_desc.Format = _texture_format_to_dsv_dxgi_format(desc.depthbuffer_format);
+	//	if (desc.sample_count > 1) {
+	//		dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+	//	} else {
+	//		dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	//		dsv_desc.Texture2D.MipSlice = 0;
+	//	}
+	//	hr = gfx_state.device->CreateDepthStencilView(render_target->depthbuffer->id, &dsv_desc, &render_target->depthbuffer_dsv);
+	//	gfx_check_error(hr, "failed to create the depth dsv for render target.");
 
-	}
+	//}
 
 }
 

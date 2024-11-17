@@ -60,15 +60,21 @@ struct gfx_render_target_t {
 	gfx_render_target_t* next;
 	gfx_render_target_t* prev;
 
-	gfx_render_target_desc_t desc;
-	gfx_texture_t* colorbuffer;
-	gfx_texture_t* depthbuffer;
-	ID3D11RenderTargetView* colorbuffer_rtv;
-	ID3D11DepthStencilView* depthbuffer_dsv;
+	uvec2_t size;
+	u32 sample_count;
+	gfx_texture_t* texture;
+	gfx_texture_format format;
+	union {
+		ID3D11RenderTargetView* rtv;
+		ID3D11DepthStencilView* dsv;
+	};
 };
 
-
 // render graph
+
+struct gfx_render_pass_data_t {
+
+};
 
 struct gfx_render_pass_t {
 
@@ -138,6 +144,13 @@ struct gfx_state_t {
 	gfx_render_target_t* render_target_first;
 	gfx_render_target_t* render_target_last;
 	gfx_render_target_t* render_target_free;
+
+	// new render pass system
+	arena_t* render_pass_arena;
+
+
+
+
 
 	// renderer
 	gfx_renderer_t* renderer_first;

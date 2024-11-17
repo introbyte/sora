@@ -9,8 +9,6 @@
 
 // typedefs
 
-typedef void os_window_resize_func();
-typedef void os_window_close_func();
 typedef void os_thread_function();
 
 // enums
@@ -237,14 +235,11 @@ function b8 os_key_is_down(os_key);
 
 function os_window_t* os_window_open(str_t, u32, u32, os_window_flags = 0);
 function void os_window_close(os_window_t*);
-function b8 os_window_is_running(os_window_t*);
 function void os_window_minimize(os_window_t*);
 function void os_window_maximize(os_window_t*);
 function void os_window_restore(os_window_t*);
 function void os_window_fullscreen(os_window_t*);
 function void os_window_set_title(os_window_t*, str_t);
-function void os_window_set_resize_function(os_window_t*, os_window_resize_func*);
-function void os_window_set_close_function(os_window_t*, os_window_close_func*);
 
 // memory
 

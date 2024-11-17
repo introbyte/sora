@@ -16,10 +16,10 @@ gfx_pipeline_create() {
 	result.depth_mode = gfx_depth;
 	result.viewport = rect(0.0f, 0.0f, 0.0f, 0.0f);
 	result.scissor = rect(0.0f, 0.0f, 0.0f, 0.0f);
-	if (gfx_state.render_target_active != nullptr) {
-		result.viewport = rect(0.0f, 0.0f, (f32)gfx_state.render_target_active->desc.size.x, (f32)gfx_state.render_target_active->desc.size.y);
-		result.scissor = rect(0.0f, 0.0f, (f32)gfx_state.render_target_active->desc.size.x, (f32)gfx_state.render_target_active->desc.size.y);
-	}
+	//if (gfx_state.render_target_active != nullptr) {
+	//	result.viewport = rect(0.0f, 0.0f, (f32)gfx_state.render_target_active->desc.size.x, (f32)gfx_state.render_target_active->desc.size.y);
+	//	result.scissor = rect(0.0f, 0.0f, (f32)gfx_state.render_target_active->desc.size.x, (f32)gfx_state.render_target_active->desc.size.y);
+	//}
 	return result;
 }
 

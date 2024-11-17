@@ -88,6 +88,9 @@ font_open(str_t filepath) {
 	font_state.dwrite_factory->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &font->file);
 	font_state.dwrite_factory->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
 
+	str_t font_name = str_get_file_name(filepath);
+	printf("[info] successfully opened font: '%.*s'\n", font_name.size, font_name.data);
+
 	return font;
 }
 

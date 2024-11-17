@@ -284,7 +284,6 @@ os_key_is_down(os_key key) {
 	return os_state.keys[key];
 }
 
-
 // window functions
 
 function os_window_t*
@@ -299,9 +298,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 		window = (os_window_t*)arena_alloc(os_state.window_arena, sizeof(os_window_t));
 	}
 	memset(window, 0, sizeof(os_window_t));
-
 	dll_push_back(os_state.first_window, os_state.last_window, window);
-
 
 	// adjust window size
 	DWORD style = WS_OVERLAPPEDWINDOW;
@@ -322,8 +319,6 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	window->flags = flags;
 	window->title = title;
 	window->resolution = uvec2(width, height);
-	window->resize_function = nullptr;
-	window->close_function = nullptr;
 	QueryPerformanceCounter(&window->tick_current);
 	window->tick_previous = window->tick_current;
 	window->delta_time = 0.0;
@@ -331,24 +326,16 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 
 	// for fullscreen
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
-	
-	window->is_running = true;
 
 	return window;
 }
 
 function void
 os_window_close(os_window_t* window) {
-	window->is_running = false;
 	dll_remove(os_state.first_window, os_state.last_window, window);
 	stack_push(os_state.free_window, window);
 	if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
 	if (window->handle) { DestroyWindow(window->handle); }
-}
-
-function b8
-os_window_is_running(os_window_t* window) {
-	return window->is_running;
 }
 
 function void
@@ -397,16 +384,6 @@ os_window_fullscreen(os_window_t* window) {
 function void
 os_window_set_title(os_window_t* window, str_t title) {
 	SetWindowTextA(window->handle, (char*)title.data);
-}
-
-function void
-os_window_set_resize_function(os_window_t* window, os_window_resize_func* func) {
-	window->resize_function = func;
-}
-
-function void
-os_window_set_close_function(os_window_t* window, os_window_close_func* func) {
-	window->close_function = func;
 }
 
 function u32
@@ -661,40 +638,32 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 	switch (msg) {
 
-		//case WM_PAINT: {
-		//	PAINTSTRUCT ps;
-		//	HDC hdc = BeginPaint(handle, &ps);
+		case WM_CLOSE: {
 
-		//	EndPaint(handle, &ps);
-		//	break;
-		//}
-
-		case WM_CLOSE:
-		{
-			if (window->close_function != nullptr) {
-				window->close_function();
-			}
-			window->is_running = false;
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
+			event->window = window;
+			event->type = os_event_type_window_close;
+			
 			break;
 		}
 
-		case WM_SIZE:
-		{
+		case WM_SIZE: {
 			if (window != nullptr) {
 				UINT width = LOWORD(lparam);
 				UINT height = HIWORD(lparam);
 				window->resolution = uvec2(width, height);
-				if (window->resize_function != nullptr) {
-					window->resize_function();
-				}
+
+				event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
+				event->window = window;
+				event->type = os_event_type_window_resize;
+
 			}
 			result = DefWindowProcA(handle, msg, wparam, lparam);
 			break;
 		}
 
 		case WM_SYSKEYDOWN:
-		case WM_KEYDOWN:
-		{
+		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
 
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
@@ -706,8 +675,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_SYSKEYUP:
-		case WM_KEYUP:
-		{
+		case WM_KEYUP: {
 			u32 key = (u32)wparam;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
@@ -717,8 +685,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			break;
 		}
 
-		case WM_MOUSEMOVE:
-		{
+		case WM_MOUSEMOVE: {
 			//f32 mouse_x = (f32)LOWORD(lparam);
 			//f32 mouse_y = (f32)HIWORD(lparam);
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
@@ -729,8 +696,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_SYSCHAR:
-		case WM_CHAR:
-		{
+		case WM_CHAR: {
 			u32 key = (u32)wparam;
 
 			if (key == '\r') { key = '\n'; }
@@ -745,8 +711,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			break;
 		}
 
-		case WM_MOUSEWHEEL:
-		{
+		case WM_MOUSEWHEEL: {
 			f32 delta = (f32)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
@@ -757,8 +722,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_LBUTTONDOWN:
 		case WM_RBUTTONDOWN:
-		case WM_MBUTTONDOWN:
-		{
+		case WM_MBUTTONDOWN: {
 			SetCapture(handle);
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
@@ -774,8 +738,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
-		case WM_MBUTTONUP:
-		{
+		case WM_MBUTTONUP: {
 			ReleaseCapture();
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;

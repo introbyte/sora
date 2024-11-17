@@ -25,15 +25,10 @@ struct os_window_t {
 
 	// info
 	str_t title;
-	b8 is_running;
 
 	// sizing
 	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
-
-	// callback functions
-	os_window_resize_func* resize_function;
-	os_window_close_func* close_function;
 
 	// time
 	LARGE_INTEGER tick_current;
