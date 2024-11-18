@@ -189,13 +189,6 @@ struct gfx_render_target_desc_t {
 };
 struct gfx_render_target_t; // defined in backends.
 
-// render graph
-struct gfx_resource_t;
-struct gfx_resource_list_t;
-struct gfx_render_pass_t;
-struct gfx_render_pass_data_t;
-typedef void gfx_render_pass_func(gfx_render_target_t*, gfx_render_target_t*);
-
 // renderer
 struct gfx_renderer_t; // define in backends.
 
@@ -240,13 +233,12 @@ function void gfx_set_texture(gfx_texture_t*, u32 = 0);
 function void gfx_set_shader(gfx_shader_t*);
 function void gfx_set_render_target(gfx_render_target_t* = nullptr);
 
-
 // renderer
 function gfx_renderer_t* gfx_renderer_create(os_window_t*, color_t);
 function void gfx_renderer_release(gfx_renderer_t*);
 function void gfx_renderer_resize(gfx_renderer_t*, uvec2_t);
-function gfx_render_pass_t* gfx_renderer_add_pass(gfx_renderer_t*, str_t, gfx_render_pass_func*, gfx_render_target_desc_t);
-function void gfx_renderer_submit(gfx_renderer_t*);
+function void gfx_renderer_begin(gfx_renderer_t*);
+function void gfx_renderer_end(gfx_renderer_t*);
 
 // buffer
 function gfx_buffer_t* gfx_buffer_create_ex(gfx_buffer_desc_t, void*);

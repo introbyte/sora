@@ -221,6 +221,7 @@ function void os_set_cursor_pos(os_window_t*, vec2_t);
 // events
 function void os_event_push(os_event_t*);
 function void os_event_pop(os_event_t*);
+function os_event_t* os_event_get(os_event_type);
 function os_modifiers os_get_modifiers();
 function b8 os_key_press(os_window_t*, os_key, os_modifiers);
 function b8 os_key_release(os_window_t*, os_key, os_modifiers);

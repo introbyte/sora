@@ -138,6 +138,11 @@ draw_release() {
 	gfx_buffer_release(draw_state.constant_buffers[2]);
 	gfx_buffer_release(draw_state.constant_buffers[3]);
 
+	// release assets
+	gfx_texture_release(draw_state.default_texture);
+	gfx_shader_release(draw_state.default_shader);
+	font_close(draw_state.default_font);
+
 	// release arena
 	arena_release(draw_state.batch_arena);
 	arena_release(draw_state.resource_arena);

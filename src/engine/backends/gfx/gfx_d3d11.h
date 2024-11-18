@@ -70,24 +70,6 @@ struct gfx_render_target_t {
 	};
 };
 
-// render graph
-
-struct gfx_render_pass_data_t {
-
-};
-
-struct gfx_render_pass_t {
-
-	// renderer list
-	gfx_render_pass_t* next;
-	gfx_render_pass_t* prev;
-	
-	str_t name;
-	gfx_render_pass_func* pass_function;
-	gfx_render_target_t* render_target;
-};
-
-
 // renderer
 
 struct gfx_renderer_t {
@@ -98,12 +80,6 @@ struct gfx_renderer_t {
 	os_window_t* window;
 	color_t clear_color;
 	uvec2_t resolution;
-
-	// graph arena
-	arena_t* graph_arena;
-	gfx_render_pass_t* pass_first;
-	gfx_render_pass_t* pass_last;
-	u32 pass_count;
 
 	// d3d11
 	IDXGISwapChain1* swapchain;
@@ -126,8 +102,6 @@ struct gfx_state_t {
 	IDXGIAdapter* dxgi_adapter;
 	IDXGIFactory2* dxgi_factory;
 
-	gfx_render_target_t* render_target_active;
-
 	// resources
 	gfx_buffer_t* buffer_first;
 	gfx_buffer_t* buffer_last;
@@ -144,13 +118,6 @@ struct gfx_state_t {
 	gfx_render_target_t* render_target_first;
 	gfx_render_target_t* render_target_last;
 	gfx_render_target_t* render_target_free;
-
-	// new render pass system
-	arena_t* render_pass_arena;
-
-
-
-
 
 	// renderer
 	gfx_renderer_t* renderer_first;

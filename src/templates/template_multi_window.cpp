@@ -1,4 +1,4 @@
-// editor.cpp
+// template_multi_window.cpp
 
 // includes
 
@@ -6,10 +6,12 @@
 #include "engine/base.h"
 #include "engine/os.h"
 #include "engine/gfx.h"
+#include "engine/font.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
+#include "engine/font.cpp"
 
 // app structs
 
@@ -62,7 +64,7 @@ app_window_open(str_t title, u32 width, u32 height) {
 	window->gfx_renderer = gfx_renderer_create(window->os_window, color(0x000000ff));
 	
 	// create ui
-	// TODO
+	
 
 	return window;
 }
@@ -105,12 +107,14 @@ app_init() {
 	// allocate memory arena
 	app_state.arena = arena_create(gigabytes(2));
 
+	// window list
 	app_state.window_first = nullptr;
 	app_state.window_last = nullptr;
 	app_state.window_free = nullptr;
 	
-	app_window_open(str("new window"), 1280, 960);
-	app_window_open(str("new window 2"), 1280, 960);
+	// open windows
+	app_window_open(str("multi-window 1"), 640, 480);
+	app_window_open(str("multi-window 2"), 640, 480);
 
 
 }
@@ -126,15 +130,26 @@ function void
 app_update() {
 
 	// update every window
-	for (app_window_t* window = app_state.window_first; window != 0; window = window->next) {
+	for (app_window_t* window = app_state.window_first, *next = 0; window != 0; window = next) {
+		next = window->next;
 
+		// hotkeys
+		if (os_key_press(window->os_window, os_key_F11)) {
+			os_window_fullscreen(window->os_window);
+		}
 
+		if (os_key_press(window->os_window, os_key_esc)) {
+			app_window_close(window);
+			continue;
+		}
+
+		// render
+		gfx_renderer_begin(window->gfx_renderer);
 	
-		gfx_renderer_submit(window->gfx_renderer);
+		gfx_renderer_end(window->gfx_renderer);
 	}
 
 }
-
 
 // entry point
 
@@ -144,6 +159,7 @@ app_entry_point(i32 argc, char** argv) {
 	// init layers
 	os_init();
 	gfx_init();
+	font_init();
 	
 	// init
 	app_init();
@@ -159,15 +175,13 @@ app_entry_point(i32 argc, char** argv) {
 		app_update();
 		
 		// get close events
-		for (os_event_t* e = os_state.event_list.first, *next = nullptr; e != 0; e = next) {
-			next = e->next;
-			if (e->type == os_event_type_window_close) {
-				app_window_t* window = app_window_from_os_window(e->window);
-				if (window != nullptr) {
-					app_window_close(window);
-				}
-				os_event_pop(e);
+		os_event_t* close_event = os_event_get(os_event_type_window_close);
+		if (close_event != nullptr) {
+			app_window_t* window = app_window_from_os_window(close_event->window);
+			if (window != nullptr) {
+				app_window_close(window);
 			}
+			os_event_pop(close_event);
 		}
 	}
 
@@ -175,6 +189,7 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	font_release();
 	gfx_release();
 	os_release();
 

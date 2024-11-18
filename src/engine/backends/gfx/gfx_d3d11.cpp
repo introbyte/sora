@@ -25,7 +25,6 @@ gfx_init() {
 	gfx_state.render_target_first = gfx_state.render_target_last = gfx_state.render_target_free = nullptr;
 
 	gfx_state.renderer_active = nullptr;
-	gfx_state.render_target_active = nullptr;
 
 	// create device
 	HRESULT hr = 0;
@@ -232,6 +231,21 @@ gfx_init() {
 function void
 gfx_release() {
 
+	// release assets
+	if (gfx_state.linear_wrap_sampler != nullptr) { gfx_state.linear_wrap_sampler->Release(); }
+	if (gfx_state.linear_clamp_sampler != nullptr) { gfx_state.linear_clamp_sampler->Release(); }
+	if (gfx_state.nearest_wrap_sampler != nullptr) { gfx_state.nearest_wrap_sampler->Release(); }
+	if (gfx_state.nearest_clamp_sampler != nullptr) { gfx_state.nearest_clamp_sampler->Release(); }
+	if (gfx_state.depth_stencil_state != nullptr) { gfx_state.depth_stencil_state->Release(); }
+	if (gfx_state.no_depth_stencil_state != nullptr) { gfx_state.no_depth_stencil_state->Release(); }
+	if (gfx_state.solid_cull_none_rasterizer != nullptr) { gfx_state.solid_cull_none_rasterizer->Release(); }
+	if (gfx_state.solid_cull_front_rasterizer != nullptr) { gfx_state.solid_cull_front_rasterizer->Release(); }
+	if (gfx_state.solid_cull_back_rasterizer != nullptr) { gfx_state.solid_cull_back_rasterizer->Release(); }
+	if (gfx_state.wireframe_cull_none_rasterizer != nullptr) { gfx_state.wireframe_cull_none_rasterizer->Release(); }
+	if (gfx_state.wireframe_cull_front_rasterizer != nullptr) { gfx_state.wireframe_cull_front_rasterizer->Release(); }
+	if (gfx_state.wireframe_cull_back_rasterizer != nullptr) { gfx_state.wireframe_cull_back_rasterizer->Release(); }
+	if (gfx_state.blend_state != nullptr) { gfx_state.blend_state->Release(); }
+
 	// release d3d11 devices
 	if (gfx_state.dxgi_factory != nullptr) { gfx_state.dxgi_factory->Release(); }
 	if (gfx_state.dxgi_adapter != nullptr) { gfx_state.dxgi_adapter->Release(); }
@@ -278,11 +292,8 @@ gfx_update() {
 			}
 		}
 	}
-
-
-
+	
 }
-
 
 
 function void
@@ -431,14 +442,13 @@ gfx_set_render_target(gfx_render_target_t* render_target) {
 
 	if (render_target == nullptr) {
 		gfx_state.device_context->OMSetRenderTargets(0, nullptr, nullptr);
-		gfx_state.render_target_active = nullptr;
-		return;
+	} else {
+		color_t clear_color = gfx_state.renderer_active->clear_color;
+		const FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
+
+		// TODO: fix me
+
 	}
-
-	color_t clear_color = gfx_state.renderer_active->clear_color;
-	const FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
-
-	gfx_state.render_target_active = render_target;
 
 	// Set the render targets and clear buffers
 	//if (render_target->colorbuffer != nullptr) {
@@ -473,9 +483,6 @@ gfx_renderer_create(os_window_t* window, color_t clear_color) {
 	renderer->window = window;
 	renderer->clear_color = clear_color;
 	renderer->resolution = window->resolution;
-
-	// allocate graph arena
-	renderer->graph_arena = arena_create(megabytes(64));
 
 	// create swapchain
 	HRESULT hr = 0;
@@ -515,9 +522,6 @@ gfx_renderer_release(gfx_renderer_t* renderer) {
 	if (renderer->framebuffer != nullptr) { renderer->framebuffer->Release(); }
 	if (renderer->swapchain != nullptr) { renderer->swapchain->Release(); }
 
-	// release arena
-	arena_clear(renderer->graph_arena);
-
 	// push to free stack
 	dll_remove(gfx_state.renderer_first, gfx_state.renderer_last, renderer);
 	stack_push(gfx_state.renderer_free, renderer);
@@ -544,64 +548,21 @@ gfx_renderer_resize(gfx_renderer_t* renderer, uvec2_t resolution) {
 	gfx_assert(hr, "failed to resize framebuffer.");
 	renderer->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&renderer->framebuffer));
 	gfx_state.device->CreateRenderTargetView(renderer->framebuffer, 0, &renderer->framebuffer_rtv);
-
-	// resize all passes
-	for (gfx_render_pass_t* pass = renderer->pass_first; pass != 0; pass = pass->next) {
-		// only resize if not fixed size
-		//if (!(pass->render_target->desc.flags & gfx_render_target_flag_fixed_size)) {
-		//	gfx_render_target_resize(pass->render_target, resolution);
-		//}
-	}
-
+	
 	// set new resolution
 	renderer->resolution = resolution;
 }
 
-function gfx_render_pass_t*
-gfx_renderer_add_pass(gfx_renderer_t* renderer, str_t name, gfx_render_pass_func* pass_function, gfx_render_target_desc_t desc) {
-
-	gfx_render_pass_t* pass = (gfx_render_pass_t*)arena_alloc(renderer->graph_arena, sizeof(gfx_render_pass_t));
-	
-	// create render target
-	pass->name = name;
-	pass->pass_function = pass_function;
-	pass->render_target = gfx_render_target_create_ex(desc);
-
-	// add to list
-	dll_push_back(renderer->pass_first, renderer->pass_last, pass);
-
-	return pass;
+function void
+gfx_renderer_begin(gfx_renderer_t* renderer) {
+	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
+	gfx_state.renderer_active = renderer;
 }
 
 function void
-gfx_renderer_submit(gfx_renderer_t* renderer) {
-
-	gfx_state.renderer_active = renderer;
-	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
-
-	// go through pass list
-	for (gfx_render_pass_t* pass = renderer->pass_first; pass != 0; pass = pass->next) {
-
-		gfx_set_render_target(pass->render_target);
-
-		// get previous render target if can.
-		gfx_render_target_t* prev_render_target = nullptr;
-		if (pass->prev != nullptr && pass->prev->render_target != nullptr) {
-			prev_render_target = pass->prev->render_target;
-		}
-
-		pass->pass_function(pass->render_target, prev_render_target);
-
-	}
-	// copy last pass to screen
-	//if (renderer->pass_last->render_target->desc.sample_count > 1) {
-	//	gfx_state.device_context->ResolveSubresource(renderer->framebuffer, 0, renderer->pass_last->render_target->colorbuffer->id, 0, _texture_format_to_dxgi_format(renderer->pass_last->render_target->desc.colorbuffer_format));
-	//} else {
-	//	gfx_state.device_context->CopyResource(renderer->framebuffer, renderer->pass_last->render_target->colorbuffer->id);
-	//}
+gfx_renderer_end(gfx_renderer_t* renderer) {
 	renderer->swapchain->Present(1, 0);
 	gfx_state.device_context->ClearState();
-
 	gfx_state.renderer_active = nullptr;
 }
 

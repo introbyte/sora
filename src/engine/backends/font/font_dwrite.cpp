@@ -60,6 +60,9 @@ font_release() {
 	if (font_state.rendering_params != nullptr) { font_state.rendering_params->Release(); font_state.rendering_params = nullptr; }
 	if (font_state.dwrite_factory != nullptr) { font_state.dwrite_factory->Release(); font_state.dwrite_factory = nullptr; }
 
+	// release assets
+	gfx_texture_release(font_state.atlas_texture);
+
 	// release arenas
 	arena_release(font_state.font_arena);
 	arena_release(font_state.scratch_arena);

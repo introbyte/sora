@@ -25,33 +25,27 @@ struct audio_params_t {
 	u32 frequency = 44100;
 	audio_format format = audio_format_f32;
 	u32 channels = 2;
-	u32 samples = 1024;
+	u32 samples = 256;
 	audio_callback_function callback_function;
 };
 
-struct audio_state_t {
-	IMMDeviceEnumerator* device_enumerator;
-	IMMDevice* audio_device;
-	IAudioClient3* audio_client;
-	IAudioRenderClient* audio_render_client;
-
-	u32 buffer_size;
-	HANDLE buffer_ready;
-
-	audio_params_t params;
-
-	os_thread_t* audio_thread;
-	b8 thread_running;
-};
-
-// global
-
-global audio_state_t audio_state;
+struct audio_state_t; // implement in backends
 
 // functions
 
 function void audio_init(audio_params_t);
 function void audio_release();
 function void audio_thread_function();
+
+#define AUDIO_BACKEND_WASAPI
+
+// per backend includes
+#ifdef AUDIO_BACKEND_WASAPI
+#include "backends/audio/audio_wasapi.h"
+#elif defined(AUDIO_BACKEND_COREAUDIO)
+// not implemented
+#elif defined(AUDIO_BACKEND_ALSA)
+// not implemented
+#endif 
 
 #endif // AUDIO_H

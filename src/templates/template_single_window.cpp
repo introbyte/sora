@@ -6,14 +6,19 @@
 #include "engine/base.h"
 #include "engine/os.h"
 #include "engine/gfx.h"
+#include "engine/font.h"
+#include "engine/draw.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
+#include "engine/font.cpp"
+#include "engine/draw.cpp"
 
 // globals
 global os_window_t* window;
 global gfx_renderer_t* renderer;
+global b8 quit = false;
 
 // functions
 
@@ -38,9 +43,20 @@ app_release() {
 function void
 app_update() {
 
+	// hotkeys
+	if (os_key_press(window, os_key_F11)) {
+		os_window_fullscreen(window);
+	}
 
+	if (os_key_press(window, os_key_esc)) {
+		quit = true;
+	}
 	
-	gfx_renderer_submit(renderer);
+	// render
+	gfx_renderer_begin(renderer);
+
+
+	gfx_renderer_end(renderer);
 }
 
 // entry point
@@ -51,12 +67,12 @@ app_entry_point(i32 argc, char** argv) {
 	// init layers
 	os_init();
 	gfx_init();
-	
+	font_init();
+
 	// init
 	app_init();
 
 	// main loop
-	b8 quit = false;
 	while (!quit) {
 
 		// update layers
@@ -67,11 +83,8 @@ app_entry_point(i32 argc, char** argv) {
 		app_update();
 		
 		// get close events
-		for (os_event_t* e = os_state.event_list.first, *next = nullptr; e != 0; e = next) {
-			next = e->next;
-			if (e->type == os_event_type_window_close) {
-				quit = true;
-			}
+		if (os_event_get(os_event_type_window_close) != 0) {
+			quit = true;
 		}
 	}
 
@@ -79,6 +92,7 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	font_release();
 	gfx_release();
 	os_release();
 

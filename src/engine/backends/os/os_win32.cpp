@@ -170,6 +170,18 @@ os_event_pop(os_event_t* event) {
 	os_state.event_list.count--;
 }
 
+function os_event_t* 
+os_event_get(os_event_type type) {
+	os_event_t* result = nullptr;
+	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
+		if (e->type == type) {
+			result = e;
+			break;
+		}
+	}
+	return result;
+}
+
 function os_modifiers
 os_get_modifiers() {
 	os_modifiers modifiers = 0;

@@ -34,8 +34,8 @@ if "%build_mode%"=="debug" (
 ) 
 
 if "%build_mode%"=="release" (
-	echo [info] build mode: debug.
-	set "build_flags=/DBUILD_RELEASE /O2 /Ob1"
+	echo [info] build mode: release.
+	set "build_flags=/DBUILD_RELEASE /O2 /Ob3"
 	set "link_flags=/SUBSYSTEM:WINDOWS"
 	goto compile
 ) 
