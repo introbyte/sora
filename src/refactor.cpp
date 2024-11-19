@@ -8,16 +8,19 @@
 #include "engine/gfx.h"
 #include "engine/font.h"
 #include "engine/draw.h"
+#include "engine/ui.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
+#include "engine/ui.cpp"
 
 // globals
 global os_window_t* window;
 global gfx_renderer_t* renderer;
+global arena_t* scratch;
 global b8 quit = false;
 
 // functions
@@ -29,6 +32,7 @@ app_init() {
 	window = os_window_open(str("app"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x000000ff));
 
+	scratch = arena_create(megabytes(8));
 }
 
 function void
@@ -54,9 +58,29 @@ app_update() {
 
 	// render
 	gfx_renderer_begin(renderer);
+	draw_begin(renderer);
+	ui_begin_frame(renderer);
 
-	
+	ui_push_pref_width(ui_size_pixel(150.0f, 1.0f));
+	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+
+	ui_button(str("button"));
+	persist f32 value = 0.5f;
+	ui_slider(str("slider"), &value, 0.0f, 1.0f);
+
+	persist color_t col = color(0x84322ff);
+	ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
+	ui_color_hue_sat_circle(str("color_circle"), &col.h, &col.s, col.v);
+
+	ui_color_hue_bar(str("color_hue"), &col.h, col.s, col.v);
+	ui_color_sat_bar(str("color_sat"), col.h, &col.s, col.v);
+	ui_color_val_bar(str("color_val"), col.h, col.s, &col.v);
+
+	ui_end_frame();
+	draw_end(renderer);
 	gfx_renderer_end(renderer);
+
+	arena_clear(scratch);
 }
 
 // entry point
@@ -68,8 +92,9 @@ app_entry_point(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 	font_init();
-	//draw_init();
-	
+	draw_init();
+	ui_init();
+
 	// init
 	app_init();
 
@@ -93,7 +118,8 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
-	//draw_release();
+	ui_release();
+	draw_release();
 	font_release();
 	gfx_release();
 	os_release();

@@ -432,7 +432,6 @@ ui_stack_node_decl(rounding_01, f32)
 ui_stack_node_decl(rounding_10, f32)
 ui_stack_node_decl(rounding_11, f32)
 ui_stack_node_decl(palette, ui_palette_t*)
-ui_stack_node_decl(texture, gfx_texture_t*)
 ui_stack_node_decl(font, font_t*)
 ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
@@ -505,7 +504,6 @@ struct ui_state_t {
 
 	// defaults
 	ui_palette_t default_palette;
-	gfx_texture_t* default_texture;
 	font_t* default_font;
 	font_t* default_icon_font;
 
@@ -527,7 +525,6 @@ struct ui_state_t {
 	ui_stack_decl_default(rounding_10);
 	ui_stack_decl_default(rounding_11);
 	ui_stack_decl_default(palette);
-	ui_stack_decl_default(texture);
 	ui_stack_decl_default(font);
 	ui_stack_decl_default(font_size);
 	ui_stack_decl_default(focus_hot);
@@ -551,7 +548,6 @@ struct ui_state_t {
 	ui_stack_decl(rounding_10);
 	ui_stack_decl(rounding_11);
 	ui_stack_decl(palette);
-	ui_stack_decl(texture);
 	ui_stack_decl(font);
 	ui_stack_decl(font_size);
 	ui_stack_decl(focus_hot);
@@ -597,19 +593,23 @@ function ui_interaction ui_checkbox(str_t, b8*);
 function ui_interaction ui_expander(str_t, b8*);
 function ui_interaction ui_color_sat_val_quad(str_t, f32, f32*, f32*);
 function ui_interaction ui_color_hue_bar(str_t, f32*, f32, f32);
+function ui_interaction ui_color_sat_bar(str_t, f32, f32*, f32);
+function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
 function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
 function ui_interaction ui_color_hue_sat_circle(str_t, f32*, f32*, f32*);
-function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
 function ui_interaction ui_text_edit(str_t, char*, u32, u32*);
 function ui_interaction ui_combo(str_t, i32*, char**, u32);
 
 // widget draw functions
 function void ui_slider_draw_function(ui_frame_t*);
-function void ui_color_hue_bar(ui_frame_t*);
+
+function void ui_color_hue_bar_draw_function(ui_frame_t*);
+function void ui_color_sat_bar_draw_function(ui_frame_t*);
+function void ui_color_val_bar_draw_function(ui_frame_t*);
+
 function void ui_color_sat_val_quad_draw_function(ui_frame_t*);
 function void ui_color_wheel_draw_function(ui_frame_t*);
 function void ui_color_hue_sat_circle_draw_function(ui_frame_t*);
-function void ui_color_val_bar_draw_function(ui_frame_t*);
 function void ui_text_edit_draw_function(ui_frame_t*);
 
 // string
@@ -705,7 +705,6 @@ ui_stack_func(rounding_01, f32)
 ui_stack_func(rounding_10, f32)
 ui_stack_func(rounding_11, f32)
 ui_stack_func(palette, ui_palette_t*)
-ui_stack_func(texture, gfx_texture_t*)
 ui_stack_func(font, font_t*)
 ui_stack_func(font_size, f32)
 ui_stack_func(focus_hot, ui_focus_type)

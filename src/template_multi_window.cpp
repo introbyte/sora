@@ -7,11 +7,13 @@
 #include "engine/os.h"
 #include "engine/gfx.h"
 #include "engine/font.h"
+#include "engine/draw.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
 #include "engine/font.cpp"
+#include "engine/draw.cpp"
 
 // app structs
 
@@ -21,7 +23,6 @@ struct app_window_t {
 
 	os_window_t* os_window;
 	gfx_renderer_t* gfx_renderer;
-	//ui_state_t* ui_state;
 };
 
 struct app_state_t {
@@ -145,7 +146,10 @@ app_update() {
 
 		// render
 		gfx_renderer_begin(window->gfx_renderer);
-	
+		draw_begin();
+
+
+		draw_end();
 		gfx_renderer_end(window->gfx_renderer);
 	}
 

@@ -556,7 +556,11 @@ gfx_renderer_resize(gfx_renderer_t* renderer, uvec2_t resolution) {
 function void
 gfx_renderer_begin(gfx_renderer_t* renderer) {
 	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
+	gfx_state.device_context->OMSetRenderTargets(1, &renderer->framebuffer_rtv, nullptr);
+	FLOAT clear_color_array[] = { renderer->clear_color.r, renderer->clear_color.g, renderer->clear_color.b, renderer->clear_color.a };
+	gfx_state.device_context->ClearRenderTargetView(renderer->framebuffer_rtv, clear_color_array);
 	gfx_state.renderer_active = renderer;
+
 }
 
 function void
@@ -904,7 +908,6 @@ gfx_shader_compile(gfx_shader_t* shader, str_t src) {
 	ID3DBlob* ps_error_blob = nullptr;
 	ID3D11VertexShader* vertex_shader = nullptr;
 	ID3D11PixelShader* pixel_shader = nullptr;
-	ID3D11InputLayout* input_layout = nullptr;
 
 	u32 compile_flags = 0;
 
@@ -934,27 +937,30 @@ gfx_shader_compile(gfx_shader_t* shader, str_t src) {
 	}
 	hr = gfx_state.device->CreatePixelShader(ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &pixel_shader);
 
-	// create input layout
-	gfx_shader_attribute_t* attributes = shader->desc.attributes;
+	// create input layout if needed
+	if (shader->input_layout == nullptr) {
 
-	// allocate input element array
-	D3D11_INPUT_ELEMENT_DESC* input_element_desc = (D3D11_INPUT_ELEMENT_DESC*)arena_alloc(gfx_state.scratch_arena, sizeof(D3D11_INPUT_ELEMENT_DESC) * shader->desc.attribute_count);
+		gfx_shader_attribute_t* attributes = shader->desc.attributes;
 
-	for (i32 i = 0; i < shader->desc.attribute_count; i++) {
-		input_element_desc[i] = {
-			(char*)attributes[i].name,
-			attributes[i].slot,
-			_vertex_format_to_dxgi_format(attributes[i].format),
-			0, D3D11_APPEND_ALIGNED_ELEMENT,
-			_vertex_class_to_input_class(attributes[i].classification),
-			(attributes[i].classification == gfx_vertex_class_per_vertex) ? (u32)0 : (u32)1
-		};
-	}
+		// allocate input element array
+		D3D11_INPUT_ELEMENT_DESC* input_element_desc = (D3D11_INPUT_ELEMENT_DESC*)arena_alloc(gfx_state.scratch_arena, sizeof(D3D11_INPUT_ELEMENT_DESC) * shader->desc.attribute_count);
 
-	hr = gfx_state.device->CreateInputLayout(input_element_desc, shader->desc.attribute_count, vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), &input_layout);
-	if (FAILED(hr)) {
-		printf("[error] failed to create shader input layout. (%x)\n", hr);
-		goto shader_build_cleanup;
+		for (i32 i = 0; i < shader->desc.attribute_count; i++) {
+			input_element_desc[i] = {
+				(char*)attributes[i].name,
+				attributes[i].slot,
+				_vertex_format_to_dxgi_format(attributes[i].format),
+				0, D3D11_APPEND_ALIGNED_ELEMENT,
+				_vertex_class_to_input_class(attributes[i].classification),
+				(attributes[i].classification == gfx_vertex_class_per_vertex) ? (u32)0 : (u32)1
+			};
+		}
+
+		hr = gfx_state.device->CreateInputLayout(input_element_desc, shader->desc.attribute_count, vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), &shader->input_layout);
+		if (FAILED(hr)) {
+			printf("[error] failed to create shader input layout. (%x)\n", hr);
+			goto shader_build_cleanup;
+		}
 	}
 	
 	if (hr == S_OK) {
@@ -962,12 +968,10 @@ gfx_shader_compile(gfx_shader_t* shader, str_t src) {
 		// release old shaders if needed
 		if (shader->vertex_shader != nullptr) { shader->vertex_shader->Release(); }
 		if (shader->pixel_shader != nullptr) { shader->pixel_shader->Release(); }
-		if (shader->input_layout != nullptr) { shader->input_layout->Release(); }
 
 		// set new shaders
 		shader->vertex_shader = vertex_shader;
 		shader->pixel_shader = pixel_shader;
-		shader->input_layout = input_layout;
 
 		success = true;
 
@@ -984,7 +988,7 @@ shader_build_cleanup:
 	if (!success) {
 		if (vertex_shader != nullptr) { vertex_shader->Release(); }
 		if (pixel_shader != nullptr) { pixel_shader->Release(); }
-		if (input_layout != nullptr) { input_layout->Release(); }
+		if (shader->input_layout != nullptr) { shader->input_layout->Release(); }
 	}
 
 }
