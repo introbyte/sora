@@ -9,7 +9,6 @@
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "dwmapi")
 
-
 // implementation
 
 function void
@@ -314,6 +313,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 
 	// adjust window size
 	DWORD style = WS_OVERLAPPEDWINDOW;
+	
 	RECT rect = { 0, 0, width, height };
 	AdjustWindowRect(&rect, style, FALSE);
 	i32 adjusted_width = rect.right - rect.left;
@@ -677,7 +677,6 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
-
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_key_press;

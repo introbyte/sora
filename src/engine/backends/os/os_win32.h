@@ -8,6 +8,11 @@
 #include <timeapi.h>
 #include <dwmapi.h>
 
+// defines
+
+#define WM_NCUAHDRAWCAPTION (0x00AE)
+#define WM_NCUAHDRAWFRAME (0x00AF)
+
 // structs
 
 struct os_window_t {
@@ -97,6 +102,7 @@ struct os_state_t {
 global os_state_t os_state;
 
 // functions
+
 function DWORD os_win32_thread_entry_point(void*);
 LRESULT CALLBACK window_procedure(HWND, UINT, WPARAM, LPARAM);
 

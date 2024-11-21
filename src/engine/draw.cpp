@@ -235,6 +235,8 @@ draw_rect(rect_t rect) {
 
 	draw_instance_t* instance = draw_get_instance();
 
+	rect_validate(rect);
+
 	instance->bbox = rect;
 	instance->tex = {0.0f, 0.0f, 1.0f, 1.0f};
 	

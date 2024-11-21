@@ -164,7 +164,7 @@ enum os_cursor {
 typedef u32 os_window_flags;
 enum {
 	os_window_flag_null,
-	os_window_flag_custom_border = (1 << 0),
+	os_window_flag_borderless = (1 << 0),
 };
 
 // structs

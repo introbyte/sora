@@ -54,8 +54,15 @@ app_update() {
 	
 	// render
 	gfx_renderer_begin(renderer);
+	draw_begin(renderer);
 
+	draw_push_color0(color(1.0f, 0.0f, 0.0f, 1.0f));
+	draw_push_color1(color(0.0f, 1.0f, 0.0f, 1.0f));
+	draw_push_color2(color(0.0f, 0.0f, 1.0f, 1.0f));
+	draw_push_color3(color(1.0f, 1.0f, 1.0f, 1.0f));
+	draw_rect(rect(100.0f, 100.0f, window->resolution.x - 100.0f, window->resolution.y - 100.0f));
 
+	draw_end(renderer);
 	gfx_renderer_end(renderer);
 }
 
@@ -68,6 +75,7 @@ app_entry_point(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 	font_init();
+	draw_init();
 
 	// init
 	app_init();
@@ -92,6 +100,7 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	draw_release();
 	font_release();
 	gfx_release();
 	os_release();

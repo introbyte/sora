@@ -1,4 +1,4 @@
-// refactor.cpp
+// test.cpp
 
 // includes
 
@@ -61,20 +61,16 @@ app_update() {
 	draw_begin(renderer);
 	ui_begin_frame(renderer);
 
-	ui_push_pref_width(ui_size_pixel(150.0f, 1.0f));
+	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
 	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-	ui_button(str("button"));
-	persist f32 value = 0.5f;
-	ui_slider(str("slider"), &value, 0.0f, 1.0f);
+	persist char buffer[512];
+	persist u32 buffer_size = 0;
+	ui_text_edit(str("text_edit"), buffer, 512, &buffer_size);
 
-	persist color_t col = color(0x84322ff);
-	ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
-	ui_color_hue_sat_circle(str("color_circle"), &col.h, &col.s, col.v);
-
-	ui_color_hue_bar(str("color_hue"), &col.h, col.s, col.v);
-	ui_color_sat_bar(str("color_sat"), col.h, &col.s, col.v);
-	ui_color_val_bar(str("color_val"), col.h, col.s, &col.v);
+	if (os_key_press(window, os_key_enter)) {
+		
+	}
 
 	ui_end_frame();
 	draw_end(renderer);

@@ -8,12 +8,15 @@
 #include "engine/gfx.h"
 #include "engine/font.h"
 #include "engine/draw.h"
+#include "engine/ui.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
+#include "engine/ui.cpp"
+
 
 // app structs
 
@@ -21,8 +24,11 @@ struct app_window_t {
 	app_window_t* next;
 	app_window_t* prev;
 
+	str_t title;
+
 	os_window_t* os_window;
 	gfx_renderer_t* gfx_renderer;
+	ui_context_t* ui_context;
 };
 
 struct app_state_t {
@@ -58,14 +64,16 @@ app_window_open(str_t title, u32 width, u32 height) {
 	// add to app state window list
 	dll_push_back(app_state.window_first, app_state.window_last, window);
 
+	window->title = title;
+
 	// open os window
 	window->os_window = os_window_open(title, width, height);
 
 	// create gfx renderer
-	window->gfx_renderer = gfx_renderer_create(window->os_window, color(0x000000ff));
+	window->gfx_renderer = gfx_renderer_create(window->os_window, color(0x131313ff));
 	
 	// create ui
-	
+	window->ui_context = ui_context_create(window->gfx_renderer);
 
 	return window;
 }
@@ -80,6 +88,7 @@ app_window_close(app_window_t* window) {
 	stack_push(app_state.window_free, window);
 
 	// release os window and gfx renderer
+	ui_context_release(window->ui_context);
 	gfx_renderer_release(window->gfx_renderer);
 	os_window_close(window->os_window);
 
@@ -146,10 +155,19 @@ app_update() {
 
 		// render
 		gfx_renderer_begin(window->gfx_renderer);
-		draw_begin();
+		draw_begin(window->gfx_renderer);
+		ui_begin_frame(window->ui_context);
 
+		ui_push_pref_width(ui_size_percent(1.0f));
+		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-		draw_end();
+		ui_labelf("hello, world!");
+		if (ui_buttonf("button") & ui_interaction_left_clicked) {
+			app_window_open(str("another window"), 640, 480);
+		}
+
+		ui_end_frame(window->ui_context);
+		draw_end(window->gfx_renderer);
 		gfx_renderer_end(window->gfx_renderer);
 	}
 
@@ -164,7 +182,9 @@ app_entry_point(i32 argc, char** argv) {
 	os_init();
 	gfx_init();
 	font_init();
-	
+	draw_init();
+	ui_init();
+
 	// init
 	app_init();
 
@@ -174,6 +194,7 @@ app_entry_point(i32 argc, char** argv) {
 		// update layers
 		os_update();
 		gfx_update();
+		ui_update();
 
 		// update app
 		app_update();
@@ -193,6 +214,8 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	ui_release();
+	draw_init();
 	font_release();
 	gfx_release();
 	os_release();

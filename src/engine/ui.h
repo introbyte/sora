@@ -5,31 +5,15 @@
 
 // todo: 
 // 
-// [x] - layout pass.
-// [x] - more frame customization (corners).
-//     [x] - text padding.
-//     [x] - individual corner rounding.
-// [x] - basic widgets. 
-//     [x] - button.
-//     [x] - label.
-//     [x] - checkbox.
-//     [x] - expander.
-//     [x] - slider.
-//     [x] - sat/val picker.
-//     [x] - color wheel.
+// [ ] - clipping.
+// [~] - widgets. 
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
 //         [ ] - mouse controls.
 //     [ ] - tree list.
 //     [ ] - tool tips.
 //     [ ] - list box.
-//     [ ] - combo box.
-// [x] - fix rendering. sometimes things aren't ordered correctly (text is rendered behind quads).
-// [x] - icon rendering.
-// [x] - look into depth ordering. maybe come up with something better.
-// [x] - render more things
-//     [x] - bezier curves.
-// [x] - change mouse cursor on hover.
+//     [~] - combo box.
 // [~] - more ui events.
 //     [x] - scrolling.
 //     [x] - keyboard.
@@ -56,7 +40,6 @@ ui_stack_top_func(name, type)\
 ui_stack_push_func(name, type)\
 ui_stack_pop_func(name, type)\
 ui_stack_set_next_func(name, type)\
-
 
 // icons enum
 enum {
@@ -143,20 +126,18 @@ enum {
 	// appearance
 	ui_frame_flag_clip = (1 << 17),
 	ui_frame_flag_draw_text = (1 << 18),
-	ui_frame_flag_draw_background_light = (1 << 19),
-	ui_frame_flag_draw_background_dark = (1 << 20),
-	ui_frame_flag_draw_border_light = (1 << 21),
-	ui_frame_flag_draw_border_dark = (1 << 22),
-	ui_frame_flag_draw_shadow = (1 << 23),
-	ui_frame_flag_draw_hover_effects = (1 << 24),
-	ui_frame_flag_draw_active_effects = (1 << 25),
-	ui_frame_flag_draw_custom = (1 << 26),
-	ui_frame_flag_custom_hover_cursor = (1 << 27),
+	ui_frame_flag_draw_background = (1 << 19),
+	ui_frame_flag_draw_border = (1 << 20),
+	ui_frame_flag_draw_shadow = (1 << 21),
+	ui_frame_flag_draw_hover_effects = (1 << 22),
+	ui_frame_flag_draw_active_effects = (1 << 23),
+	ui_frame_flag_draw_custom = (1 << 24),
+	ui_frame_flag_custom_hover_cursor = (1 << 25),
 
 	// groups
 	ui_frame_flag_draw =
-		ui_frame_flag_draw_text | ui_frame_flag_draw_background_dark |
-	    ui_frame_flag_draw_border_dark | ui_frame_flag_draw_shadow |
+		ui_frame_flag_draw_text | ui_frame_flag_draw_background |
+	    ui_frame_flag_draw_border | ui_frame_flag_draw_shadow |
 		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects,
 
 	ui_frame_flag_view_scroll = ui_frame_flag_view_scroll_x | ui_frame_flag_view_scroll_y,
@@ -262,6 +243,17 @@ enum {
 	ui_text_op_flag_copy = (1 << 1),
 };
 
+enum ui_color {
+	ui_color_none,
+	ui_color_background,
+	ui_color_text,
+	ui_color_border,
+	ui_color_hover,
+	ui_color_active,
+	ui_color_accent,
+	ui_color_count,
+};
+
 // structs
 
 struct ui_key_t {
@@ -274,24 +266,26 @@ struct ui_size_t {
 	f32 strictness;
 };
 
-// TODO: come up with better naming system for colors.
-struct ui_palette_t {
-	color_t dark_background;
-	color_t dark_border;
-	color_t light_background;
-	color_t light_border;
-	color_t shadow;
-	color_t hover;
-	color_t active;
-	color_t text;
-	color_t accent;
-};
+union ui_palette_t {
 
+	color_t colors[ui_color_count];
+
+	struct {
+		color_t none;
+		color_t background;
+		color_t text;
+		color_t border;
+		color_t hover;
+		color_t active;
+		color_t accent;
+	};
+};
 
 struct ui_event_t {
 	ui_event_t* next;
 	ui_event_t* prev;
 
+	os_window_t* window;
 	ui_event_type type;
 	ui_event_flags flags;
 	ui_event_delta_unit delta_unit;
@@ -417,6 +411,7 @@ struct ui_frame_rec_t {
 // stack nodes
 ui_stack_node_decl(parent, ui_frame_t*)
 ui_stack_node_decl(flags, ui_frame_flags)
+ui_stack_node_decl(seed_key, ui_key_t)
 ui_stack_node_decl(fixed_x, f32)
 ui_stack_node_decl(fixed_y, f32)
 ui_stack_node_decl(fixed_width, f32)
@@ -442,8 +437,10 @@ struct ui_constants_t {
 	vec2_t time;
 };
 
-struct ui_state_t {
-	
+struct ui_context_t {
+	ui_context_t* next;
+	ui_context_t* prev;
+
 	// contexts
 	os_window_t* window;
 	gfx_renderer_t* renderer;
@@ -458,20 +455,6 @@ struct ui_state_t {
 	// build index
 	u64 build_index;
 
-	// event bindings
-	ui_event_binding_t event_bindings[64];
-
-	// event list
-	ui_event_list_t event_list;
-
-	// input
-	vec2_t mouse_pos;
-	vec2_t mouse_delta;
-
-	u32 click_counter[3];
-	u64 last_click_time[3];
-	u32 last_click_index[3];
-
 	// text cursor and mark
 	ui_text_point_t cursor;
 	ui_text_point_t mark;
@@ -479,6 +462,10 @@ struct ui_state_t {
 	vec2_t cursor_target_pos;
 	vec2_t mark_pos;
 	vec2_t mark_target_pos;
+
+	// input
+	vec2_t mouse_pos;
+	vec2_t mouse_delta;
 
 	// drag state
 	void* drag_state_data;
@@ -488,28 +475,20 @@ struct ui_state_t {
 	ui_frame_t* frame_first;
 	ui_frame_t* frame_last;
 	ui_frame_t* frame_free;
-	
+
 	// state
 	ui_key_t hovered_frame_key;
 	ui_key_t active_frame_key[os_mouse_button_count];
 	ui_key_t nav_root_key;
 	ui_key_t focused_frame_key;
-		
+
 	// frame tree
 	ui_frame_t* root;
-
-	// assets
-	gfx_shader_t* ui_shader;
-	ui_constants_t constants;
-
-	// defaults
-	ui_palette_t default_palette;
-	font_t* default_font;
-	font_t* default_icon_font;
 
 	// stack defaults
 	ui_stack_decl_default(parent);
 	ui_stack_decl_default(flags);
+	ui_stack_decl_default(seed_key);
 	ui_stack_decl_default(fixed_x);
 	ui_stack_decl_default(fixed_y);
 	ui_stack_decl_default(fixed_width);
@@ -533,6 +512,7 @@ struct ui_state_t {
 	// stacks
 	ui_stack_decl(parent);
 	ui_stack_decl(flags);
+	ui_stack_decl(seed_key);
 	ui_stack_decl(fixed_x);
 	ui_stack_decl(fixed_y);
 	ui_stack_decl(fixed_width);
@@ -552,6 +532,38 @@ struct ui_state_t {
 	ui_stack_decl(font_size);
 	ui_stack_decl(focus_hot);
 	ui_stack_decl(focus_active);
+
+
+};
+
+struct ui_state_t {
+	
+	arena_t* arena;	
+	arena_t* event_arena;
+
+	ui_context_t* ui_first;
+	ui_context_t* ui_last;
+	ui_context_t* ui_free;
+	ui_context_t* ui_active;
+
+	// assets
+	gfx_shader_t* ui_shader;
+	ui_constants_t constants;
+
+	// defaults
+	ui_palette_t default_palette;
+	font_t* default_font;
+	font_t* default_icon_font;
+
+	// event list
+	ui_event_list_t event_list;
+
+	// event bindings
+	ui_event_binding_t event_bindings[64];
+
+	u32 click_counter[3];
+	u64 last_click_time[3];
+	u32 last_click_index[3];
 
 };
 
@@ -578,8 +590,12 @@ global ui_state_t ui_state;
 // state
 function void ui_init();
 function void ui_release();
-function void ui_begin_frame(gfx_renderer_t*);
-function void ui_end_frame();
+function void ui_update();
+
+function ui_context_t* ui_context_create(gfx_renderer_t*);
+function void ui_context_release(ui_context_t*);
+function void ui_begin_frame(ui_context_t*);
+function void ui_end_frame(ui_context_t*);
 
 // widgets
 
@@ -690,6 +706,7 @@ function void ui_frame_list_push(arena_t*, ui_frame_list_t*, ui_frame_t*);
 function void ui_auto_pop_stacks();
 ui_stack_func(parent, ui_frame_t*)
 ui_stack_func(flags, ui_frame_flags)
+ui_stack_func(seed_key, ui_key_t)
 ui_stack_func(fixed_x, f32)
 ui_stack_func(fixed_y, f32)
 ui_stack_func(fixed_width, f32)
@@ -714,5 +731,8 @@ ui_stack_func(focus_active, ui_focus_type)
 function void ui_push_rounding(f32);
 function void ui_pop_rounding();
 function void ui_set_next_rounding(f32);
+
+
+
 
 #endif // UI_H
