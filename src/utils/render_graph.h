@@ -3,6 +3,8 @@
 #ifndef RENDER_GRAPH_H
 #define RENDER_GRAPH_H
 
+struct render_graph_t;
+struct render_pass_t;
 
 // structs
 
@@ -16,6 +18,8 @@ struct render_pass_data_t {
 	render_target_t* target_first;
 	render_target_t* target_last;
 	u32 target_count;
+	render_pass_t* pass;
+	render_graph_t* graph;
 };
 
 struct render_graph_t;

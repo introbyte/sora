@@ -577,6 +577,23 @@ gfx_renderer_end(gfx_renderer_t* renderer) {
 	gfx_state.renderer_active = nullptr;
 }
 
+function void
+gfx_renderer_blit(gfx_renderer_t* renderer, gfx_texture_t* texture) {
+
+	if (texture->desc.format == gfx_texture_format_rgba8 &&
+		texture->desc.size.x == renderer->resolution.x &&
+		texture->desc.size.y == renderer->resolution.y) {
+
+		// resolve if higher sample count
+		if (texture->desc.sample_count > 1) {
+			gfx_state.device_context->ResolveSubresource(renderer->framebuffer, 0, texture->id, 0, _texture_format_to_dxgi_format(gfx_texture_format_rgba8));
+		} else {
+			gfx_state.device_context->CopyResource(renderer->framebuffer, texture->id);
+		}
+	}
+
+}
+
 
 // buffer
 function gfx_buffer_t* 

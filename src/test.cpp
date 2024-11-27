@@ -29,8 +29,24 @@ global gfx_renderer_t* renderer;
 global ui_context_t* ui;
 global arena_t* scratch;
 global b8 quit = false;
+global render_graph_t* render_graph;
 
 // functions
+
+function void 
+ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
+
+	gfx_set_render_target(out->target_first->gfx_render_target);
+	ui_begin_frame(ui);
+
+	ui_push_pref_width(ui_size_pixel(300.0f, 1.0f));
+	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+	ui_labelf("Hello, World!");
+
+	ui_end_frame(ui);
+	gfx_set_render_target();
+
+}
 
 function void
 app_init() {
@@ -39,15 +55,22 @@ app_init() {
 	window = os_window_open(str("app"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x000000ff));
 	ui = ui_context_create(renderer);
-
 	scratch = arena_create(megabytes(8));
 
+
+	// build render graph
+	render_graph = render_graph_create(renderer);
+	render_pass_t* pass = render_graph_add_pass(render_graph, str("ui_pass"), ui_pass);
+	render_pass_add_target(pass, gfx_texture_format_rgba8);
+	render_graph_pass_connect(pass, render_graph->output_pass);
+	render_graph_build(render_graph);
 }
 
 function void
 app_release() {
 	
 	// release renderer and window
+	render_graph_release(render_graph);
 	ui_context_release(ui);
 	gfx_renderer_release(renderer);
 	os_window_close(window);
@@ -69,11 +92,9 @@ app_update() {
 	// render
 	gfx_renderer_begin(renderer);
 	draw_begin(renderer);
-	ui_begin_frame(ui);
 
+	render_graph_execute(render_graph);
 
-
-	ui_end_frame(ui);
 	draw_end(renderer);
 	gfx_renderer_end(renderer);
 
