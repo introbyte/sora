@@ -119,7 +119,7 @@ draw_init() {
 	draw_default_init(softness, 0.33f);
 
 	draw_default_init(font, draw_state.font);
-	draw_default_init(font_size, 12.0f);
+	draw_default_init(font_size, 9.0f);
 
 }
 

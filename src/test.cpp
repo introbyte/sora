@@ -17,9 +17,16 @@
 #include "engine/draw.cpp"
 #include "engine/ui.cpp"
 
+#include "utils/camera.h"
+#include "utils/render_graph.h"
+
+#include "utils/camera.cpp"
+#include "utils/render_graph.cpp"
+
 // globals
 global os_window_t* window;
 global gfx_renderer_t* renderer;
+global ui_context_t* ui;
 global arena_t* scratch;
 global b8 quit = false;
 
@@ -31,14 +38,17 @@ app_init() {
 	// open window and create renderer
 	window = os_window_open(str("app"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x000000ff));
+	ui = ui_context_create(renderer);
 
 	scratch = arena_create(megabytes(8));
+
 }
 
 function void
 app_release() {
 	
 	// release renderer and window
+	ui_context_release(ui);
 	gfx_renderer_release(renderer);
 	os_window_close(window);
 
@@ -59,20 +69,11 @@ app_update() {
 	// render
 	gfx_renderer_begin(renderer);
 	draw_begin(renderer);
-	ui_begin_frame(renderer);
+	ui_begin_frame(ui);
 
-	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
-	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-	persist char buffer[512];
-	persist u32 buffer_size = 0;
-	ui_text_edit(str("text_edit"), buffer, 512, &buffer_size);
 
-	if (os_key_press(window, os_key_enter)) {
-		
-	}
-
-	ui_end_frame();
+	ui_end_frame(ui);
 	draw_end(renderer);
 	gfx_renderer_end(renderer);
 
@@ -90,6 +91,7 @@ app_entry_point(i32 argc, char** argv) {
 	font_init();
 	draw_init();
 	ui_init();
+	render_init();
 
 	// init
 	app_init();
@@ -100,6 +102,7 @@ app_entry_point(i32 argc, char** argv) {
 		// update layers
 		os_update();
 		gfx_update();
+		ui_update();
 
 		// update app
 		app_update();
@@ -114,6 +117,7 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	render_release();
 	ui_release();
 	draw_release();
 	font_release();

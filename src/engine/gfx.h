@@ -138,8 +138,6 @@ typedef u32 gfx_render_target_flags;
 enum {
 	_gfx_render_target_flag_null = 0,
 	gfx_render_target_flag_fixed_size = (1 << 0),
-	gfx_render_target_flag_no_depth = (1 << 1),
-	gfx_render_target_flag_no_color = (1 << 2),
 };
 
 // structs
@@ -184,8 +182,7 @@ struct gfx_render_target_desc_t {
 	uvec2_t size;
 	u32 sample_count;
 	gfx_render_target_flags flags;
-	gfx_texture_format colorbuffer_format;
-	gfx_texture_format depthbuffer_format;
+	gfx_texture_format format;
 };
 struct gfx_render_target_t; // defined in backends.
 
@@ -262,9 +259,10 @@ function void gfx_shader_compile(gfx_shader_t*, str_t);
 
 // render target
 function gfx_render_target_t* gfx_render_target_create_ex(gfx_render_target_desc_t);
-function gfx_render_target_t* gfx_render_target_create(uvec2_t, gfx_render_target_flags = 0, gfx_texture_format = gfx_texture_format_rgba8, gfx_texture_format = gfx_texture_format_d32);
+function gfx_render_target_t* gfx_render_target_create(gfx_texture_format, uvec2_t, u32, gfx_render_target_flags);
+function void gfx_render_target_release(gfx_render_target_t*);
 function void gfx_render_target_resize(gfx_render_target_t*, uvec2_t);
-function void _gfx_render_target_create_resources(gfx_render_target_t*);
+function void gfx_render_target_create_resources(gfx_render_target_t*);
 
 // helper functions
 function b8 _texture_format_is_depth(gfx_texture_format);

@@ -213,6 +213,7 @@ function void os_update();
 function b8 os_any_window_exist();
 function void os_abort(u32);
 function u64 os_time_microseconds();
+function void os_sleep(u32);
 
 function void os_set_cursor(os_cursor);
 function vec2_t os_get_cursor_pos(os_window_t*);
@@ -241,6 +242,10 @@ function void os_window_maximize(os_window_t*);
 function void os_window_restore(os_window_t*);
 function void os_window_fullscreen(os_window_t*);
 function void os_window_set_title(os_window_t*, str_t);
+
+function b8 os_window_is_maximized(os_window_t*);
+function b8 os_window_is_minimized(os_window_t*);
+function b8 os_window_is_fullscreen(os_window_t*);
 
 // memory
 

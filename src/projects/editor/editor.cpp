@@ -5,199 +5,180 @@
 
 // implementation
 
-// editor state
-
-function void
+function void 
 editor_init() {
 
 	// allocate arenas
-	editor_state.arena = arena_create(gigabytes(1));
-	editor_state.scratch = arena_create(gigabytes(1));
-	editor_state.batch_arena = arena_create(gigabytes(1));
+	editor_state.space_arena = arena_create(megabytes(8));
 
-	// load resources
-	gfx_shader_attribute_t attributes[] = {
-		{"POS", 0, gfx_vertex_format_float2, gfx_vertex_class_per_instance},
-		{"POS", 1, gfx_vertex_format_float2, gfx_vertex_class_per_instance},
-		{"POS", 2, gfx_vertex_format_float2, gfx_vertex_class_per_instance},
-		{"POS", 3, gfx_vertex_format_float2, gfx_vertex_class_per_instance},
-		{"UV", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"COL", 0, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"COL", 1, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"COL", 2, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"COL", 3, gfx_vertex_format_float4, gfx_vertex_class_per_instance},
-		{"TEX", 0, gfx_vertex_format_int, gfx_vertex_class_per_instance},
-	};
-
-	editor_state.shader = gfx_shader_load(str("res/shaders/editor_2d.hlsl"), attributes, 10);
-	editor_state.font = font_open(str("res/fonts/consola.ttf"));
-
-	// create buffers
-	editor_state.instance_buffer = gfx_buffer_create(gfx_buffer_type_vertex, megabytes(8));
-	editor_state.constant_buffer = gfx_buffer_create(gfx_buffer_type_constant, kilobytes(1));
-
-	// create space
-	editor_state.space = space_create();
+	editor_state.space_count = 0;
 }
 
-function void
+function void 
 editor_release() {
 
 	// release arenas
-	arena_release(editor_state.arena);
-	arena_release(editor_state.scratch);
-	arena_release(editor_state.batch_arena);
+	arena_release(editor_state.space_arena);
 
-	space_release(editor_state.space);
 }
 
-function void
+function void 
 editor_update() {
 
-	arena_clear(editor_state.scratch);
-	
+}
+
+// space
+
+function space_t*
+space_create() {
+
+	space_t* space = editor_state.space_free;
+	if (space != nullptr) {
+		stack_pop(editor_state.space_free);
+	} else {
+		space = (space_t*)arena_alloc(editor_state.space_arena, sizeof(space_t));
+	}
+	memset(space, 0, sizeof(space_t));
+
+	// allocate node arena
+	space->node_arena = arena_create(gigabytes(1));
+
+	// add to space list
+	dll_push_back(editor_state.space_first, editor_state.space_last, space);
+	editor_state.space_count++;
+
+	// create root node
+	space->node_root = node_create(space, str("program"), node_type_program);
+
+	return space;
+}
+
+function void
+space_release(space_t* space) {
+
+	// remove from space list
+	dll_remove(editor_state.space_first, editor_state.space_last, space);
+	stack_push(editor_state.space_free, space);
+	editor_state.space_count--;
+
+	// release node arena
+	arena_release(space->node_arena);
+}
+
+function void
+space_render(space_t* space) {
+
+	space->layout_pos = vec2(50.0f, 50.0f);
+
+
+	for (node_t* node = space->node_root; node != 0;) {
+		node_rec_t rec = node_rec_depth_first(node);
+		switch (node->type) {
+
+			case node_type_program: {
+
+				break;
+			}
+
+			case node_type_identifier: {
+				space_push_text(space, node->label);
+				break;
+			}
+
+			case node_type_keyword: {
+				space_push_text(space, node->label);
+				break;
+			}
+
+			case node_type_function_declaration: {
+				space_push_text(space, node->label);
+				space_push_text(space, str("{"));
+				space_push_newline(space);
+				space_push_text(space, str("}"));
+				break;
+			} 
+
+		}
+		node = rec.next;
+	}
 
 }
 
 function void
-editor_render(gfx_renderer_t* renderer) {
-	
+space_push_text(space_t* space, str_t text) {
+	draw_text(text, space->layout_pos);
+	space->layout_pos.x += font_text_get_width(draw_state.font, 12.0f, text) + 12.0f;
+}
 
-	// render space
-	space_t* space = editor_state.space;
-	vec2_t pos = vec2(5.0f, 50.0f);
-	u32 token_count = 0;
-	for (line_t* line = space->first; line != 0; line = line->next) {
-
-		for (token_t* token = line->first; token != 0; token = token->next) {
-
-			str_t token_string = str((char*)token->label, token->label_size);
-			f32 token_string_width = font_text_get_width(editor_state.font, 12.0f, token_string);
-
-			editor_push_text(token_string, pos, color(1.0f, 1.0f, 1.0f, 1.0f));
-
-			pos.x += token_string_width + 12.0f;
-			token_count++;
-		}
-
-		pos.y += 20.0f;
-	}
-
-
-
-	// render stats
-	str_t line_count_label = str_format(editor_state.scratch, "line_count: %u", space->count);
-	editor_push_text(line_count_label, vec2(5.0f, 5.0f), color(1.0f, 1.0f, 1.0f, 1.0f));
-	
-	str_t token_count_label = str_format(editor_state.scratch, "token_count: %u", token_count);
-	editor_push_text(token_count_label, vec2(5.0f, 25.0f), color(1.0f, 1.0f, 1.0f, 1.0f));
-
-	// update constant buffer
-	editor_state.constants.window_size = vec2((f32)renderer->resolution.x, (f32)renderer->resolution.y);
-	gfx_buffer_fill(editor_state.constant_buffer, &editor_state.constants, sizeof(editor_constants_t));
-
-	gfx_pipeline_t pipeline = gfx_pipeline_create();
-	pipeline.topology = gfx_topology_tri_strip;
-	pipeline.depth_mode = gfx_depth_none;
-	gfx_set_pipeline(pipeline);
-	gfx_set_texture(font_state.atlas_texture);
-	gfx_set_shader(editor_state.shader);
-	gfx_set_buffer(editor_state.constant_buffer);
-
-	for (editor_batch_t* batch = editor_state.batch_first; batch != nullptr; batch = batch->next) {
-
-		// load instance buffer
-		gfx_buffer_fill(editor_state.instance_buffer, batch->data, batch->instance_count * batch->instance_size);
-		gfx_set_buffer(editor_state.instance_buffer, 0, batch->instance_size);
-
-		gfx_draw_instanced(4, batch->instance_count);
-		
-	}
-
-	// clear batches
-	arena_clear(editor_state.batch_arena);
-	editor_state.batch_first = nullptr;
-	editor_state.batch_last = nullptr;
-
+function void
+space_push_newline(space_t* space) {
+	space->layout_pos.x = 50.0f;
+	space->layout_pos.y += 20.0f;
 }
 
 
-function editor_batch_t* 
-editor_get_batch(u32 count = 1) {
 
-	editor_batch_t* batch = nullptr;
+// nodes
 
-	for (editor_batch_t* b = editor_state.batch_first; b != 0; b = b->next) {
-		b8 batch_has_space = ((b->instance_count + count) * sizeof(editor_instance_t)) <= megabytes(8);
-		if (batch_has_space) {
-			batch = b;
+function node_t* 
+node_create(space_t* space, str_t label, node_type type, node_flags flags) {
+
+	node_t* node = space->node_free;
+	if (node != nullptr) {
+		stack_pop(space->node_free);
+	} else {
+		node = (node_t*)arena_alloc(space->node_arena, sizeof(node_t));
+	}
+	memset(node, 0, sizeof(node_t));
+
+	node->type = type;
+	node->flags = flags;
+	node->label = label;
+
+	return node;
+}
+
+function void 
+node_release(space_t* space, node_t* node) {
+
+	// remove from parent if needed
+	if (node->parent != nullptr) {
+		dll_remove(node->parent->first, node->parent->last, node);
+	}
+
+	stack_push(space->node_free, node);
+}
+
+function void 
+node_insert(node_t* parent, node_t* node, node_t* prev) {
+	if (prev == nullptr) {
+		dll_push_back(parent->first, parent->last, node);
+	} else {
+		dll_insert(parent->first, parent->last, prev, node);
+	}
+	node->parent = parent;
+}
+
+function void
+node_remove(node_t* parent, node_t* node) {
+	dll_remove(parent->first, parent->last, node);
+	node->parent = nullptr;
+}
+
+function node_rec_t 
+node_rec_depth_first(node_t* node) {
+	node_rec_t rec = { 0 };
+	if (node->first != 0) {
+		rec.next = node->first;
+		rec.push_count++;
+	} else for (node_t* n = node; n != 0; n = n->parent) {
+		if (n->next != 0) {
+			rec.next = n->next;
 			break;
 		}
+		rec.pop_count++;
 	}
-
-	if (batch == nullptr) {
-
-		batch = (editor_batch_t*)arena_alloc(editor_state.batch_arena, sizeof(editor_batch_t));
-		
-		batch->instance_size = sizeof(editor_instance_t);
-		batch->instance_count = 0;
-		batch->data = (u8*)arena_alloc(editor_state.batch_arena, megabytes(8));
-
-		dll_push_back(editor_state.batch_first, editor_state.batch_last, batch);
-	}
-
-	return batch;
-}
-
-function void 
-editor_push_quad(rect_t rect, color_t color) {
-	editor_push_quad(vec2(rect.x1, rect.y0), vec2(rect.x1, rect.y1), vec2(rect.x0, rect.y1), vec2(rect.x0, rect.y0), color.vec, color.vec, color.vec, color.vec);
-}
-
-function void 
-editor_push_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3, vec4_t c0, vec4_t c1, vec4_t c2, vec4_t c3) {
-
-	editor_batch_t* batch = editor_get_batch();
-	editor_instance_t* instance = &((editor_instance_t*)batch->data)[batch->instance_count++];
-	
-	instance->p0 = p0;
-	instance->p1 = p1;
-	instance->p2 = p2;
-	instance->p3 = p3;
-	instance->uv = rect(0.0f, 0.0f, 0.0f, 0.0f);
-	instance->color0 = c0;
-	instance->color1 = c1;
-	instance->color2 = c2;
-	instance->color3 = c3;
-	instance->omit_texture = 1;
-
-}
-
-function void 
-editor_push_text(str_t text, vec2_t pos, color_t color) {
-
-	editor_batch_t* batch = editor_get_batch(text.size);
-
-	for (u32 i = 0; i < text.size; i++) {
-		editor_instance_t* instance = &((editor_instance_t*)batch->data)[batch->instance_count++];
-
-		u8 codepoint = *(text.data + i);
-		font_glyph_t* glyph = font_get_glyph(editor_state.font, 12.0f, codepoint);
-
-		instance->p0 = vec2(pos.x, pos.y + glyph->pos.y1);
-		instance->p1 = vec2(pos.x + glyph->pos.x1, pos.y + glyph->pos.y1);
-		instance->p2 = vec2(pos.x, pos.y);
-		instance->p3 = vec2(pos.x + glyph->pos.x1, pos.y);
-		instance->uv = glyph->uv;
-		instance->color0 = color.vec;
-		instance->color1 = color.vec;
-		instance->color2 = color.vec;
-		instance->color3 = color.vec;
-		instance->omit_texture = 0;
-
-		pos.x += glyph->advance;
-	}
-
+	return rec;
 }
 
 #endif // EDITOR_CPP

@@ -62,6 +62,7 @@ struct gfx_render_target_t {
 
 	uvec2_t size;
 	u32 sample_count;
+	gfx_render_target_flags flags;
 	gfx_texture_t* texture;
 	gfx_texture_format format;
 	union {

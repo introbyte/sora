@@ -523,6 +523,13 @@ ui_end_frame(ui_context_t* context) {
 
 // widgets
 
+function void
+ui_spacer() {
+	ui_frame_t* parent = ui_top_parent();
+	ui_set_next_layout_axis(parent->layout_axis);
+	ui_frame_t* frame = ui_frame_from_key({0}, 0);
+}
+
 function ui_interaction 
 ui_button(str_t label) {
 
@@ -2616,6 +2623,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 					context->active_frame_key[event->mouse] = frame->key;
 					context->focused_frame_key = frame->key;
 					result |= ui_interaction_left_pressed << event->mouse;
+
 
 					// double and triple clicks
 					if (ui_state.click_counter[event->mouse] >= 2) {

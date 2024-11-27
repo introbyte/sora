@@ -128,6 +128,11 @@ os_time_microseconds() {
 }
 
 function void
+os_sleep(u32 msec) {
+	Sleep(msec);
+}
+
+function void
 os_set_cursor(os_cursor cursor) {
 	if (cursor == os_cursor_null) {
 		ShowCursor(false);
@@ -152,6 +157,7 @@ os_set_cursor_pos(os_window_t* window, vec2_t pos) {
 	ClientToScreen(window->handle, &p);
 	SetCursorPos(p.x, p.y);
 }
+
 
 // event functions
 
@@ -402,6 +408,27 @@ function u32
 os_window_get_dpi(os_window_t* window) {
 	return GetDpiForWindow(window->handle);
 }
+
+
+function b8 
+os_window_is_maximized(os_window_t* window) {
+	b8 result = (IsZoomed(window->handle));
+	return result;
+}
+
+function b8 
+os_window_is_minimized(os_window_t* window) {
+	b8 result = (IsIconic(window->handle));
+	return result;
+}
+
+function b8
+os_window_is_fullscreen(os_window_t* window) {
+	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
+	return !(window_style & WS_OVERLAPPEDWINDOW);
+}
+
+
 
 // memory functions
 
