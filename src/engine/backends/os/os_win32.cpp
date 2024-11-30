@@ -336,10 +336,10 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	ShowWindow(window->handle, SW_SHOW);
 
 	// borderless
+	window->borderless = flags & os_window_flag_borderless;
 	BOOL enabled = 0;
 	DwmIsCompositionEnabled(&enabled);
-	window->custom_border_composition_enabled = enabled;
-	
+	window->composition_enabled = enabled;
 
 	// fill stuct
 	window->flags = flags;
@@ -719,16 +719,16 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		//}
 
 		case WM_NCACTIVATE: {
-			if (window != nullptr && window->flags & os_window_flag_borderless) {
-				result = DefWindowProcA(handle, msg, wparam, -1);
-			} else {
+			if (!os_new_borderless_window && (window == nullptr || window->borderless == 0)) {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, -1);
 			}
 			break;
 		}
 
 		case WM_NCCALCSIZE: {
-			if (window != nullptr && window->flags & os_window_flag_borderless) {
+			if (os_new_borderless_window || (window != nullptr && window->borderless)) {
 				f32 dpi = (f32)GetDpiForWindow(handle);
 				i32 frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
 				i32 frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
@@ -831,7 +831,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 
 		case WM_NCPAINT: {
-			if ((window != nullptr && window->flags & os_window_flag_borderless)) {
+			if (os_new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
 				result = 0;
 			} else {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -840,10 +840,10 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_DWMCOMPOSITIONCHANGED: {
-			if ((window != nullptr && window->flags & os_window_flag_borderless)) {
+			if ((window != nullptr && window->borderless)) {
 				BOOL enabled = 0;
 				DwmIsCompositionEnabled(&enabled);
-				window->custom_border_composition_enabled = enabled;
+				window->composition_enabled = enabled;
 				if (enabled) {
 					MARGINS m = { 0, 0, 1, 0 };
 					DwmExtendFrameIntoClientArea(handle, &m);
@@ -863,7 +863,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_NCUAHDRAWCAPTION:
 		case WM_NCUAHDRAWFRAME: {
-			if (os_new_borderless_window || (window != nullptr && window->flags & os_window_flag_borderless)) {
+			if (os_new_borderless_window || (window != nullptr && window->borderless)) {
 				result = 0;
 			} else {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -873,7 +873,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_SETICON:
 		case WM_SETTEXT: {
-			if (window != nullptr && window->flags & os_window_flag_borderless) {
+			if (os_new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
 				LONG_PTR old_style = GetWindowLongPtrW(handle, GWL_STYLE);
 				SetWindowLongPtrW(handle, GWL_STYLE, old_style & ~WS_VISIBLE);
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -906,17 +906,8 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			break;
 		}
 
-		case WM_MOUSEMOVE: {
-			//f32 mouse_x = (f32)LOWORD(lparam);
-			//f32 mouse_y = (f32)HIWORD(lparam);
-			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
-			event->type = os_event_type_mouse_move;
-			//event->position = { mouse_x, mouse_y };
-			break;
-		}
 
-		case WM_SYSCHAR:
+		//case WM_SYSCHAR:
 		case WM_CHAR: {
 			u32 key = (u32)wparam;
 
@@ -929,6 +920,18 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				event->character = key;
 			}
 
+			break;
+		}
+
+		// mouse input
+
+		case WM_MOUSEMOVE: {
+			//f32 mouse_x = (f32)LOWORD(lparam);
+			//f32 mouse_y = (f32)HIWORD(lparam);
+			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
+			event->window = window;
+			event->type = os_event_type_mouse_move;
+			//event->position = { mouse_x, mouse_y };
 			break;
 		}
 

@@ -34,7 +34,8 @@ struct os_window_t {
 	// sizing
 	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
-	b8 custom_border_composition_enabled;
+	b8 borderless;
+	b8 composition_enabled;
 
 
 	// time
