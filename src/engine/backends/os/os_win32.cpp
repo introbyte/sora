@@ -318,7 +318,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	dll_push_back(os_state.first_window, os_state.last_window, window);
 
 	// adjust window size
-	DWORD style = WS_OVERLAPPEDWINDOW;
+	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
 	
 	RECT rect = { 0, 0, width, height };
 	AdjustWindowRect(&rect, style, FALSE);
@@ -326,12 +326,20 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	i32 adjusted_height = rect.bottom - rect.top;
 
 	// open window
-	window->handle = CreateWindowExA(0, "sora_window_class", (char*)title.data,
+	os_new_borderless_window = !!(flags & os_window_flag_borderless);
+	window->handle = CreateWindowExA(WS_EX_APPWINDOW, "sora_window_class", (char*)title.data,
 		style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
 		nullptr, nullptr, GetModuleHandle(NULL), nullptr);
-	window->hdc = GetDC(window->handle);
+	os_new_borderless_window = false;
+	//window->hdc = GetDC(window->handle);
 	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
 	ShowWindow(window->handle, SW_SHOW);
+
+	// borderless
+	BOOL enabled = 0;
+	DwmIsCompositionEnabled(&enabled);
+	window->custom_border_composition_enabled = enabled;
+	
 
 	// fill stuct
 	window->flags = flags;
@@ -352,7 +360,7 @@ function void
 os_window_close(os_window_t* window) {
 	dll_remove(os_state.first_window, os_state.last_window, window);
 	stack_push(os_state.free_window, window);
-	if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
+	//if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
 	if (window->handle) { DestroyWindow(window->handle); }
 }
 
@@ -668,6 +676,8 @@ os_win32_thread_entry_point(void* params) {
 
 // window procedure
 
+function void app_update();
+
 LRESULT CALLBACK
 window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
@@ -678,26 +688,199 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch (msg) {
 
 		case WM_CLOSE: {
-
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_window_close;
-			
 			break;
 		}
 
-		case WM_SIZE: {
-			if (window != nullptr) {
-				UINT width = LOWORD(lparam);
-				UINT height = HIWORD(lparam);
-				window->resolution = uvec2(width, height);
+		case WM_SIZE:
+		case WM_PAINT: {
+			PAINTSTRUCT ps = { 0 };
+			BeginPaint(handle, &ps);
+			// TODO: come up with a good api for this
+			EndPaint(handle, &ps);
+			break;
+		}
 
-				event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-				event->window = window;
-				event->type = os_event_type_window_resize;
+		//case WM_SIZE: {
+		//	if (window != nullptr) {
+		//		UINT width = LOWORD(lparam);
+		//		UINT height = HIWORD(lparam);
+		//		window->resolution = uvec2(width, height);
 
+		//		event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
+		//		event->window = window;
+		//		event->type = os_event_type_window_resize;
+
+		//	}
+		//	result = DefWindowProcA(handle, msg, wparam, lparam);
+		//	break;
+		//}
+
+		case WM_NCACTIVATE: {
+			if (window != nullptr && window->flags & os_window_flag_borderless) {
+				result = DefWindowProcA(handle, msg, wparam, -1);
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
 			}
-			result = DefWindowProcA(handle, msg, wparam, lparam);
+			break;
+		}
+
+		case WM_NCCALCSIZE: {
+			if (window != nullptr && window->flags & os_window_flag_borderless) {
+				f32 dpi = (f32)GetDpiForWindow(handle);
+				i32 frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
+				i32 frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+				i32 padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+				if (wparam) {
+					NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lparam;
+					RECT* rect = params->rgrc;
+					rect->right -= frame_x + padding;
+					rect->left += frame_x + padding;
+					rect->bottom -= frame_y + padding;
+					if (IsZoomed(handle)) {
+						rect->top += frame_y + padding;
+						rect->bottom -= 1;
+					}
+				} else {
+					RECT* rect = (RECT*)lparam;
+					rect->right -= frame_x + padding;
+					rect->left += frame_x + padding;
+					rect->bottom -= frame_y + padding;
+				}
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
+			break;
+		}
+
+		case WM_NCHITTEST: {
+			DWORD window_style = window ? GetWindowLong(window->handle, GWL_STYLE) : 0;
+			b8 is_fullscreen = !(window_style & WS_OVERLAPPEDWINDOW);
+			if (window == nullptr || is_fullscreen) {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			} else {
+				b8 is_default_handled = 0;
+
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+				switch (result) {
+					case HTNOWHERE:
+					case HTRIGHT:
+					case HTLEFT:
+					case HTTOPLEFT:
+					case HTTOPRIGHT:
+					case HTBOTTOMRIGHT:
+					case HTBOTTOM:
+					case HTBOTTOMLEFT: {
+						is_default_handled = 1;
+						break;
+					}
+				}
+
+				if (!is_default_handled) {
+					POINT pos_monitor;
+					pos_monitor.x = LOWORD(lparam);
+					pos_monitor.y = HIWORD(lparam);
+					POINT pos_client = pos_monitor;
+					ScreenToClient(handle, &pos_client);
+
+					f32 dpi = (f32)GetDpiForWindow(handle);
+					i32 frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+					i32 padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+
+					b8 is_over_top_resize = pos_client.y >= 0 && pos_client.y < frame_y + padding;
+					b8 is_over_title_bar = pos_client.y >= 0 && pos_client.y < 7;
+
+					b8 is_over_title_bar_client_area = 0;
+					//for (OS_W32_TitleBarClientArea* area = window->first_title_bar_client_area;
+					//	area != 0;
+					//	area = area->next) {
+					//	Rng2F32 rect = area->rect;
+					//	if (rect.x0 <= pos_client.x && pos_client.x < rect.x1 &&
+					//		rect.y0 <= pos_client.y && pos_client.y < rect.y1)
+					//	{
+					//		is_over_title_bar_client_area = 1;
+					//		break;
+					//	}
+					//}
+
+					if (IsZoomed(handle)) {
+						if (is_over_title_bar_client_area) {
+							result = HTCLIENT;
+						} else if (is_over_title_bar) {
+							result = HTCAPTION;
+						} else {
+							result = HTCLIENT;
+						}
+					} else {
+						if (is_over_title_bar_client_area) {
+							result = HTCLIENT;
+						} else if (is_over_top_resize) {
+							result = HTTOP;
+						} else if (is_over_title_bar) {
+							result = HTCAPTION;
+						} else {
+							result = HTCLIENT;
+						}
+					}
+				}
+			}
+			break;
+		}
+
+
+		case WM_NCPAINT: {
+			if ((window != nullptr && window->flags & os_window_flag_borderless)) {
+				result = 0;
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
+			break;
+		}
+
+		case WM_DWMCOMPOSITIONCHANGED: {
+			if ((window != nullptr && window->flags & os_window_flag_borderless)) {
+				BOOL enabled = 0;
+				DwmIsCompositionEnabled(&enabled);
+				window->custom_border_composition_enabled = enabled;
+				if (enabled) {
+					MARGINS m = { 0, 0, 1, 0 };
+					DwmExtendFrameIntoClientArea(handle, &m);
+					DWORD dwmncrp_enabled = DWMNCRP_ENABLED;
+					DwmSetWindowAttribute(handle, DWMWA_NCRENDERING_POLICY, &enabled, sizeof(dwmncrp_enabled));
+				}
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
+			break;
+		}
+
+		case WM_WINDOWPOSCHANGED: {
+			result = 0;
+			break;
+		}
+
+		case WM_NCUAHDRAWCAPTION:
+		case WM_NCUAHDRAWFRAME: {
+			if (os_new_borderless_window || (window != nullptr && window->flags & os_window_flag_borderless)) {
+				result = 0;
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
+			break;
+		}
+
+		case WM_SETICON:
+		case WM_SETTEXT: {
+			if (window != nullptr && window->flags & os_window_flag_borderless) {
+				LONG_PTR old_style = GetWindowLongPtrW(handle, GWL_STYLE);
+				SetWindowLongPtrW(handle, GWL_STYLE, old_style & ~WS_VISIBLE);
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+				SetWindowLongPtrW(handle, GWL_STYLE, old_style);
+			} else {
+				result = DefWindowProcA(handle, msg, wparam, lparam);
+			}
 			break;
 		}
 

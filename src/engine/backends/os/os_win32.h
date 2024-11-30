@@ -26,7 +26,7 @@ struct os_window_t {
 
 	// win32
 	HWND handle;
-	HDC hdc;
+	//HDC hdc;
 
 	// info
 	str_t title;
@@ -34,6 +34,8 @@ struct os_window_t {
 	// sizing
 	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
+	b8 custom_border_composition_enabled;
+
 
 	// time
 	LARGE_INTEGER tick_current;
@@ -100,6 +102,7 @@ struct os_state_t {
 // global
 
 global os_state_t os_state;
+global b8 os_new_borderless_window = false;
 
 // functions
 
