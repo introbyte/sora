@@ -169,6 +169,12 @@ enum {
 
 // structs
 
+struct os_title_bar_client_area_t {
+	os_title_bar_client_area_t* next;
+	os_title_bar_client_area_t* prev;
+	rect_t area;
+};
+
 struct os_window_t; // defined in backends.
 
 struct os_event_t {
@@ -246,6 +252,9 @@ function void os_window_set_title(os_window_t*, str_t);
 function b8 os_window_is_maximized(os_window_t*);
 function b8 os_window_is_minimized(os_window_t*);
 function b8 os_window_is_fullscreen(os_window_t*);
+
+function void os_window_clear_title_bar_client_area(os_window_t*);
+function void os_window_add_title_bar_client_area(os_window_t*, rect_t);
 
 // memory
 

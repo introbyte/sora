@@ -104,6 +104,10 @@ os_update() {
 		QueryPerformanceCounter(&window->tick_current);
 		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
 		window->elasped_time += window->delta_time;
+
+
+		window->maximized = IsZoomed(window->handle);
+	
 	}
 
 }
@@ -158,6 +162,22 @@ os_set_cursor_pos(os_window_t* window, vec2_t pos) {
 	SetCursorPos(p.x, p.y);
 }
 
+function color_t
+os_system_accent_color() {
+
+	DWORD accent_color = 0;
+	BOOL is_opaque = FALSE;
+
+	HRESULT hr = DwmGetColorizationColor(&accent_color, &is_opaque);
+
+	BYTE alpha = (BYTE)((accent_color >> 24) & 0xFF);
+	BYTE red = (BYTE)((accent_color >> 16) & 0xFF);
+	BYTE green = (BYTE)((accent_color >> 8) & 0xFF);
+	BYTE blue = (BYTE)(accent_color & 0xFF);
+
+	return color(red / 255.0f, green / 255.0f, blue / 255.0f, 1.0f);
+
+}
 
 // event functions
 
@@ -317,6 +337,8 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	memset(window, 0, sizeof(os_window_t));
 	dll_push_back(os_state.first_window, os_state.last_window, window);
 
+	window->title_bar_arena = arena_create(megabytes(8));
+
 	// adjust window size
 	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
 	
@@ -361,6 +383,7 @@ os_window_close(os_window_t* window) {
 	dll_remove(os_state.first_window, os_state.last_window, window);
 	stack_push(os_state.free_window, window);
 	//if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
+	arena_release(window->title_bar_arena);
 	if (window->handle) { DestroyWindow(window->handle); }
 }
 
@@ -436,7 +459,18 @@ os_window_is_fullscreen(os_window_t* window) {
 	return !(window_style & WS_OVERLAPPEDWINDOW);
 }
 
+function void 
+os_window_clear_title_bar_client_area(os_window_t* window) {
+	arena_clear(window->title_bar_arena);
+	window->title_bar_client_area_first = window->title_bar_client_area_last = nullptr;
+}
 
+function void
+os_window_add_title_bar_client_area(os_window_t* window, rect_t area) {
+	os_title_bar_client_area_t* title_bar_client_area = (os_title_bar_client_area_t*)arena_alloc(window->title_bar_arena, sizeof(os_title_bar_client_area_t));
+	title_bar_client_area->area = area;
+	dll_push_back(window->title_bar_client_area_first, window->title_bar_client_area_last, title_bar_client_area);
+}
 
 // memory functions
 
@@ -676,7 +710,7 @@ os_win32_thread_entry_point(void* params) {
 
 // window procedure
 
-function void app_update();
+function void app_frame();
 
 LRESULT CALLBACK
 window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -696,27 +730,17 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_SIZE:
 		case WM_PAINT: {
-			PAINTSTRUCT ps = { 0 };
-			BeginPaint(handle, &ps);
-			// TODO: come up with a good api for this
-			EndPaint(handle, &ps);
+			if (window != nullptr) {
+				UINT width = LOWORD(lparam);
+				UINT height = HIWORD(lparam);
+				window->resolution = uvec2(width, height);
+				PAINTSTRUCT ps = { 0 };
+				BeginPaint(handle, &ps);
+				app_frame();
+				EndPaint(handle, &ps);
+			}
 			break;
 		}
-
-		//case WM_SIZE: {
-		//	if (window != nullptr) {
-		//		UINT width = LOWORD(lparam);
-		//		UINT height = HIWORD(lparam);
-		//		window->resolution = uvec2(width, height);
-
-		//		event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-		//		event->window = window;
-		//		event->type = os_event_type_window_resize;
-
-		//	}
-		//	result = DefWindowProcA(handle, msg, wparam, lparam);
-		//	break;
-		//}
 
 		case WM_NCACTIVATE: {
 			if (!os_new_borderless_window && (window == nullptr || window->borderless == 0)) {
@@ -790,20 +814,14 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 					i32 padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
 
 					b8 is_over_top_resize = pos_client.y >= 0 && pos_client.y < frame_y + padding;
-					b8 is_over_title_bar = pos_client.y >= 0 && pos_client.y < 7;
+					b8 is_over_title_bar = pos_client.y >= 0 && pos_client.y < 30;
 
 					b8 is_over_title_bar_client_area = 0;
-					//for (OS_W32_TitleBarClientArea* area = window->first_title_bar_client_area;
-					//	area != 0;
-					//	area = area->next) {
-					//	Rng2F32 rect = area->rect;
-					//	if (rect.x0 <= pos_client.x && pos_client.x < rect.x1 &&
-					//		rect.y0 <= pos_client.y && pos_client.y < rect.y1)
-					//	{
-					//		is_over_title_bar_client_area = 1;
-					//		break;
-					//	}
-					//}
+					for (os_title_bar_client_area_t* area = window->title_bar_client_area_first; area != 0; area = area->next) {
+						if (rect_contains(area->area, vec2(pos_client.x, pos_client.y))) {
+							is_over_title_bar_client_area = 1;
+						}
+					}
 
 					if (IsZoomed(handle)) {
 						if (is_over_title_bar_client_area) {
@@ -856,7 +874,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			break;
 		}
 
-		case WM_WINDOWPOSCHANGED: {
+		case WM_WINDOWPOSCHANGED: { 
 			result = 0;
 			break;
 		}

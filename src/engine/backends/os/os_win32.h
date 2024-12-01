@@ -36,7 +36,12 @@ struct os_window_t {
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
 	b8 borderless;
 	b8 composition_enabled;
+	b8 maximized;
 
+	// custom title bar client area
+	arena_t* title_bar_arena;
+	os_title_bar_client_area_t* title_bar_client_area_first;
+	os_title_bar_client_area_t* title_bar_client_area_last;
 
 	// time
 	LARGE_INTEGER tick_current;

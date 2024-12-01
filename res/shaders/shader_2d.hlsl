@@ -294,7 +294,8 @@ float4 ps_main(ps_in input) : SV_TARGET {
             float quad_s = sdf_quad(sample_pos, input.point0, input.point1, input.point2, input.point3);
             float quad_t = 1.0f - smoothstep(0.0f, 2.0f * softness, quad_s);
             
-            sdf_color = input.color0;
+            
+            sdf_color = blend_color(input.color0, input.color1, input.color2, input.color3, input.col_coord);
             sdf_color.a *= quad_t;
             
             break;

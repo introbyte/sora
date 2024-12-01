@@ -28,7 +28,7 @@ font_init() {
 	f32 gamma = font_state.rendering_params->GetGamma();
 	f32 enhanced_contrast = font_state.rendering_params->GetEnhancedContrast();
 	f32 clear_type_level = font_state.rendering_params->GetClearTypeLevel();
-	hr = font_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_NATURAL, &font_state.rendering_params);
+	hr = font_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_GDI_NATURAL, &font_state.rendering_params);
 	gfx_assert(hr, "failed to create custom dwrite rendering params.");
 
 	// create gdi interop
@@ -174,7 +174,7 @@ font_glyph_raster(arena_t* arena, font_t* font, f32 size, u32 codepoint) {
 
 	RECT bounding_box = { 0 };
 	vec2_t draw_pos = { 1.0f, (f32)atlas_dim_y - descent };
-	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_GDI_CLASSIC, &glyph_run, font_state.rendering_params, RGB(255, 255, 255), &bounding_box);
+	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_GDI_NATURAL, &glyph_run, font_state.rendering_params, RGB(255, 255, 255), &bounding_box);
 
 	// get bitmap
 	DIBSECTION dib = { 0 };
@@ -198,12 +198,11 @@ font_glyph_raster(arena_t* arena, font_t* font, f32 size, u32 codepoint) {
 		u8* in_pixel = in_line;
 		u8* out_pixel = out_line;
 		for (u32 x = 0; x < (u32)raster.size.x; x += 1) {
-			u8 alpha = (in_pixel[0] + in_pixel[1] + in_pixel[2]) / 3;
-
-			out_pixel[0] = in_pixel[0];
-			out_pixel[1] = in_pixel[1];
-			out_pixel[2] = in_pixel[2];
-			out_pixel[3] = alpha;
+			//u8 alpha = (in_pixel[0] + in_pixel[1] + in_pixel[2]) / 3;
+			out_pixel[0] = 255;
+			out_pixel[1] = 255;
+			out_pixel[2] = 255;
+			out_pixel[3] = in_pixel[1];
 			in_pixel += 4;
 			out_pixel += 4;
 		}

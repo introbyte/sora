@@ -280,10 +280,9 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 	instance->bbox = bbox;
 
 	instance->color0 = draw_top_color0().vec;
-	// TODO: get all 4 colors working for quad
-	//instance->color1 = draw_top_color1().vec;
-	//instance->color2 = draw_top_color2().vec;
-	//instance->color3 = draw_top_color3().vec;
+	instance->color1 = draw_top_color1().vec;
+	instance->color2 = draw_top_color2().vec;
+	instance->color3 = draw_top_color3().vec;
 
 	instance->point0 = c_p0;
 	instance->point1 = c_p1;
