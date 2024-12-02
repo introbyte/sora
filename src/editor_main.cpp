@@ -44,7 +44,6 @@ struct app_state_t {
 	app_window_t* window_last;
 	app_window_t* window_free;
 
-
 };
 
 // globals
@@ -156,8 +155,13 @@ app_release() {
 	arena_release(app_state.arena);
 }
 
-function void
-app_update() {
+function void 
+app_frame() {
+
+	// update layers
+	os_update();
+	gfx_update();
+	editor_update();
 
 	// update every window
 	for (app_window_t* window = app_state.window_first, *next = 0; window != 0; window = next) {
@@ -178,20 +182,31 @@ app_update() {
 		}
 
 		// render
-		gfx_renderer_begin(window->gfx_renderer);
-		draw_begin(window->gfx_renderer);
+		if (window->gfx_renderer != nullptr) {
 
-		//space_update(window->space);
+			gfx_renderer_begin(window->gfx_renderer);
+			draw_begin(window->gfx_renderer);
 
-		space_render(window->space);
+			//space_update(window->space);
 
-		draw_end(window->gfx_renderer);
-		gfx_renderer_end(window->gfx_renderer);
+			space_render(window->space);
 
+			draw_end(window->gfx_renderer);
+			gfx_renderer_end(window->gfx_renderer);
+		}
 		// clear scratch arena
 		arena_clear(window->scratch_arena);
 	}
 
+	// get close events
+	os_event_t* close_event = os_event_get(os_event_type_window_close);
+	if (close_event != nullptr) {
+		app_window_t* window = app_window_from_os_window(close_event->window);
+		if (window != nullptr) {
+			app_window_close(window);
+		}
+		os_event_pop(close_event);
+	}
 }
 
 // entry point
@@ -211,24 +226,7 @@ app_entry_point(i32 argc, char** argv) {
 
 	// main loop
 	while (!app_no_active_windows()) {
-
-		// update layers
-		os_update();
-		gfx_update();
-		editor_update();
-
-		// update app
-		app_update();
-		
-		// get close events
-		os_event_t* close_event = os_event_get(os_event_type_window_close);
-		if (close_event != nullptr) {
-			app_window_t* window = app_window_from_os_window(close_event->window);
-			if (window != nullptr) {
-				app_window_close(window);
-			}
-			os_event_pop(close_event);
-		}
+		app_frame();
 	}
 
 	// release

@@ -1,4 +1,4 @@
-// template_single_window.cpp
+// template_window.cpp
 
 // includes
 
@@ -25,13 +25,22 @@ global b8 quit = false;
 
 // functions
 
+function void app_init();
+function void app_release();
+function void app_frame();
+
+// implementation
+
 function void
 app_init() {
 
 	// open window and create renderer
-	window = os_window_open(str("app template"), 1280, 960);
+	window = os_window_open(str("app"), 1280, 960);
 	renderer = gfx_renderer_create(window, color(0x000000ff));
 	ui = ui_context_create(renderer);
+
+	// set frame function
+	os_window_set_frame_function(window, app_frame);
 
 }
 
@@ -46,7 +55,12 @@ app_release() {
 }
 
 function void
-app_update() {
+app_frame() {
+
+	// update layers
+	os_update();
+	gfx_update();
+	ui_update();
 
 	// hotkeys
 	if (os_key_press(window, os_key_F11)) {
@@ -56,33 +70,37 @@ app_update() {
 	if (os_key_press(window, os_key_esc)) {
 		quit = true;
 	}
-	
+
 	// render
-	gfx_renderer_begin(renderer);
-	draw_begin(renderer);
-	ui_begin_frame(ui);
+	if (renderer != nullptr) {
+		gfx_renderer_begin(renderer);
+		draw_begin(renderer);
+		ui_begin_frame(ui);
 
-	ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
-	ui_push_pref_height(ui_size_pixel(26.0f, 1.0f));
-	ui_push_font_size(12.0f);
-	ui_push_text_alignment(ui_text_alignment_center);
-	
-	if (ui_buttonf("button") & ui_interaction_left_clicked) {
-		printf("clicked!\n");
+		ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
+		ui_push_pref_height(ui_size_pixel(26.0f, 1.0f));
+		ui_push_font_size(12.0f);
+		ui_push_text_alignment(ui_text_alignment_center);
+
+		if (ui_buttonf("button") & ui_interaction_left_clicked) {
+			printf("clicked!\n");
+		}
+
+		draw_push_color0(color(1.0f, 0.0f, 0.0f, 1.0f));
+		draw_push_color1(color(0.0f, 1.0f, 0.0f, 1.0f));
+		draw_push_color2(color(0.0f, 0.0f, 1.0f, 1.0f));
+		draw_push_color3(color(1.0f, 1.0f, 1.0f, 1.0f));
+		draw_rect(rect(100.0f, 100.0f, window->resolution.x - 100.0f, window->resolution.y - 100.0f));
+
+		ui_end_frame(ui);
+		draw_end(renderer);
+		gfx_renderer_end(renderer);
 	}
-	
-	
 
-
-	draw_push_color0(color(1.0f, 0.0f, 0.0f, 1.0f));
-	draw_push_color1(color(0.0f, 1.0f, 0.0f, 1.0f));
-	draw_push_color2(color(0.0f, 0.0f, 1.0f, 1.0f));
-	draw_push_color3(color(1.0f, 1.0f, 1.0f, 1.0f));
-	draw_rect(rect(100.0f, 100.0f, window->resolution.x - 100.0f, window->resolution.y - 100.0f));
-
-	ui_end_frame(ui);
-	draw_end(renderer);
-	gfx_renderer_end(renderer);
+	// get close events
+	if (os_event_get(os_event_type_window_close) != 0) {
+		quit = true;
+	}
 }
 
 // entry point
@@ -102,19 +120,7 @@ app_entry_point(i32 argc, char** argv) {
 
 	// main loop
 	while (!quit) {
-
-		// update layers
-		os_update();
-		gfx_update();
-		ui_update();
-
-		// update app
-		app_update();
-		
-		// get close events
-		if (os_event_get(os_event_type_window_close) != 0) {
-			quit = true;
-		}
+		app_frame();
 	}
 
 	// release
@@ -131,15 +137,3 @@ app_entry_point(i32 argc, char** argv) {
 
 	return 0;
 }
-
-// per build entry point
-
-#if defined(BUILD_DEBUG)
-int main(int argc, char** argv) {
-	return app_entry_point(argc, argv);
-}
-#elif defined(BUILD_RELEASE)
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	return app_entry_point(__argc, __argv);
-}
-#endif 

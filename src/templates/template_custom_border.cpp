@@ -1,4 +1,4 @@
-// template_borderless_window.cpp
+// template_custom_border.cpp
 
 // includes
 
@@ -25,6 +25,12 @@ global b8 quit = false;
 
 // functions
 
+function void app_init();
+function void app_release();
+function void app_frame();
+
+// implementation
+
 function void
 app_init() {
 
@@ -32,6 +38,8 @@ app_init() {
 	window = os_window_open(str("borderless"), 640, 480, os_window_flag_borderless);
 	renderer = gfx_renderer_create(window, color(0x121212ff));
 	ui = ui_context_create(renderer);
+
+	os_window_set_frame_function(window, app_frame);
 
 }
 
@@ -47,11 +55,7 @@ app_release() {
 
 function void
 app_frame() {
-
-	if (window == nullptr) {
-		return;
-	}
-
+	
 	// update layers
 	os_update();
 	gfx_update();
@@ -124,11 +128,9 @@ app_frame() {
 			draw_rect(rect(minimize_pos.x - 6.0f, minimize_pos.y, minimize_pos.x + 6.0f, minimize_pos.y + 1.0f));
 
 			// title
-			draw_text(str("borderless"), vec2(7.0f, 7.0f));
+			draw_text(window->title, vec2(7.0f, 7.0f));
 		}
-
-
-
+		
 		draw_end(renderer);
 		gfx_renderer_end(renderer);
 	}
@@ -174,15 +176,3 @@ app_entry_point(i32 argc, char** argv) {
 
 	return 0;
 }
-
-// per build entry point
-
-#if defined(BUILD_DEBUG)
-int main(int argc, char** argv) {
-	return app_entry_point(argc, argv);
-}
-#elif defined(BUILD_RELEASE)
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	return app_entry_point(__argc, __argv);
-}
-#endif 

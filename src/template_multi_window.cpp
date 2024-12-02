@@ -48,6 +48,17 @@ global app_state_t app_state;
 
 // functions
 
+function app_window_t* app_window_open(str_t, u32, u32);
+function void app_window_close(app_window_t*);
+function app_window_t* app_window_from_os_window(os_window_t*);
+function b8 app_no_active_windows();
+
+function void app_init();
+function void app_release();
+function void app_frame();
+
+// implementation
+
 function app_window_t* 
 app_window_open(str_t title, u32 width, u32 height) {
 
@@ -74,6 +85,8 @@ app_window_open(str_t title, u32 width, u32 height) {
 	
 	// create ui
 	window->ui_context = ui_context_create(window->gfx_renderer);
+
+	os_window_set_frame_function(window->os_window, app_frame);
 
 	return window;
 }
@@ -136,8 +149,14 @@ app_release() {
 	arena_release(app_state.arena);
 }
 
-function void
-app_update() {
+
+function void 
+app_frame() {
+
+	// update layers
+	os_update();
+	gfx_update();
+	ui_update();
 
 	// update every window
 	for (app_window_t* window = app_state.window_first, *next = 0; window != 0; window = next) {
@@ -154,23 +173,34 @@ app_update() {
 		}
 
 		// render
-		gfx_renderer_begin(window->gfx_renderer);
-		draw_begin(window->gfx_renderer);
-		ui_begin_frame(window->ui_context);
+		if (window->gfx_renderer != nullptr) {
+			gfx_renderer_begin(window->gfx_renderer);
+			draw_begin(window->gfx_renderer);
+			ui_begin_frame(window->ui_context);
 
-		ui_push_pref_width(ui_size_percent(1.0f));
-		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+			ui_push_pref_width(ui_size_percent(1.0f));
+			ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
 
-		ui_labelf("hello, world!");
-		if (ui_buttonf("button") & ui_interaction_left_clicked) {
-			app_window_open(str("another window"), 640, 480);
+			ui_labelf("hello, world!");
+			if (ui_buttonf("button") & ui_interaction_left_clicked) {
+				app_window_open(str("another window"), 640, 480);
+			}
+
+			ui_end_frame(window->ui_context);
+			draw_end(window->gfx_renderer);
+			gfx_renderer_end(window->gfx_renderer);
 		}
-
-		ui_end_frame(window->ui_context);
-		draw_end(window->gfx_renderer);
-		gfx_renderer_end(window->gfx_renderer);
 	}
 
+	// get close events
+	os_event_t* close_event = os_event_get(os_event_type_window_close);
+	if (close_event != nullptr) {
+		app_window_t* window = app_window_from_os_window(close_event->window);
+		if (window != nullptr) {
+			app_window_close(window);
+		}
+		os_event_pop(close_event);
+	}
 }
 
 // entry point
@@ -190,24 +220,7 @@ app_entry_point(i32 argc, char** argv) {
 
 	// main loop
 	while (!app_no_active_windows()) {
-
-		// update layers
-		os_update();
-		gfx_update();
-		ui_update();
-
-		// update app
-		app_update();
-		
-		// get close events
-		os_event_t* close_event = os_event_get(os_event_type_window_close);
-		if (close_event != nullptr) {
-			app_window_t* window = app_window_from_os_window(close_event->window);
-			if (window != nullptr) {
-				app_window_close(window);
-			}
-			os_event_pop(close_event);
-		}
+		app_frame();
 	}
 
 	// release
@@ -224,15 +237,3 @@ app_entry_point(i32 argc, char** argv) {
 
 	return 0;
 }
-
-// per build entry point
-
-#if defined(BUILD_DEBUG)
-int main(int argc, char** argv) {
-	return app_entry_point(argc, argv);
-}
-#elif defined(BUILD_RELEASE)
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	return app_entry_point(__argc, __argv);
-}
-#endif 

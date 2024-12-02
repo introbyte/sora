@@ -105,22 +105,21 @@ os_update() {
 		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
 		window->elasped_time += window->delta_time;
 
-
 		window->maximized = IsZoomed(window->handle);
-	
 	}
 
-}
-
-function b8
-os_any_window_exist() {
-	return os_state.first_window != nullptr;
 }
 
 function void
 os_abort(u32 exit_code) {
 	ExitProcess(exit_code);
 }
+
+function void
+os_sleep(u32 msec) {
+	Sleep(msec);
+}
+
 
 function u64
 os_time_microseconds() {
@@ -131,10 +130,11 @@ os_time_microseconds() {
 	return time;
 }
 
-function void
-os_sleep(u32 msec) {
-	Sleep(msec);
+function b8
+os_any_window_exist() {
+	return os_state.first_window != nullptr;
 }
+
 
 function void
 os_set_cursor(os_cursor cursor) {
@@ -162,22 +162,7 @@ os_set_cursor_pos(os_window_t* window, vec2_t pos) {
 	SetCursorPos(p.x, p.y);
 }
 
-function color_t
-os_system_accent_color() {
 
-	DWORD accent_color = 0;
-	BOOL is_opaque = FALSE;
-
-	HRESULT hr = DwmGetColorizationColor(&accent_color, &is_opaque);
-
-	BYTE alpha = (BYTE)((accent_color >> 24) & 0xFF);
-	BYTE red = (BYTE)((accent_color >> 16) & 0xFF);
-	BYTE green = (BYTE)((accent_color >> 8) & 0xFF);
-	BYTE blue = (BYTE)(accent_color & 0xFF);
-
-	return color(red / 255.0f, green / 255.0f, blue / 255.0f, 1.0f);
-
-}
 
 // event functions
 
@@ -459,6 +444,7 @@ os_window_is_fullscreen(os_window_t* window) {
 	return !(window_style & WS_OVERLAPPEDWINDOW);
 }
 
+
 function void 
 os_window_clear_title_bar_client_area(os_window_t* window) {
 	arena_clear(window->title_bar_arena);
@@ -471,6 +457,13 @@ os_window_add_title_bar_client_area(os_window_t* window, rect_t area) {
 	title_bar_client_area->area = area;
 	dll_push_back(window->title_bar_client_area_first, window->title_bar_client_area_last, title_bar_client_area);
 }
+
+
+function void
+os_window_set_frame_function(os_window_t* window, os_frame_function* func) {
+	window->frame_func = func;
+}
+
 
 // memory functions
 
@@ -567,7 +560,6 @@ os_file_get_attributes(str_t filepath) {
 	attributes.size = (u64)file_info.nFileSizeLow | (((u64)file_info.nFileSizeHigh) << 32);
 	return attributes;
 }
-
 
 function str_t
 os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
@@ -710,8 +702,6 @@ os_win32_thread_entry_point(void* params) {
 
 // window procedure
 
-function void app_frame();
-
 LRESULT CALLBACK
 window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
@@ -736,7 +726,9 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				window->resolution = uvec2(width, height);
 				PAINTSTRUCT ps = { 0 };
 				BeginPaint(handle, &ps);
-				app_frame();
+				if (window->frame_func != nullptr) {
+					window->frame_func();
+				}
 				EndPaint(handle, &ps);
 			}
 			break;
@@ -782,7 +774,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_NCHITTEST: {
 			DWORD window_style = window ? GetWindowLong(window->handle, GWL_STYLE) : 0;
 			b8 is_fullscreen = !(window_style & WS_OVERLAPPEDWINDOW);
-			if (window == nullptr || is_fullscreen) {
+			if (window == nullptr || is_fullscreen || (window != nullptr && !window->borderless)) {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
 			} else {
 				b8 is_default_handled = 0;
@@ -944,12 +936,12 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		// mouse input
 
 		case WM_MOUSEMOVE: {
-			//f32 mouse_x = (f32)LOWORD(lparam);
-			//f32 mouse_y = (f32)HIWORD(lparam);
+			f32 mouse_x = (f32)(i16)LOWORD(lparam);
+			f32 mouse_y = (f32)(i16)HIWORD(lparam);
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window;
 			event->type = os_event_type_mouse_move;
-			//event->position = { mouse_x, mouse_y };
+			event->position = { mouse_x, mouse_y };
 			break;
 		}
 

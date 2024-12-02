@@ -15,7 +15,6 @@
 //   [ ] - mat3.
 //
 
-
 // this project includes modified code from HandmadeMath.
 // HandmadeMath was released under the CC0 1.0 universal 
 // license, allowing unrestricted use.

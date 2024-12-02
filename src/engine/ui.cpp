@@ -266,9 +266,15 @@ ui_begin_frame(ui_context_t* context) {
 	arena_clear(context->per_frame_arena);
 	arena_clear(context->scratch_arena);
 	
-	// set input
-	context->mouse_pos = context->window->mouse_pos;
-	context->mouse_delta = context->window->mouse_delta;
+	// get mosue input
+	for (ui_event_t* ui_event = ui_state.event_list.first, *next = 0; ui_event != 0; ui_event = next) {
+		next = ui_event->next;
+		if (ui_event->window == context->window) {
+			if (ui_event->type == ui_event_type_mouse_move) {
+				context->mouse_pos = ui_event->position;
+			}
+		}
+	}
 
 	// reset stacks
 	ui_stack_reset(parent);

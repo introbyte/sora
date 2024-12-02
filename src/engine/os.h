@@ -10,6 +10,7 @@
 // typedefs
 
 typedef void os_thread_function();
+typedef void os_frame_function();
 
 // enums
 
@@ -160,7 +161,6 @@ enum os_cursor {
 	os_cursor_count,
 };
 
-
 typedef u32 os_window_flags;
 enum {
 	os_window_flag_null,
@@ -216,10 +216,11 @@ struct os_state_t; // defined in backends.
 function void os_init();
 function void os_release();
 function void os_update();
-function b8 os_any_window_exist();
 function void os_abort(u32);
-function u64 os_time_microseconds();
 function void os_sleep(u32);
+
+function u64 os_time_microseconds();
+function b8 os_any_window_exist();
 
 function void os_set_cursor(os_cursor);
 function vec2_t os_get_cursor_pos(os_window_t*);
@@ -248,6 +249,7 @@ function void os_window_maximize(os_window_t*);
 function void os_window_restore(os_window_t*);
 function void os_window_fullscreen(os_window_t*);
 function void os_window_set_title(os_window_t*, str_t);
+function u32 os_window_get_dpi(os_window_t*);
 
 function b8 os_window_is_maximized(os_window_t*);
 function b8 os_window_is_minimized(os_window_t*);
@@ -255,6 +257,8 @@ function b8 os_window_is_fullscreen(os_window_t*);
 
 function void os_window_clear_title_bar_client_area(os_window_t*);
 function void os_window_add_title_bar_client_area(os_window_t*, rect_t);
+
+function void os_window_set_frame_function(os_window_t*, os_frame_function*);
 
 // memory
 

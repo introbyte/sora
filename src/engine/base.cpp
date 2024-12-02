@@ -5,7 +5,20 @@
 
 // implementation
 
+// entry point
+i32 app_entry_point(i32 argc, char** argv);
 
+#if defined(BUILD_DEBUG)
+int main(int argc, char** argv) {
+	return app_entry_point(argc, argv);
+}
+#elif defined(BUILD_RELEASE)
+int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+	return app_entry_point(__argc, __argv);
+}
+#endif
+
+// arenas
 
 function arena_t*
 arena_create(u32 size) {
@@ -96,7 +109,6 @@ arena_clear(arena_t* arena) {
 	}
 
 }
-
 
 // cstr functions
 

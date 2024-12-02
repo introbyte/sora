@@ -26,17 +26,18 @@ struct os_window_t {
 
 	// win32
 	HWND handle;
-	//HDC hdc;
 
 	// info
 	str_t title;
+	b8 borderless;
+	b8 composition_enabled;
+	b8 maximized;
+
+	os_frame_function* frame_func;
 
 	// sizing
 	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
-	b8 borderless;
-	b8 composition_enabled;
-	b8 maximized;
 
 	// custom title bar client area
 	arena_t* title_bar_arena;
@@ -108,7 +109,7 @@ struct os_state_t {
 // global
 
 global os_state_t os_state;
-global b8 os_new_borderless_window = false;
+global b8 os_new_borderless_window = false; // TODO: not sure if needed
 
 // functions
 
