@@ -79,12 +79,23 @@
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
 
+// stack
 #define stack_push_n(f, n, next) ((n)->next = (f), (f) = (n))
 #define stack_pop_n(f, next) (((f) == 0) ? 0 : ((f) = (f)->next))
 
 #define stack_push(f, n) stack_push_n(f, n, next)
 #define stack_pop(f) stack_pop_n(f, next)
 
+// queue
+#define queue_push_n(f, l, n, next) (((f) == 0) ? ((f)=(l)=(n), ((n)->next = 0)) : ((l)->next=(n),(l)=(n), ((n)->next = 0)))
+#define queue_push_front_n(f, l, n, next) (((f)==0) ? ((f)=(l)=(n),((n)->next = 0)) : ((n)->next=(f),(f)=(n)))
+#define queue_pop_n(f, l, next) ((f)==(l) ? (((f) = 0),((l) = 0)) : (f)=(f)->next))
+
+#define queue_push(f, l, n) queue_push_n(f, l, n, next)
+#define queue_push_front(f, l, n) queue_push_front_n(f, l, n, next)
+#define queue_pop(f, l) queue_pop_n(f, l, next)
+
+// doubly linked list
 #define dll_insert_np(f,l,p,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((p) == 0 || (p) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((p) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((p) == 0 || (p) == 0) && (((p)->next) == 0 || ((p)->next) == 0)) ? (0) : ((p)->next->prev = (n))), ((n)->next = (p)->next), ((p)->next = (n)), ((n)->prev = (p))))
 #define dll_push_back_np(f,l,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((l) == 0 || (l) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((l) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((l) == 0 || (l) == 0) && (((l)->next) == 0 || ((l)->next) == 0)) ? (0) : ((l)->next->prev = (n))), ((n)->next = (l)->next), ((l)->next = (n)), ((n)->prev = (l))))
 #define dll_push_front_np(f,l,n,next,prev) (((l) == 0 || (l) == 0) ? ((l) = (f) = (n), (((n)->prev) = 0), (((n)->next) = 0)) : ((f) == 0 || (f) == 0) ? ((n)->prev = (l), (l)->next = (n), (l) = (n), (((n)->next) = 0)) : ((f) == (f)) ? ((f)->prev = (n), (n)->next = (f), (f) = (n), (((n)->prev) = 0)) : (((!((f) == 0 || (f) == 0) && (((f)->prev) == 0 || ((f)->prev) == 0)) ? (0) : ((f)->prev->next = (n))), ((n)->prev = (f)->prev), ((f)->prev = (n)), ((n)->next = (f))))
@@ -175,7 +186,6 @@ struct codepoint_t {
 	u32 codepoint;
 	u32 advance;
 };
-
 
 // math
 

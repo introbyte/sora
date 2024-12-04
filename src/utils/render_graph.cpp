@@ -53,14 +53,25 @@ render_graph_create(gfx_renderer_t* renderer) {
 	graph->renderer = renderer;
 
 	// add output pass
-	render_pass_t* output_pass = render_graph_add_pass(graph, str("output"), _render_pass_output_function);
-	graph->output_pass = output_pass;
+	render_pass_desc_t desc = { 0 };
+	desc.label = str("output");
+	desc.size = renderer->resolution;
+	desc.execute_func = _render_pass_output_function;
+	desc.format = gfx_texture_format_rgba8;
+	desc.flags = 0;
+	graph->output_pass = render_graph_add_pass(graph, desc);
 
 	return graph;
 }
 
 function void 
 render_graph_release(render_graph_t* graph) {
+
+	// remove render targets in passes
+	for (render_pass_node_t* node = graph->pass_list.first; node != 0; node = node->next) {
+		gfx_render_target_release(node->pass->data.render_target);
+	}
+	
 	dll_remove(render_state.render_graph_first, render_state.render_graph_last, graph);
 	stack_push(render_state.render_graph_free, graph);
 	arena_release(graph->pass_arena);
@@ -68,7 +79,7 @@ render_graph_release(render_graph_t* graph) {
 }
 
 function render_pass_t*
-render_graph_add_pass(render_graph_t* graph, str_t label, render_pass_execute_func* execute_func) {
+render_graph_add_pass(render_graph_t* graph, render_pass_desc_t desc) {
 
 	// grab from free list
 	render_pass_t* pass = graph->free_pass;
@@ -78,11 +89,12 @@ render_graph_add_pass(render_graph_t* graph, str_t label, render_pass_execute_fu
 		pass = (render_pass_t*)arena_alloc(graph->pass_arena, sizeof(render_pass_t));
 	}
 	memset(pass, 0, sizeof(render_pass_t));
+	graph->pass_count++;
 	
-	pass->graph = graph;
 	pass->arena = graph->pass_arena;
-	pass->label = label;
-	pass->execute = execute_func;
+	pass->execute = desc.execute_func;
+	pass->desc = desc;
+	pass->data.render_target = gfx_render_target_create(desc.format, desc.size, desc.flags);
 	pass->data.pass = pass;
 	pass->data.graph = graph;
 
@@ -95,6 +107,8 @@ render_graph_remove_pass(render_graph_t* graph, render_pass_t* pass) {
 		dll_remove(pass->parent->first, pass->parent->last, pass);
 	}
 	stack_push(graph->free_pass, pass);
+	graph->pass_count--;
+	gfx_render_target_release(pass->data.render_target);
 }
 
 function void
@@ -119,25 +133,18 @@ render_graph_execute(render_graph_t* graph) {
 
 	for (render_pass_node_t* node = graph->pass_list.first; node != 0; node = node->next) {
 		render_pass_data_t* prev_data = nullptr;
-		if (node->prev != 0) {
-			prev_data = &node->prev->node->data;
+		if (node->prev != nullptr) {
+			prev_data = &node->prev->pass->data;
 		}
-		node->node->execute(prev_data, &node->node->data);
+		
+		if (node->pass->execute != nullptr) {
+			node->pass->execute(prev_data, &node->pass->data);
+		}
 	}
 
 }
 
 // pass
-
-function void
-render_pass_add_target(render_pass_t* pass, gfx_texture_format format) {
-
-	render_target_t* pass_target = (render_target_t*)arena_alloc(pass->arena, sizeof(render_target_t));
-	pass_target->gfx_render_target = gfx_render_target_create(format, pass->graph->renderer->resolution, 0);
-	dll_push_back(pass->data.target_first, pass->data.target_last, pass_target);
-
-}
-
 
 function render_pass_rec_t
 render_pass_depth_first(render_pass_t* node) {
@@ -160,12 +167,12 @@ render_pass_list_from_graph(arena_t* arena, render_graph_t* graph) {
 	
 	render_pass_list_t list = { 0 };
 
-	for (render_pass_t* node = graph->output_pass; node != 0;) {
-		render_pass_rec_t rec = render_pass_depth_first(node);
+	for (render_pass_t* pass = graph->output_pass; pass != 0;) {
+		render_pass_rec_t rec = render_pass_depth_first(pass);
 		render_pass_node_t* list_node = (render_pass_node_t*)arena_calloc(arena, sizeof(render_pass_node_t));
-		list_node->node = node;
+		list_node->pass = pass;
 		dll_push_back(list.first, list.last, list_node);
-		node = rec.next;
+		pass = rec.next;
  	}
 
 	// reverse the list
@@ -190,9 +197,9 @@ render_pass_list_from_graph(arena_t* arena, render_graph_t* graph) {
 function void
 _render_pass_output_function(render_pass_data_t* in, render_pass_data_t* out) {
 	if (in != nullptr && out != nullptr) {
-		if (in->target_first != nullptr) {
+		if (in->render_target != nullptr) {
 			// blit in data to screen
-			gfx_renderer_blit(out->graph->renderer, in->target_first->gfx_render_target->texture);
+			gfx_renderer_blit(out->graph->renderer, in->render_target->color_texture);
 		}
 	}
 }

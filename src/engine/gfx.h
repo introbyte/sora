@@ -137,7 +137,7 @@ enum gfx_face_winding {
 typedef u32 gfx_render_target_flags;
 enum {
 	_gfx_render_target_flag_null = 0,
-	gfx_render_target_flag_fixed_size = (1 << 0),
+	gfx_render_target_flag_depth = (1 << 0),
 };
 
 // structs
@@ -262,6 +262,7 @@ function gfx_render_target_t* gfx_render_target_create_ex(gfx_render_target_desc
 function gfx_render_target_t* gfx_render_target_create(gfx_texture_format, uvec2_t, u32, gfx_render_target_flags);
 function void gfx_render_target_release(gfx_render_target_t*);
 function void gfx_render_target_resize(gfx_render_target_t*, uvec2_t);
+function void gfx_render_target_clear(gfx_render_target_t*, color_t = color(0x000000ff), f32 = 1.0f);
 function void gfx_render_target_create_resources(gfx_render_target_t*);
 
 // helper functions

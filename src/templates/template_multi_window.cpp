@@ -39,8 +39,6 @@ struct app_state_t {
 	app_window_t* window_first;
 	app_window_t* window_last;
 	app_window_t* window_free;
-
-
 };
 
 // globals
