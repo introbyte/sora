@@ -5,8 +5,13 @@
 
 // todo: 
 // 
-// [ ] - clipping.
+// [ ] - add panels.
+// [ ] - add tabs.
+// [ ] - fix color palette situation.
+// [ ] - *support fancier text (colored)
+// [ ] - *fix clipping.
 // [~] - widgets. 
+// [ ] - deal with tabs in fonts correctly.
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
 //         [ ] - mouse controls.
@@ -21,10 +26,10 @@
 //     [ ] - nagivation. 
 //     [x] - double and triple click.
 // [ ] - frame focusing.
-// [ ] - deal with tabs in fonts correctly.
-// [ ] - better depth sorting.
-// [ ] - fix font rendering. issues with alignment.
 // [ ] - clean up pass.
+// 
+// * - needs to be added to draw layer.
+//
 
 //defines
 
@@ -285,6 +290,7 @@ struct ui_event_t {
 	ui_event_t* next;
 	ui_event_t* prev;
 
+	os_event_t* os_event;
 	os_window_t* window;
 	ui_event_type type;
 	ui_event_flags flags;

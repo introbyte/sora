@@ -115,6 +115,7 @@ ui_update() {
 		ui_event_t ui_event = { 0 };
 
 		// start with default
+		ui_event.os_event = os_event;
 		ui_event.window = os_event->window;
 		ui_event.type = ui_event_type_null;
 		ui_event.flags = 0;
@@ -312,7 +313,7 @@ ui_begin_frame(ui_context_t* context) {
 	// add root frame
 	str_t root_string = str_format(context->scratch_arena, "%.*s_root_frame", context->window->title.size, context->window->title.data);
 	ui_set_next_fixed_width((f32)context->window->resolution.x);
-	ui_set_next_fixed_height((f32)context->window->resolution.y);
+	ui_set_next_fixed_height((f32)context->window->resolution.y - 30.0f);
 	ui_set_next_layout_axis(ui_layout_axis_y);
 	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
 	context->root = frame;
@@ -429,9 +430,9 @@ ui_end_frame(ui_context_t* context) {
 
 		// frame shadow
 		if (frame->flags & ui_frame_flag_draw_shadow) {
-			//draw_set_next_color(palette->shadow);
-			//draw_set_next_radii(frame->rounding);
-			//draw_rect(frame->rect);
+			draw_set_next_color(color(0x00000015));
+			draw_set_next_radii(frame->rounding);
+			draw_rect(frame->rect);
 		}
 
 		// determine color
@@ -483,6 +484,13 @@ ui_end_frame(ui_context_t* context) {
 			// calculate text pos
 			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
 			
+#if 0 // debug text position
+			draw_set_next_color(color(0xff0000ff));
+			draw_set_next_thickness(1.0f);
+			f32 font_width = font_text_get_width(frame->font, frame->font_size, frame->string);
+			f32 font_height = font_text_get_height(frame->font, frame->font_size, frame->string);
+			draw_rect(rect(text_pos.x, text_pos.y, text_pos.x + font_width, text_pos.y + font_height));
+#endif
 			draw_push_font(frame->font);
 			draw_push_font_size(frame->font_size);
 
@@ -530,8 +538,13 @@ ui_end_frame(ui_context_t* context) {
 // widgets
 
 function void
-ui_spacer() {
+ui_spacer(ui_size_t size = ui_size_pixel(2.0f, 1.0f)) {
 	ui_frame_t* parent = ui_top_parent();
+	if (parent->layout_axis == ui_layout_axis_x) {
+		ui_set_next_pref_width(size);
+	} else {
+		ui_set_next_pref_height(size);
+	}
 	ui_set_next_layout_axis(parent->layout_axis);
 	ui_frame_t* frame = ui_frame_from_key({0}, 0);
 }
@@ -1749,7 +1762,8 @@ ui_text_align(font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment
 	vec2_t result = { 0 };
 
 	font_metrics_t font_metrics = font_get_metrics(font, size);
-	result.y = roundf((rect.y0 + rect.y1 + font_metrics.capital_height) * 0.5f - font_metrics.ascent); // temp fix
+	f32 text_height = font_text_get_height(font, size, text);
+	result.y = roundf(rect.y0 + (rect.y1 - rect.y0 - (text_height)) / 2.0f);
 
 	switch (alignment) {
 		default:
@@ -1903,6 +1917,9 @@ ui_event_push(ui_event_t* event) {
 
 function void 
 ui_event_pop(ui_event_t* event) {
+	if (event->os_event != nullptr) {
+		os_event_pop(event->os_event); // take os event if ui event was taken.
+	}
 	dll_remove(ui_state.event_list.first, ui_state.event_list.last, event);
 	ui_state.event_list.count--;
 }
@@ -2630,7 +2647,6 @@ ui_frame_interaction(ui_frame_t* frame) {
 					context->focused_frame_key = frame->key;
 					result |= ui_interaction_left_pressed << event->mouse;
 
-
 					// double and triple clicks
 					if (ui_state.click_counter[event->mouse] >= 2) {
 						if (ui_state.click_counter[event->mouse] % 2 == 0) {
@@ -2654,7 +2670,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 
 					context->active_frame_key[event->mouse] = { 0 };
 					result |= ui_interaction_left_released << event->mouse;
-					result |= ui_interaction_left_clicked << event->mouse;
+
 					taken = true;
 				}
 

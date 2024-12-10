@@ -8,6 +8,7 @@
 #pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "dwmapi")
+#pragma comment(lib, "advapi32")
 
 // implementation
 
@@ -162,7 +163,27 @@ os_set_cursor_pos(os_window_t* window, vec2_t pos) {
 	SetCursorPos(p.x, p.y);
 }
 
+function color_t
+os_get_sys_color(os_sys_color id) {
+	
+	DWORD result_color;
 
+	if (id == os_sys_color_accent) {
+		DWORD size;
+		RegGetValueA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\DWM", "AccentColor", RRF_RT_REG_DWORD, nullptr, &result_color, &size);
+		printf("%x\n", result_color);
+	} else {
+		result_color = GetSysColor(id);
+	}
+
+
+	f32 r = (f32)GetRValue(result_color) / 255.0f;
+	f32 g = (f32)GetGValue(result_color) / 255.0f;
+	f32 b = (f32)GetBValue(result_color) / 255.0f;
+	color_t result = color(r, g, b, 1.0f);
+
+	return result;
+}
 
 // event functions
 
@@ -442,6 +463,12 @@ function b8
 os_window_is_fullscreen(os_window_t* window) {
 	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
 	return !(window_style & WS_OVERLAPPEDWINDOW);
+}
+
+function b8
+os_window_is_active(os_window_t* window) {
+	HWND active_hwnd = GetActiveWindow();
+	return (active_hwnd == window->handle);
 }
 
 
@@ -935,6 +962,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		// mouse input
 
+		case WM_NCMOUSEMOVE:
 		case WM_MOUSEMOVE: {
 			f32 mouse_x = (f32)(i16)LOWORD(lparam);
 			f32 mouse_y = (f32)(i16)HIWORD(lparam);

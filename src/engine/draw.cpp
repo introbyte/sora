@@ -402,13 +402,14 @@ function void
 draw_text(str_t text, vec2_t pos) {
 
 	f32 font_size = draw_top_font_size();
+	font_t* font = draw_top_font();
 
 	for (u32 i = 0; i < text.size; i++) {
 
 		draw_instance_t* instance = draw_get_instance();
 		
 		u8 codepoint = *(text.data + i);
-		font_glyph_t* glyph = font_get_glyph(draw_state.font, font_size, codepoint);
+		font_glyph_t* glyph = font_get_glyph(font, font_size, codepoint);
 
 		instance->bbox = rect(pos.x, pos.y, pos.x + glyph->pos.x1, pos.y + glyph->pos.y1);
 		instance->tex = glyph->uv;

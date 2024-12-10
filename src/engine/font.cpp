@@ -59,7 +59,7 @@ font_text_get_width(font_t* font, f32 size, str_t string) {
 }
 
 function f32 
-font_text_get_height(font_t* font, f32 size) {
+font_text_get_height(font_t* font, f32 size, str_t string) {
 	font_metrics_t metrics = font_get_metrics(font, size);
 	f32 h = (metrics.ascent + metrics.descent);
 	return h;

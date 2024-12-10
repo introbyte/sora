@@ -3,10 +3,6 @@
 #ifndef OS_H
 #define OS_H
 
-// includes
-#include <windows.h>
-#include <timeapi.h>
-
 // typedefs
 
 typedef void os_thread_function();
@@ -167,6 +163,13 @@ enum {
 	os_window_flag_borderless = (1 << 0),
 };
 
+typedef i32 os_sys_color;
+enum {
+	os_sys_color_none,
+	os_sys_color_accent,
+	os_sys_color_inactive_border,
+};
+
 // structs
 
 struct os_title_bar_client_area_t {
@@ -294,6 +297,8 @@ function void os_thread_detach(os_thread_t*);
 #define OS_BACKEND_WIN32
 
 #if defined(OS_BACKEND_WIN32)
+#include <windows.h>
+#include <timeapi.h>
 #include "backends/os/os_win32.h"
 #elif defined*OS_BACKEND_LINUX)
 #include "backends/os/os_linux.h"
