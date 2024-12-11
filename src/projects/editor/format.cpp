@@ -163,7 +163,7 @@ space_render(f32 dt) {
 
 	i32 token_index = 1;
 	i32 line_index = 1;
-	f32 text_height = roundf(font_text_get_height(space.font, 12.0f));
+	f32 text_height = roundf(font_text_get_height(space.font, 12.0f, str("")));
 
 	for (line_t* line = space.line_first; line != nullptr; line = line->next) {
 		for (token_t* token = line->token_first; token != nullptr; token = token->next) {

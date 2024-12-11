@@ -438,9 +438,22 @@ ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
 ui_stack_node_decl(focus_active, ui_focus_type)
 
-struct ui_constants_t {
-	vec2_t window_size;
-	vec2_t time;
+struct ui_panel_t {
+	ui_panel_t* next;
+	ui_panel_t* prev;
+	ui_panel_t* child_first;
+	ui_panel_t* child_last;
+	ui_panel_t* parent;
+	u32 child_count;
+
+	u8 split_axis;
+	f32 percent_of_parent;
+};
+
+struct ui_panel_rec_t {
+	ui_panel_t* next;
+	u32 push_count;
+	u32 pop_count;
 };
 
 struct ui_context_t {
@@ -452,7 +465,7 @@ struct ui_context_t {
 	gfx_renderer_t* renderer;
 
 	// arenas
-	arena_t* frame_arena;
+	arena_t* arena;
 	arena_t* event_arena;
 	arena_t* per_frame_arena;
 	arena_t* drag_state_arena;
@@ -487,6 +500,10 @@ struct ui_context_t {
 	ui_key_t active_frame_key[os_mouse_button_count];
 	ui_key_t nav_root_key;
 	ui_key_t focused_frame_key;
+
+	ui_panel_t* panel_free;
+	ui_panel_t* panel_root;
+	ui_panel_t* panel_focused;
 
 	// frame tree
 	ui_frame_t* root;
@@ -552,10 +569,6 @@ struct ui_state_t {
 	ui_context_t* ui_free;
 	ui_context_t* ui_active;
 
-	// assets
-	gfx_shader_t* ui_shader;
-	ui_constants_t constants;
-
 	// defaults
 	ui_palette_t default_palette;
 	font_t* default_font;
@@ -598,41 +611,11 @@ function void ui_init();
 function void ui_release();
 function void ui_update();
 
+// context
 function ui_context_t* ui_context_create(gfx_renderer_t*);
 function void ui_context_release(ui_context_t*);
 function void ui_begin_frame(ui_context_t*);
 function void ui_end_frame(ui_context_t*);
-
-// widgets
-
-function ui_interaction ui_button(str_t);
-function ui_interaction ui_buttonf(char*, ...);
-function ui_interaction ui_label(str_t);
-function ui_interaction ui_labelf(char*, ...);
-function ui_interaction ui_slider(str_t, i32*, i32, i32);
-function ui_interaction ui_slider(str_t, f32*, f32, f32);
-function ui_interaction ui_checkbox(str_t, b8*);
-function ui_interaction ui_expander(str_t, b8*);
-function ui_interaction ui_color_sat_val_quad(str_t, f32, f32*, f32*);
-function ui_interaction ui_color_hue_bar(str_t, f32*, f32, f32);
-function ui_interaction ui_color_sat_bar(str_t, f32, f32*, f32);
-function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
-function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
-function ui_interaction ui_color_hue_sat_circle(str_t, f32*, f32*, f32*);
-function ui_interaction ui_text_edit(str_t, char*, u32, u32*);
-function ui_interaction ui_combo(str_t, i32*, char**, u32);
-
-// widget draw functions
-function void ui_slider_draw_function(ui_frame_t*);
-
-function void ui_color_hue_bar_draw_function(ui_frame_t*);
-function void ui_color_sat_bar_draw_function(ui_frame_t*);
-function void ui_color_val_bar_draw_function(ui_frame_t*);
-
-function void ui_color_sat_val_quad_draw_function(ui_frame_t*);
-function void ui_color_wheel_draw_function(ui_frame_t*);
-function void ui_color_hue_sat_circle_draw_function(ui_frame_t*);
-function void ui_text_edit_draw_function(ui_frame_t*);
 
 // string
 function str_t ui_string_display_format(str_t);
@@ -653,7 +636,7 @@ function ui_size_t ui_size_percent(f32);
 function ui_size_t ui_size_by_child(f32);
 function ui_size_t ui_size_em(f32, f32);
 
-// alignment
+// text alignment
 function vec2_t ui_text_align(font_t*, f32, str_t, rect_t, ui_text_alignment);
 function f32 ui_text_offset_from_index(font_t*, f32, str_t, u32);
 function u32 ui_text_index_from_offset(font_t*, f32, str_t, f32);
@@ -708,7 +691,46 @@ function void ui_frame_set_custom_draw(ui_frame_t*, ui_frame_custom_draw_func*, 
 // frame list
 function void ui_frame_list_push(arena_t*, ui_frame_list_t*, ui_frame_t*);
 
-// stack
+// panels
+function ui_panel_t* ui_panel_create(str_t label);
+function void ui_panel_release(ui_panel_t*);
+
+function void ui_panel_insert(ui_panel_t* parent, ui_panel_t* panel, ui_panel_t* prev);
+function void ui_panel_remove(ui_panel_t* parent, ui_panel_t* panel);
+function ui_panel_rec_t ui_panel_rec_depth_first(ui_panel_t* panel);
+
+// widgets
+
+function ui_interaction ui_button(str_t);
+function ui_interaction ui_buttonf(char*, ...);
+function ui_interaction ui_label(str_t);
+function ui_interaction ui_labelf(char*, ...);
+function ui_interaction ui_slider(str_t, i32*, i32, i32);
+function ui_interaction ui_slider(str_t, f32*, f32, f32);
+function ui_interaction ui_checkbox(str_t, b8*);
+function ui_interaction ui_expander(str_t, b8*);
+function ui_interaction ui_color_sat_val_quad(str_t, f32, f32*, f32*);
+function ui_interaction ui_color_hue_bar(str_t, f32*, f32, f32);
+function ui_interaction ui_color_sat_bar(str_t, f32, f32*, f32);
+function ui_interaction ui_color_val_bar(str_t, f32, f32, f32*);
+function ui_interaction ui_color_wheel(str_t, f32*, f32*, f32*);
+function ui_interaction ui_color_hue_sat_circle(str_t, f32*, f32*, f32*);
+function ui_interaction ui_text_edit(str_t, char*, u32, u32*);
+function ui_interaction ui_combo(str_t, i32*, char**, u32);
+
+// widget draw functions
+function void ui_slider_draw_function(ui_frame_t*);
+
+function void ui_color_hue_bar_draw_function(ui_frame_t*);
+function void ui_color_sat_bar_draw_function(ui_frame_t*);
+function void ui_color_val_bar_draw_function(ui_frame_t*);
+
+function void ui_color_sat_val_quad_draw_function(ui_frame_t*);
+function void ui_color_wheel_draw_function(ui_frame_t*);
+function void ui_color_hue_sat_circle_draw_function(ui_frame_t*);
+function void ui_text_edit_draw_function(ui_frame_t*);
+
+// stacks
 function void ui_auto_pop_stacks();
 ui_stack_func(parent, ui_frame_t*)
 ui_stack_func(flags, ui_frame_flags)
