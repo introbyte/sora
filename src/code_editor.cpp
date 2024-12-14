@@ -67,7 +67,7 @@ title_bar_ui() {
 	ui_set_next_pref_width(ui_size_percent(1.0f));
 	ui_set_next_pref_height(ui_size_pixel(30.0f, 1.0f));
 	ui_push_rounding(0.0f);
-	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_set_next_layout_axis(ui_axis_x);
 	ui_frame_t* title_bar_frame = ui_frame_from_string({0}, ui_frame_flag_draw_background);
 
 	ui_push_parent(title_bar_frame);

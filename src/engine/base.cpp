@@ -1879,6 +1879,11 @@ rect_height(rect_t r) {
 }
 
 inlnfunc vec2_t
+rect_size(rect_t r) {
+	return vec2(rect_width(r), rect_height(r));
+}
+
+inlnfunc vec2_t
 rect_center(rect_t r) {
 	return { (r.x0 + r.x1) * 0.5f, (r.y0 + r.y1) * 0.5f };
 }
@@ -1927,6 +1932,11 @@ rect_bbox(vec2_t* points, u32 count) {
 	}
 
 	return result;
+}
+
+inlnfunc rect_t
+rect_round(rect_t r) {
+	return { roundf(r.x0), roundf(r.y0), roundf(r.x1), roundf(r.y1) };
 }
 
 

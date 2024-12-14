@@ -347,9 +347,18 @@ union mat4_t {
 
 // misc
 
-struct rect_t {
-	f32 x0, y0;
-	f32 x1, y1;
+union rect_t {
+	struct {
+		f32 x0, y0;
+		f32 x1, y1;
+	};
+
+	struct {
+		vec2_t v0;
+		vec2_t v1;
+	};
+
+
 };
 
 struct color_t {
@@ -536,6 +545,7 @@ inlnfunc b8     rect_contains(rect_t, rect_t);
 inlnfunc rect_t rect_intersection(rect_t, rect_t);
 inlnfunc f32    rect_width(rect_t);
 inlnfunc f32    rect_height(rect_t);
+inlnfunc vec2_t rect_size(rect_t);
 inlnfunc vec2_t rect_center(rect_t);
 inlnfunc rect_t rect_grow(rect_t, f32);
 inlnfunc rect_t rect_grow(rect_t, vec2_t);
@@ -544,6 +554,7 @@ inlnfunc rect_t rect_shrink(rect_t, vec2_t);
 inlnfunc rect_t rect_translate(rect_t, f32);
 inlnfunc rect_t rect_translate(rect_t, vec2_t);
 inlnfunc rect_t rect_bbox(vec2_t*, u32);
+inlnfunc rect_t rect_round(rect_t);
 
 // quat
 inlnfunc quat_t quat(f32, f32, f32, f32);

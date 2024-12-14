@@ -193,7 +193,7 @@ ui_context_create(gfx_renderer_t* renderer) {
 	context->arena = arena_create(gigabytes(1));
 	context->per_frame_arena = arena_create(gigabytes(1));
 	context->drag_state_arena = arena_create(megabytes(8));
-	context->scratch_arena = arena_create(megabytes(8));
+	context->scratch_arena = arena_create(megabytes(64));
 
 	// set context to nullptr
 	context->window = renderer->window;
@@ -202,6 +202,11 @@ ui_context_create(gfx_renderer_t* renderer) {
 	// text point
 	context->cursor = { 1, 1 };
 	context->mark = { 1, 1 };
+
+	// panel
+	context->panel_root = ui_panel_create(context);
+	context->panel_root->percent_of_parent = 1.0f;
+	context->panel_root->split_axis = ui_axis_x;
 
 	// default stack
 	ui_default_init(parent, nullptr);
@@ -216,12 +221,12 @@ ui_context_create(gfx_renderer_t* renderer) {
 	ui_default_init(text_alignment, ui_text_alignment_left);
 	ui_default_init(text_padding, 4.0f);
 	ui_default_init(hover_cursor, os_cursor_pointer);
-	ui_default_init(layout_axis, ui_layout_axis_y);
+	ui_default_init(layout_axis, ui_axis_y);
 	ui_default_init(rounding_00, 2.0f);
 	ui_default_init(rounding_01, 2.0f);
 	ui_default_init(rounding_10, 2.0f);
 	ui_default_init(rounding_11, 2.0f);
-	ui_default_init(palette, &ui_state.default_palette);
+	ui_default_init(palette, ui_state.default_palette);
 	ui_default_init(font, ui_state.default_font);
 	ui_default_init(font_size, 9.0f);
 	ui_default_init(focus_hot, ui_focus_type_null);
@@ -268,7 +273,7 @@ ui_begin_frame(ui_context_t* context) {
 	arena_clear(context->per_frame_arena);
 	arena_clear(context->scratch_arena);
 	
-	// get mosue input
+	// get mouse input
 	for (ui_event_t* ui_event = ui_state.event_list.first, *next = 0; ui_event != 0; ui_event = next) {
 		next = ui_event->next;
 		if (ui_event->window == context->window) {
@@ -301,9 +306,8 @@ ui_begin_frame(ui_context_t* context) {
 	ui_stack_reset(font_size);
 	ui_stack_reset(focus_hot);
 	ui_stack_reset(focus_active);
-
-	// do navigation
-
+	
+	// TODO: do navigation
 
 	// set to next nav keys
 	for (ui_frame_t* frame = context->frame_first; frame != nullptr; frame = frame->hash_next) {
@@ -312,13 +316,20 @@ ui_begin_frame(ui_context_t* context) {
 	}
 
 	// add root frame
-	str_t root_string = str_format(context->scratch_arena, "%.*s_root_frame", context->window->title.size, context->window->title.data);
+	str_t root_string = str_format(context->scratch_arena, "###%p_root_frame", context->window);
 	ui_set_next_fixed_width((f32)context->window->resolution.x);
-	ui_set_next_fixed_height((f32)context->window->resolution.y - 30.0f);
-	ui_set_next_layout_axis(ui_layout_axis_y);
-	ui_frame_t* frame = ui_frame_from_string(root_string, 0);
-	context->root = frame;
-	ui_push_parent(frame);
+	ui_set_next_fixed_height((f32)context->window->resolution.y);
+	ui_set_next_layout_axis(ui_axis_y);
+	context->root = ui_frame_from_string(root_string, 0);
+	ui_push_parent(context->root);
+
+	// add root tooltip frame
+	str_t tooltip_root_string = str_format(context->scratch_arena, "###%p_tooltip_frame", context->window);
+	ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
+	ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
+	ui_set_next_pref_width(ui_size_by_child(1.0f));
+	ui_set_next_pref_height(ui_size_by_child(1.0f));
+	context->tooltip_root = ui_frame_from_string(tooltip_root_string, ui_frame_flag_floating);
 
 	// reset active keys if removed
 	for (i32 i = 0; i < os_mouse_button_count; i++) {
@@ -328,9 +339,6 @@ ui_begin_frame(ui_context_t* context) {
 			context->active_frame_key[i] = { 0 };
 		}
 
-		//if (!ui_key_equals(ui_state.active_frame_key[i], { 0 })) {
-		//	has_active = true;
-		//}
 	}
 
 	// reset hovered key
@@ -338,13 +346,94 @@ ui_begin_frame(ui_context_t* context) {
 	for (i32 i = 0; i < os_mouse_button_count; i++) {
 		if (!ui_key_equals(context->active_frame_key[i], { 0 })) {
 			has_active = true;
+			break;
 		}
 	}
 	if (!has_active) {
 		context->hovered_frame_key = { 0 };
 	}
 
+	// update build index
 	context->build_index++;
+
+	// add panels
+	rect_t client_rect = rect(0.0f, 0.0f, (f32)context->window->resolution.x, (f32)context->window->resolution.y);
+
+	// build non leaf panel ui
+	for (ui_panel_t* panel = context->panel_root; panel != 0;) {
+		ui_panel_rec_t rec = ui_panel_rec_depth_first(panel);
+		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
+		vec2_t panel_size = rect_size(panel_rect);
+
+		for (ui_panel_t* child = panel->child_first; child != nullptr && child->next != nullptr; child = child->next) {
+
+			// build draw boundaries
+			rect_t child_rect = ui_rect_from_panel_child(child, panel_rect);
+			rect_t boundary_rect = child_rect;
+			boundary_rect.v0[panel->split_axis] = boundary_rect.v1[panel->split_axis];
+			boundary_rect.v0[panel->split_axis] -= 5;
+			boundary_rect.v1[panel->split_axis] += 4;
+
+			ui_set_next_rect(boundary_rect);
+			ui_set_next_hover_cursor(panel->split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
+			ui_frame_flags flags = 
+				ui_frame_flag_clickable |
+				ui_frame_flag_floating;
+			ui_frame_t* frame = ui_frame_from_string(str_format(context->scratch_arena, "###panel_boundary_%p", panel), flags);
+			ui_interaction interaction = ui_frame_interaction(frame);
+
+			if (interaction & ui_interaction_left_dragging) {
+
+				ui_panel_t* min_child = child;
+				ui_panel_t* max_child = child->next;
+
+				if (interaction & ui_interaction_left_pressed) {
+					vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
+					ui_store_drag_data(&drag_data, sizeof(vec2_t));
+				}
+
+				vec2_t drag_data = *(vec2_t*)ui_get_drag_data();
+				vec2_t mouse_delta = ui_get_drag_delta();
+
+				f32 min_child_pre_drag = drag_data.x * panel_size[panel->split_axis];
+				f32 max_child_pre_drag = drag_data.y * panel_size[panel->split_axis];
+				
+				min_child_pre_drag += mouse_delta[panel->split_axis];
+				max_child_pre_drag -= mouse_delta[panel->split_axis];
+
+				min_child->percent_of_parent = min_child_pre_drag / panel_size[panel->split_axis];
+				max_child->percent_of_parent = max_child_pre_drag / panel_size[panel->split_axis];
+
+			}
+
+		}
+		
+		panel = rec.next;
+	}
+
+	// build leaf panel ui
+	for (ui_panel_t* panel = context->panel_root; panel != 0; panel = ui_panel_rec_depth_first(panel).next) {
+		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
+		
+		if (panel->child_first == nullptr && panel != context->panel_root) {
+			ui_frame_flags flags = 
+				ui_frame_flag_draw_background |
+				ui_frame_flag_draw_border;
+			
+			ui_palette_t palette = ui_state.default_palette;
+			palette.background = color(0x232323ff);
+			palette.border = color(0x2c2c2cff);
+
+			ui_set_next_palette(palette);
+			ui_set_next_rect(rect_shrink(panel_rect, 2.0f));
+			str_t panel_string = str_format(context->scratch_arena, "##panel_frame_%p", panel);
+			ui_frame_t* panel_frame = ui_frame_from_string(panel_string, flags);
+
+			panel->frame = panel_frame;
+		}
+		
+	}
+
 }
 
 function void
@@ -368,11 +457,17 @@ ui_end_frame(ui_context_t* context) {
 	}
 
 	// layout pass
-	ui_layout_solve_independent(context->root);
-	ui_layout_solve_upward_dependent(context->root);
-	ui_layout_solve_downward_dependent(context->root);
-	ui_layout_solve_violations(context->root);
-	ui_layout_solve_set_positions(context->root);
+	for (u32 axis = ui_axis_x; axis < ui_axis_count; axis++) {
+		ui_layout_solve_independent(context->root, axis);
+		ui_layout_solve_upward_dependent(context->root, axis);
+		ui_layout_solve_downward_dependent(context->root, axis);
+		ui_layout_solve_violations(context->root, axis);
+		ui_layout_solve_set_positions(context->root, axis);
+	}
+
+	// TODO: bound tooltip within screen
+
+
 
 	// animate
 	{
@@ -424,16 +519,16 @@ ui_end_frame(ui_context_t* context) {
 		// do recursive depth first search
 		u32 sibling_member_offset = (u32)(&(((ui_frame_t*)0)->tree_prev));
 		u32 child_member_offset = (u32)(&(((ui_frame_t*)0)->tree_child_last));
-		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame, context->root, sibling_member_offset, child_member_offset);
+		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame);
 
 		// grab frame info
-		ui_palette_t* palette = frame->palette;
+		ui_palette_t* palette = &frame->palette;
 
 		// frame shadow
 		if (frame->flags & ui_frame_flag_draw_shadow) {
 			draw_set_next_color(color(0x00000015));
 			draw_set_next_radii(frame->rounding);
-			draw_rect(frame->rect);
+			draw_rect(rect_translate(frame->rect, 1.0f));
 		}
 
 		// determine color
@@ -688,6 +783,11 @@ ui_size_em(f32 value, f32 strictness) {
 	return { ui_size_type_pixel, ui_top_font_size() * value, strictness };
 }
 
+function ui_size_t
+ui_size_text(f32 padding) {
+	return { ui_size_type_text, padding, 0.0f };
+}
+
 // alignment functions
 
 function vec2_t
@@ -724,6 +824,11 @@ ui_text_align(font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment
 	result.x = floorf(result.x);
 	return result;
 
+}
+
+function vec2_t
+ui_text_size(font_t* font, f32 font_size, str_t text) {
+	return vec2(font_text_get_width(font, font_size, text), font_text_get_height(font, font_size, text));
 }
 
 function f32
@@ -1005,6 +1110,11 @@ ui_get_drag_data() {
 	return ui_state.ui_active->drag_state_data;
 }
 
+function vec2_t 
+ui_get_drag_delta() {
+	return vec2_sub(ui_state.ui_active->mouse_pos, ui_state.ui_active->drag_start_pos);
+}
+
 function void 
 ui_clear_drag_data() {
 	arena_clear(ui_state.ui_active->drag_state_arena);
@@ -1014,71 +1124,48 @@ ui_clear_drag_data() {
 //  layout 
 
 function void 
-ui_layout_solve_independent(ui_frame_t* root) {
+ui_layout_solve_independent(ui_frame_t* root, ui_axis axis) {
 
-	// x axis
-	switch (root->pref_width.type) {
+	switch (root->pref_size[axis].type) {
 		case ui_size_type_pixel: {
-			root->fixed_size.x = root->pref_width.value;
+			root->fixed_size[axis] = root->pref_size[axis].value;
 			break;
 		}
-	}
-
-	// y axis
-	switch (root->pref_height.type) {
-		case ui_size_type_pixel: {
-			root->fixed_size.y = root->pref_height.value;
+		case ui_size_type_text: {
+			f32 padding = root->pref_size[axis].value;
+			vec2_t text_size = ui_text_size(root->font, root->font_size, root->string);
+			root->fixed_size[axis] = padding + text_size[axis] + 8.0f;
 			break;
 		}
 	}
 
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-		ui_layout_solve_independent(child);
+		ui_layout_solve_independent(child, axis);
 	}
 
 }
 
 function void 
-ui_layout_solve_upward_dependent(ui_frame_t* root) {
+ui_layout_solve_upward_dependent(ui_frame_t* root, ui_axis axis) {
 
 	// x axis
-	switch (root->pref_width.type) {
+	switch (root->pref_size[axis].type) {
 		case ui_size_type_percent: {
 			// find parent that has a fixed size	
 			ui_frame_t* fixed_parent = nullptr;
 			for (ui_frame_t* p = root->tree_parent; p != 0; p = p->tree_parent) {
-				if (p->flags & ui_frame_flag_fixed_width ||
-					p->pref_width.type == ui_size_type_pixel ||
-					p->pref_width.type == ui_size_type_percent) {
+				if (p->flags & (ui_frame_flag_fixed_width << axis) ||
+					p->pref_size[axis].type == ui_size_type_pixel ||
+					p->pref_size[axis].type == ui_size_type_percent) {
 					fixed_parent = p;
+					break;
 				}
 			}
 			
 			// calculate percent size of fixed parent.
-			f32 size = fixed_parent->fixed_size.x * root->pref_width.value;
-			root->fixed_size.x = size;
-
-			break;
-		}
-	}
-
-	// y axis
-	switch (root->pref_height.type) {
-		case ui_size_type_percent: {
-			// find parent that has a fixed size	
-			ui_frame_t* fixed_parent = nullptr;
-			for (ui_frame_t* p = root->tree_parent; p != 0; p = p->tree_parent) {
-				if (p->flags & ui_frame_flag_fixed_width ||
-					p->pref_height.type == ui_size_type_pixel ||
-					p->pref_height.type == ui_size_type_percent) {
-					fixed_parent = p;
-				}
-			}
-
-			// calculate percent size of fixed parent.
-			f32 size = fixed_parent->fixed_size.y * root->pref_height.value;
-			root->fixed_size.y = size;
+			f32 size = fixed_parent->fixed_size[axis] * root->pref_size[axis].value;
+			root->fixed_size[axis] = size;
 
 			break;
 		}
@@ -1086,55 +1173,35 @@ ui_layout_solve_upward_dependent(ui_frame_t* root) {
 
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-		ui_layout_solve_upward_dependent(child);
+		ui_layout_solve_upward_dependent(child, axis);
 	}
 
 }
 
 function void
-ui_layout_solve_downward_dependent(ui_frame_t* root) {
+ui_layout_solve_downward_dependent(ui_frame_t* root, ui_axis axis) {
 
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-		ui_layout_solve_downward_dependent(child);
+		ui_layout_solve_downward_dependent(child, axis);
 	}
 
 	// x axis
-	switch (root->pref_width.type) {
+	switch (root->pref_size[axis].type) {
 		case ui_size_type_by_children: {
 			
 			// find width of children
 			f32 sum = 0.0f;
 			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_x)) {
-					if (root->layout_axis == ui_layout_axis_x) {
-						sum += child->fixed_size.x;
+				if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+					if (root->layout_axis == axis) {
+						sum += child->fixed_size[axis];
 					} else {
-						sum = max(sum, child->fixed_size.x);
+						sum = max(sum, child->fixed_size[axis]);
 					}
 				}
 			}
-			root->fixed_size.x = sum;
-			break;
-		}
-	}
-
-	// y axis
-	switch (root->pref_height.type) {
-		case ui_size_type_by_children: {
-
-			// find height of children
-			f32 sum = 0.0f;
-			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_y)) {
-					if (root->layout_axis == ui_layout_axis_y) {
-						sum += child->fixed_size.y;
-					} else {
-						sum = max(sum, child->fixed_size.y);
-					}
-				}
-			}
-			root->fixed_size.y = sum;
+			root->fixed_size[axis] = sum;
 			break;
 		}
 	}
@@ -1142,38 +1209,38 @@ ui_layout_solve_downward_dependent(ui_frame_t* root) {
 }
 
 function void 
-ui_layout_solve_violations(ui_frame_t* root) {
+ui_layout_solve_violations(ui_frame_t* root, ui_axis axis) {
 	
 	// x axis
 
 	// fix children sizes in non layout axis
-	if (root->layout_axis != ui_layout_axis_x && !(root->flags & ui_frame_flag_overflow_x)) {
-		f32 allowed_size = root->fixed_size.x;
+	if (root->layout_axis != axis && !(root->flags & (ui_frame_flag_overflow_x << axis))) {
+		f32 allowed_size = root->fixed_size[axis];
 		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (!(child->flags & ui_frame_flag_floating_x)) {
-				f32 child_size = child->fixed_size.x;
+			if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+				f32 child_size = child->fixed_size[axis];
 				f32 violation = child_size - allowed_size;
 				f32 max_fixup = child_size;
 				f32 fixup = clamp(violation, 0.0f, max_fixup);
 				if (fixup > 0.0f) {
-					child->fixed_size.x -= fixup;
+					child->fixed_size[axis] -= fixup;
 				}
 			}
 		}
 	}
 
 	// fix children sizes in layout axis
-	if (root->layout_axis == ui_layout_axis_x && !(root->flags & ui_frame_flag_overflow_x)) {
+	if (root->layout_axis == axis && !(root->flags & ui_frame_flag_overflow_x << axis)) {
 
 		// figure out total size
-		f32 total_allowed_size = root->fixed_size.x;
+		f32 total_allowed_size = root->fixed_size[axis];
 		f32 total_size = 0.0f;
 		f32 total_weighted_size = 0.0f;
 		
 		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (!(child->flags & ui_frame_flag_floating_x)) {
-				total_size += child->fixed_size.x;
-				total_weighted_size += child->fixed_size.x * (1.0f - child->pref_width.strictness);
+			if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+				total_size += child->fixed_size[axis];
+				total_weighted_size += child->fixed_size[axis] * (1.0f - child->pref_size[axis].strictness);
 			}
 		}
 
@@ -1185,120 +1252,44 @@ ui_layout_solve_violations(ui_frame_t* root) {
 			f32* child_fixups = (f32*)arena_alloc(ui_state.ui_active->scratch_arena, sizeof(f32) * root->child_count);
 			
 			u32 child_index = 0;
-			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_x)) {
-					f32 fixup_size_this_child = child->fixed_size.x * (1.0f - child->pref_width.strictness);
+			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next, child_index++) {
+				if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+					f32 fixup_size_this_child = child->fixed_size[axis] * (1.0f - child->pref_size[axis].strictness);
 					fixup_size_this_child = max(0.0f, fixup_size_this_child);
 					child_fixups[child_index] = fixup_size_this_child;
 					child_fixup_sum += fixup_size_this_child;
-					child_index++;
 				}
 			}
 
 			// fixup child size
 			child_index = 0;
-			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_x)) {
+			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next, child_index++) {
+				if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
 					f32 fixup_percent = violation / total_weighted_size;
 					fixup_percent = clamp_01(fixup_percent);
-					child->fixed_size.x -= child_fixups[child_index] * fixup_percent;
-					child_index++;
+					child->fixed_size[axis] -= child_fixups[child_index] * fixup_percent;
 				}
 			}
 		}
 	}
 
 	// fix child percent sizes if we allow overflow
-	if (root->flags & ui_frame_flag_overflow_x) {
+	if (root->flags & (ui_frame_flag_overflow_x << axis)) {
 		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (child->pref_width.type == ui_size_type_percent) {
-				child->fixed_size.x = root->fixed_size.x * child->pref_width.value;
+			if (child->pref_size[axis].type == ui_size_type_percent) {
+				child->fixed_size[axis] = root->fixed_size[axis] * child->pref_size[axis].value;
 			}
 		}
 	}
-
-
-	// y axis
-
-	// fix children sizes in non layout axis
-	if (root->layout_axis != ui_layout_axis_y && !(root->flags & ui_frame_flag_overflow_y)) {
-		f32 allowed_size = root->fixed_size.y;
-		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (!(child->flags & ui_frame_flag_floating_y)) {
-				f32 child_size = child->fixed_size.y;
-				f32 violation = child_size - allowed_size;
-				f32 max_fixup = child_size;
-				f32 fixup = clamp(violation, 0.0f, max_fixup);
-				if (fixup > 0.0f) {
-					child->fixed_size.y -= fixup;
-				}
-			}
-		}
-	}
-
-	// fix children sizes in layout axis
-	if (root->layout_axis == ui_layout_axis_y && !(root->flags & ui_frame_flag_overflow_y)) {
-
-		// figure out total size
-		f32 total_allowed_size = root->fixed_size.y;
-		f32 total_size = 0.0f;
-		f32 total_weighted_size = 0.0f;
-
-		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (!(child->flags & ui_frame_flag_floating_y)) {
-				total_size += child->fixed_size.y;
-				total_weighted_size += child->fixed_size.y * (1.0f - child->pref_height.strictness);
-			}
-		}
-
-		f32 violation = total_size - total_allowed_size;
-		if (violation > 0.0f) {
-
-			// find child fixup size
-			f32 child_fixup_sum = 0.0f;
-			f32* child_fixups = (f32*)arena_alloc(ui_state.ui_active->scratch_arena, sizeof(f32) * root->child_count);
-
-			u32 child_index = 0;
-			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_y)) {
-					f32 fixup_size_this_child = child->fixed_size.y * (1.0f - child->pref_height.strictness);
-					fixup_size_this_child = max(0.0f, fixup_size_this_child);
-					child_fixups[child_index] = fixup_size_this_child;
-					child_fixup_sum += fixup_size_this_child;
-					child_index++;
-				}
-			}
-
-			// fixup child size
-			child_index = 0;
-			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-				if (!(child->flags & ui_frame_flag_floating_y)) {
-					f32 fixup_percent = (violation / total_weighted_size);
-					fixup_percent = clamp_01(fixup_percent);
-					child->fixed_size.y -= child_fixups[child_index] * fixup_percent;
-					child_index++;
-				}
-			}
-		}
-	}
-
-	// fix child percent sizes if we allow overflow
-	if (root->flags & (ui_frame_flag_overflow_y)) {
-		for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-			if (child->pref_height.type == ui_size_type_percent) {
-				child->fixed_size.y = root->fixed_size.y * child->pref_height.value;
-			}
-		}
-	}
-
+	
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-		ui_layout_solve_violations(child);
+		ui_layout_solve_violations(child, axis);
 	}
 }
 
 function void 
-ui_layout_solve_set_positions(ui_frame_t* root) {
+ui_layout_solve_set_positions(ui_frame_t* root, ui_axis axis) {
 
 	// x axis
 
@@ -1307,68 +1298,42 @@ ui_layout_solve_set_positions(ui_frame_t* root) {
 
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
 
-		f32 original_pos = min(child->rect.x0, child->rect.x1);
+		f32 original_pos = min(child->rect.v0[axis], child->rect.v1[axis]);
+		f32 root_pos = root->rect.v0[axis];
 
 		// calculate fixed position and size
-		if (!(child->flags & ui_frame_flag_floating_x)) {
-			child->fixed_position.x = layout_position;
+		if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+			child->fixed_position[axis] = layout_position;
 
-			if (root->layout_axis == ui_layout_axis_x) {
-				layout_position += child->fixed_size.x;
-				bounds += child->fixed_size.x;
+			if (root->layout_axis == axis) {
+				layout_position += child->fixed_size[axis];
+				bounds += child->fixed_size[axis];
 			} else {
-				bounds = max(bounds, child->fixed_size.x);
+				bounds = max(bounds, child->fixed_size[axis]);
 			}
+		} else {
+			root_pos = 0.0f;
 		}
 
 		// determine final rect for child
-		child->rect.x0 = root->rect.x0 + child->fixed_position.x - floorf(root->view_offset.x);
-		child->rect.x1 = child->rect.x0 + child->fixed_size.x;
+		child->rect.v0[axis] = root_pos + child->fixed_position[axis] - floorf(root->view_offset[axis]);
+		child->rect.v1[axis] = child->rect.v0[axis] + child->fixed_size[axis];
 
 	}
 
 	// store view bounds
-	root->view_bounds.x = bounds + 1.0f;
-
-	// y axis
-	layout_position = 0.0f;
-	bounds = 0.0f;
-
-	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-
-		f32 original_pos = min(child->rect.y0, child->rect.y1);
-
-		// calculate fixed position and size
-		if (!(child->flags & ui_frame_flag_floating_y)) {
-			child->fixed_position.y = layout_position;
-
-			if (root->layout_axis == ui_layout_axis_y) {
-				layout_position += child->fixed_size.y;
-				bounds += child->fixed_size.y;
-			} else {
-				bounds = max(bounds, child->fixed_size.y);
-			}
-		}
-
-		// determine final rect for child
-		child->rect.y0 = root->rect.y0 + child->fixed_position.y - floorf(root->view_offset.y);
-		child->rect.y1 = child->rect.y0 + child->fixed_size.y;
-
-	}
-
-	// store view bounds
-	root->view_bounds.y = bounds + 2.0f;
+	root->view_bounds[axis] = bounds + 1.0f;
 
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
-		ui_layout_solve_set_positions(child);
+		ui_layout_solve_set_positions(child, axis);
 	}
 }
 
 
 function ui_frame_t*
 ui_row_begin() {
-	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_set_next_layout_axis(ui_axis_x);
 	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
 	ui_push_parent(frame);
 	return frame;
@@ -1383,7 +1348,7 @@ ui_row_end() {
 
 function ui_frame_t*
 ui_column_begin() {
-	ui_set_next_layout_axis(ui_layout_axis_y);
+	ui_set_next_layout_axis(ui_axis_y);
 	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
 	ui_push_parent(frame);
 	return frame;
@@ -1443,7 +1408,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 		if (frame != nullptr) {
 			stack_pop_n(context->frame_free, hash_next);
 		} else {
-			frame = (ui_frame_t*)arena_alloc(context->arena, sizeof(ui_frame_t));
+			frame = (ui_frame_t*)arena_alloc(!frame_is_transient ? context->arena : context->per_frame_arena , sizeof(ui_frame_t));
 		}
 		memset(frame, 0, sizeof(ui_frame_t));
 		
@@ -1481,8 +1446,8 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 	frame->fixed_position.y = ui_top_fixed_y();
 	frame->fixed_size.x = ui_top_fixed_width();
 	frame->fixed_size.y = ui_top_fixed_height();
-	frame->pref_width = ui_top_pref_width();
-	frame->pref_height = ui_top_pref_height();
+	frame->pref_size[ui_axis_x] = ui_top_pref_width();
+	frame->pref_size[ui_axis_y] = ui_top_pref_height();
 	frame->text_alignment = ui_top_text_alignment();
 	frame->text_padding = ui_top_text_padding();
 	frame->hover_cursor = ui_top_hover_cursor();
@@ -1527,27 +1492,22 @@ ui_frame_from_string(str_t string, ui_frame_flags flags) {
 }
 
 function ui_frame_rec_t 
-ui_frame_rec_depth_first(ui_frame_t* frame, ui_frame_t* root, u32 sibling_member_offset, u32 child_member_offset) {
-	ui_frame_rec_t result = { 0 };
+ui_frame_rec_depth_first(ui_frame_t* frame) {
 
-	result.next = nullptr;
+	ui_frame_rec_t rec = { 0 };
 	
-	ui_frame_t** child_offset = (ui_frame_t**)((u8*)frame + child_member_offset);
-	if (*child_offset != nullptr) {
-		result.next = *child_offset;
-		result.push_count++; // decend into children
-	} else for (ui_frame_t* f = frame; f != 0 && f != root; f = f->tree_parent) {
-
-		ui_frame_t** sibling_offset = (ui_frame_t**)((u8*)f + sibling_member_offset);
-		if (*sibling_offset != nullptr) {
-			result.next = *sibling_offset;
+	if (frame->tree_child_last != nullptr) {
+		rec.next = frame->tree_child_last;
+		rec.push_count = 1;
+	} else for (ui_frame_t* f = frame; f != nullptr; f = f->tree_parent) {
+		if (f->tree_prev != nullptr) {
+			rec.next = f->tree_prev;
 			break;
 		}
-
-		result.pop_count++; // ascend from children
+		rec.pop_count++;
 	}
 
-	return result;
+	return rec;
 }
 
 function ui_interaction 
@@ -1581,6 +1541,8 @@ ui_frame_interaction(ui_frame_t* frame) {
 					context->active_frame_key[event->mouse] = frame->key;
 					context->focused_frame_key = frame->key;
 					result |= ui_interaction_left_pressed << event->mouse;
+
+					context->drag_start_pos = event->position;
 
 					// double and triple clicks
 					if (ui_state.click_counter[event->mouse] >= 2) {
@@ -1735,23 +1697,42 @@ ui_frame_list_push(arena_t* arena, ui_frame_list_t* frame_list, ui_frame_t* fram
 // panels
 
 function ui_panel_t* 
-ui_panel_create(str_t label) {
+ui_panel_create(ui_context_t* context, f32 percent, ui_axis split_axis) {
 
-	ui_panel_t* panel = ui_state.ui_active->panel_free;
+	ui_panel_t* panel = context->panel_free;
 	if (panel != nullptr) {
-		stack_pop(ui_state.ui_active->panel_free);
+		stack_pop(context->panel_free);
 	} else {
-		panel = (ui_panel_t*)arena_alloc(ui_state.ui_active->arena, sizeof(ui_panel_t));
+		panel = (ui_panel_t*)arena_alloc(context->arena, sizeof(ui_panel_t));
 	}
 	memset(panel, 0, sizeof(ui_panel_t));
 
+	panel->percent_of_parent = percent;
+	panel->split_axis = split_axis;
 
-
+	return panel;
 }
 
 function void 
-ui_panel_release(ui_panel_t* panel) {
-	stack_push(ui_state.ui_active->panel_free, panel);
+ui_panel_release(ui_context_t* context, ui_panel_t* panel) {
+	stack_push(context->panel_free, panel);
+}
+
+function ui_frame_t* 
+ui_panel_begin(ui_panel_t* panel) {
+
+	ui_set_next_parent(panel->frame);
+	ui_set_next_rect(rect_shrink(panel->frame->rect, 8.0f));
+	ui_frame_t* inner_frame = ui_frame_from_string(str(""), ui_frame_flag_floating);
+
+	ui_push_parent(inner_frame);
+
+	return panel->frame;
+}
+
+function void 
+ui_panel_end() {
+	ui_pop_parent();
 }
 
 function void 
@@ -1775,34 +1756,142 @@ ui_panel_rec_depth_first(ui_panel_t* panel) {
 
 	ui_panel_rec_t rec = { 0 };
 
+	if (panel->child_first != nullptr) {
+		rec.next = panel->child_first;
+		rec.push_count = 1;
+	} else for (ui_panel_t* p = panel; p != 0; p = p->parent) {
+		if (p->next != nullptr) {
+			rec.next = p->next;
+			break;
+		}
+		rec.pop_count++;
+	}
+
 	return rec;
-
 }
 
 function rect_t
-ui_rect_from_panel_child(ui_panel_t* panel) {
+ui_rect_from_panel_child(ui_panel_t* panel, rect_t parent_rect) {
 	
-	rect_t rect = { 0 };
+	rect_t result = parent_rect;
+	ui_panel_t* parent = panel->parent;
 
+	if (parent != nullptr) {
+		
+		vec2_t parent_rect_size = rect_size(parent_rect);
+		ui_axis axis = parent->split_axis;
 
-	return rect;
+		result.v1[axis] = result.v0[axis];
+
+		for (ui_panel_t* p = parent->child_first; p != 0; p = p->next) {
+			result.v1[axis] += parent_rect_size[axis] * p->percent_of_parent;
+			if (p == panel) {
+				break;
+			}
+			result.v0[axis] = result.v1[axis];
+		}
+
+		result = rect_round(result);
+	}
+
+	return result;
 }
 
 function rect_t
-ui_rect_from_panel(ui_panel_t* panel) {
+ui_rect_from_panel(arena_t* scratch, ui_panel_t* panel, rect_t root_rect) {
 
-	rect_t rect = { 0 };
+	ui_panel_t* root = panel;
 
-	return rect;
+	// count ancestors
+	i32 ancestor_count = 0;
+	for (ui_panel_t* p = panel->parent; p != nullptr; p = p->parent) {
+		ancestor_count++;
+	}
+
+	// gather ancestors
+	ui_panel_t** ancestors = (ui_panel_t**)arena_alloc(scratch, sizeof(ui_panel_t*) * ancestor_count);
+	i32 ancestor_index = 0;
+	for (ui_panel_t* p = panel->parent; p != nullptr; p = p->parent) {
+		ancestors[ancestor_index] = p;
+		ancestor_index++;
+	}
+
+	// go from highest ancestor and calculate rect
+	rect_t parent_rect = root_rect;
+	for (i32 ancestor_index = ancestor_count - 1; ancestor_index >= 0 && ancestor_index < ancestor_count; ancestor_index--) {
+
+		ui_panel_t* ancestor = ancestors[ancestor_index];
+		
+		if (ancestor->parent != nullptr) {
+			parent_rect = ui_rect_from_panel_child(ancestor, parent_rect);
+		}
+
+	}
+
+	// calculate final rect
+	rect_t result = ui_rect_from_panel_child(panel, parent_rect);
+	
+	return result;
 
 }
+
+
+// view
+
+function ui_view_t*
+ui_view_create(str_t label, view_ui_function* ui_function) {
+
+}
+
+function void
+ui_view_release(ui_view_t* view) {
+
+}
+
+
+
+
+
+
+// tooltip
+
+function void
+ui_tooltip_begin() {
+
+	ui_state.ui_active->tooltip_open = 1;
+
+	ui_palette_t palette = ui_state.default_palette;
+	palette.background = color(0x121212ff);
+	palette.border = color(0x1d1d1dff);
+
+	ui_set_next_parent(ui_state.ui_active->tooltip_root);
+	ui_set_next_pref_width(ui_size_by_child(1.0f));
+	ui_set_next_pref_height(ui_size_by_child(1.0f));
+	ui_set_next_palette(palette);
+	ui_frame_flags flags =
+		ui_frame_flag_draw_background |
+		ui_frame_flag_draw_border |
+		ui_frame_flag_draw_shadow;
+	ui_frame_t* frame = ui_frame_from_string(str(""), flags);
+
+	ui_push_parent(frame);
+
+}
+
+function void 
+ui_tooltip_end() {
+
+	ui_pop_parent();
+
+}
+
 
 // widgets
 
 function void
 ui_spacer(ui_size_t size = ui_size_pixel(2.0f, 1.0f)) {
 	ui_frame_t* parent = ui_top_parent();
-	if (parent->layout_axis == ui_layout_axis_x) {
+	if (parent->layout_axis == ui_axis_x) {
 		ui_set_next_pref_width(size);
 	}
 	else {
@@ -1925,7 +2014,7 @@ ui_checkbox(str_t label, b8* value) {
 
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_set_next_layout_axis(ui_axis_x);
 
 	u32 flags = ui_frame_flag_clickable;
 	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
@@ -1939,7 +2028,7 @@ ui_checkbox(str_t label, b8* value) {
 			ui_frame_flag_draw_text | ui_frame_flag_draw_background |
 			ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
 			ui_frame_flag_draw_shadow | ui_frame_flag_draw_border;
-
+		
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), flag_frame_flags);
 		icon_frame->active_t = parent_frame->active_t;
 		icon_frame->hover_t = parent_frame->hover_t;
@@ -1969,7 +2058,7 @@ ui_expander(str_t label, b8* is_expanded) {
 
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_set_next_layout_axis(ui_axis_x);
 
 	u32 flags =
 		ui_frame_flag_clickable | ui_frame_flag_draw_background |
@@ -1983,10 +2072,10 @@ ui_expander(str_t label, b8* is_expanded) {
 		ui_set_next_font(ui_state.default_icon_font);
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
 		if (*is_expanded) {
-			ui_frame_set_display_text(icon_frame, str(">"));
+			ui_frame_set_display_text(icon_frame, str("v"));
 		}
 		else {
-			ui_frame_set_display_text(icon_frame, str("v"));
+			ui_frame_set_display_text(icon_frame, str(">"));
 		}
 
 		ui_set_next_pref_width(ui_size_percent(1.0f));
@@ -2282,6 +2371,80 @@ ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
 
 }
 
+function ui_interaction 
+ui_color_hex(str_t label, f32* hue, f32* sat, f32 val) {
+
+	enum {
+		area_clicked_none,
+		area_clicked_hue_sat_hex,
+	};
+
+	// build frame and set custom draw data
+	ui_frame_flags flags = ui_frame_flag_clickable | ui_frame_flag_custom_hover_cursor;
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_color_data_t));
+	ui_frame_set_custom_draw(frame, ui_color_hex_draw_function, data);
+
+	// calculate frame and mouse info
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	f32 outer_wheel_radius = min(frame_width, frame_height) * 0.5f;
+	vec2_t mouse_pos = ui_state.ui_active->mouse_pos;
+	vec2_t dir = vec2_sub(frame_center, mouse_pos);
+	f32 dist = vec2_length(dir);
+
+	// custom hover cursor 
+	if (interaction & ui_interaction_hovered) {
+		// if within ring or tri
+		if (dist < outer_wheel_radius) {
+			os_set_cursor(os_cursor_hand_point);
+		}
+	}
+
+	if (interaction & ui_interaction_left_pressed) {
+		u32 area_clicked = area_clicked_none;
+
+		// if within ring
+		if (dist < outer_wheel_radius) {
+			area_clicked = area_clicked_hue_sat_hex;
+		}
+
+		// store data
+		ui_store_drag_data(&area_clicked, sizeof(area_clicked));
+	}
+
+	if (interaction & ui_interaction_left_dragging) {
+
+		// get drag data
+		u32* area_clicked = (u32*)ui_get_drag_data();
+
+		// edit via hue wheel
+		if (*area_clicked == area_clicked_hue_sat_hex) {
+
+			// convert direction to hue
+			f32 angle = (vec2_to_angle(dir) + f32_pi) / (2.0f * f32_pi);
+			*hue = angle;
+
+			// convert distance to sat
+			*sat = clamp_01(dist / outer_wheel_radius);
+		}
+	}
+
+	// clear drag data on release
+	if (interaction & ui_interaction_left_released) {
+		ui_clear_drag_data();
+	}
+
+	data->hue = *hue;
+	data->sat = *sat;
+	data->val = val;
+
+	return interaction;
+
+}
+
 function ui_interaction
 ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 
@@ -2368,7 +2531,7 @@ ui_combo(str_t label, i32* current, const char** items, u32 item_count) {
 
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_set_next_layout_axis(ui_layout_axis_x);
+	ui_set_next_layout_axis(ui_axis_x);
 
 	u32 flags =
 		ui_frame_flag_clickable | ui_frame_flag_draw_background |
@@ -2445,7 +2608,7 @@ ui_slider_draw_function(ui_frame_t* frame) {
 	rect_t bar_rect = frame->rect;
 	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
 
-	color_t color = frame->palette->accent;
+	color_t color = frame->palette.accent;
 	color.a = 0.3f;
 	draw_set_next_color(color);
 	draw_set_next_radii(frame->rounding);
@@ -2777,7 +2940,7 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 	{
 		// draw shadow
 		draw_set_next_color(color(0x15151580));
-		draw_circle(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
+		draw_circle(vec2_add(frame_center, 1.0f), wheel_radius + 1.0f, 0.0f, 360.0f);
 
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
@@ -2800,6 +2963,80 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 			f32 start_angle = ((i + 0) * step) * 360.0f;
 			f32 end_angle = ((i + 1) * step) * 360.0f;
 			draw_circle(frame_center, wheel_radius, start_angle, end_angle);
+		}
+
+		// draw circle border
+		draw_set_next_color(frame->palette.border);
+		draw_set_next_thickness(1.75f);
+		draw_circle(frame_center, wheel_radius + 0.25f, 0.0f, 360.0f);
+	}
+
+	// draw hue sat indicator
+	{
+		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
+
+		// borders
+		draw_set_next_color(color(0x151515ff));
+		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+
+		draw_set_next_color(color(0xe2e2e2ff));
+		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+
+		// color
+		draw_set_next_color(hue_sat_col);
+		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+	}
+
+}
+
+function void 
+ui_color_hex_draw_function(ui_frame_t* frame) {
+
+	// get data
+	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
+
+	// unpack color
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
+
+	// frame info
+	f32 frame_width = rect_width(frame->rect);
+	f32 frame_height = rect_height(frame->rect);
+	vec2_t frame_center = rect_center(frame->rect);
+	f32 wheel_radius = min(frame_width, frame_height) * 0.5f;
+	f32 wheel_thickness = wheel_radius * 0.15f;
+
+	// draw hue sat circle
+	{
+		// draw shadow
+		draw_set_next_color(color(0x15151580));
+		draw_circle(vec2_add(frame_center, 1.0f), wheel_radius, 0.0f, 360.0f);
+
+		// draw hue bars
+		f32 step = 1.0f / 6.0f;
+		color_t segments[] = {
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+		};
+
+		for (i32 i = 0; i < 6; i++) {
+			draw_set_next_color0(color(0xffffffff));
+			//draw_set_next_color1(color(0xffffffff));
+			draw_set_next_color1(segments[i + 0]);
+			draw_set_next_color2(segments[i + 1]);
+
+			f32 start_angle = ((i + 0) * step) * 360.0f;
+			f32 end_angle = ((i + 1) * step) * 360.0f;
+			vec2_t start_pos = vec2_add(frame_center, vec2_rotate(vec2(wheel_radius, 0.0f), radians(start_angle)));
+			vec2_t end_pos = vec2_add(frame_center, vec2_rotate(vec2(wheel_radius, 0.0f), radians(end_angle)));
+			//draw_circle(frame_center, wheel_radius, start_angle, end_angle);
+			draw_tri(frame_center, start_pos, end_pos);
 		}
 	}
 
@@ -2834,7 +3071,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		ui_state.ui_active->mark_target_pos.x = mark_offset;
 
 		// draw cursor
-		draw_set_next_color(frame->palette->accent);
+		draw_set_next_color(frame->palette.accent);
 
 		f32 left = ui_state.ui_active->cursor_pos.x;
 		f32 right = cursor_offset;
@@ -2854,7 +3091,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		draw_rect(cursor_rect);
 
 		// draw mark
-		color_t mark_color = frame->palette->accent;
+		color_t mark_color = frame->palette.accent;
 		mark_color.a = 0.3f;
 		draw_set_next_color(mark_color);
 		rect_t mark_rect = rect(
@@ -2973,12 +3210,12 @@ ui_stack_impl(pref_height, ui_size_t)
 ui_stack_impl(text_alignment, ui_text_alignment)
 ui_stack_impl(text_padding, f32)
 ui_stack_impl(hover_cursor, os_cursor)
-ui_stack_impl(layout_axis, ui_layout_axis)
+ui_stack_impl(layout_axis, ui_axis)
 ui_stack_impl(rounding_00, f32)
 ui_stack_impl(rounding_01, f32)
 ui_stack_impl(rounding_10, f32)
 ui_stack_impl(rounding_11, f32)
-ui_stack_impl(palette, ui_palette_t*)
+ui_stack_impl(palette, ui_palette_t)
 ui_stack_impl(font, font_t*)
 ui_stack_impl(font_size, f32)
 ui_stack_impl(focus_hot, ui_focus_type)
@@ -3008,5 +3245,33 @@ ui_set_next_rounding(f32 rounding) {
 	ui_set_next_rounding_10(rounding);
 	ui_set_next_rounding_11(rounding);
 }
+
+
+
+
+function void 
+ui_push_rect(rect_t rect) {
+	ui_push_fixed_x(rect.x0);
+	ui_push_fixed_y(rect.y0);
+	ui_push_fixed_width(rect.x1 - rect.x0);
+	ui_push_fixed_height(rect.y1 - rect.y0);
+}
+
+function void 
+ui_pop_rect() {
+	ui_pop_fixed_x();
+	ui_pop_fixed_y();
+	ui_pop_fixed_width();
+	ui_pop_fixed_height();
+}
+
+function void 
+ui_set_next_rect(rect_t rect) {
+	ui_set_next_fixed_x(rect.x0);
+	ui_set_next_fixed_y(rect.y0);
+	ui_set_next_fixed_width(rect.x1 - rect.x0);
+	ui_set_next_fixed_height(rect.y1 - rect.y0);
+}
+
 
 #endif // UI_CPP
