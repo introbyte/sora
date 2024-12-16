@@ -112,7 +112,7 @@ app_main_pass(render_pass_data_t* in, render_pass_data_t* out) {
 		}
 
 		gfx_set_render_target(out->render_target);
-		gfx_render_target_clear(out->render_target, color(0x1b1b1bff));
+		gfx_render_target_clear(out->render_target, color(0x1d1d1dff));
 
 		// render scene
 
@@ -172,7 +172,11 @@ app_ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
 
 			// slider
 			persist f32 slider_value = 0.35f;
-			ui_slider(str("slider"), &slider_value, 0.0f, 1.0f);
+			ui_slider(str("slider"), &ui_context->theme.rounding, 0.0f, 8.0f);
+			ui_spacer();
+
+			persist f32 float_edit_value = 10.75f;
+			ui_float_edit(str("float_edit"), &float_edit_value);
 			ui_spacer();
 
 			// expander

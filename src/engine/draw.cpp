@@ -79,7 +79,7 @@ draw_init() {
 
 	// create buffers
 	draw_state.instance_buffer = gfx_buffer_create(gfx_buffer_type_vertex, kilobytes(256));
-	draw_state.constant_buffer = gfx_buffer_create(gfx_buffer_type_constant, kilobytes(1));
+	draw_state.constant_buffer = gfx_buffer_create(gfx_buffer_type_constant, kilobytes(4));
 
 	// assets
 	gfx_shader_attribute_t shader_2d_attributes[] = {
@@ -96,8 +96,9 @@ draw_init() {
 		{ "RAD",  0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{ "STY",  0, gfx_vertex_format_float3, gfx_vertex_class_per_instance },
 		{ "SHP",  0, gfx_vertex_format_int,    gfx_vertex_class_per_instance },
+		{ "CLP",  0, gfx_vertex_format_int,    gfx_vertex_class_per_instance },
 	};
-	draw_state.shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), shader_2d_attributes, 13);
+	draw_state.shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), shader_2d_attributes, 14);
 	draw_state.font = font_open(str("res/fonts/segoe_ui.ttf"));
 
 	draw_state.pipeline = gfx_pipeline_create();
@@ -120,6 +121,8 @@ draw_init() {
 
 	draw_default_init(font, draw_state.font);
 	draw_default_init(font_size, 9.0f);
+
+	draw_default_init(clip_mask, rect(0.0f, 0.0f, 4096.0f, 4096.0f));
 
 }
 
@@ -151,6 +154,10 @@ draw_begin(gfx_renderer_t* renderer) {
 	draw_state.pipeline.scissor = screen;
 	draw_state.constants.window_size = vec2(screen.x1, screen.y1);
 
+	// reset clip mask
+	memset(draw_state.constants.clip_masks, 0, sizeof(rect_t) * 128);
+	draw_state.clip_mask_count = 0;
+
 	// reset stacks
 	draw_stack_reset(color0);
 	draw_stack_reset(color1);
@@ -167,6 +174,11 @@ draw_begin(gfx_renderer_t* renderer) {
 
 	draw_stack_reset(font);
 	draw_stack_reset(font_size);
+
+	draw_stack_reset(clip_mask);
+	
+	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y));
+
 }
 
 function void 
@@ -228,6 +240,27 @@ draw_get_instance() {
 	return instance;
 }
 
+function i32
+draw_get_clip_mask_index(rect_t rect) {
+
+	// find index if in list
+	i32 index = 0;
+	for (; index < draw_state.clip_mask_count; index++) {
+		if (rect_equals(rect, draw_state.constants.clip_masks[index])) {
+			break;
+		}
+	}
+
+	// we didn't find one, add to list
+	if (index == draw_state.clip_mask_count) {
+		draw_state.constants.clip_masks[draw_state.clip_mask_count] = rect;
+		index++;
+		draw_state.clip_mask_count++;
+	}
+
+	return index;
+}
+
 
 
 function void 
@@ -251,6 +284,7 @@ draw_rect(rect_t rect) {
 	instance->omit_texture = 1.0f;
 
 	instance->shape = draw_shape_rect;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 	draw_auto_pop_stacks();
 }
@@ -294,6 +328,7 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 	instance->omit_texture = 1.0f;
 
 	instance->shape = draw_shape_quad;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 	draw_auto_pop_stacks();
 }
@@ -329,6 +364,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 	instance->omit_texture = 1.0f;
 
 	instance->shape = draw_shape_line;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 	draw_auto_pop_stacks();
 }
@@ -354,6 +390,7 @@ draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 	instance->omit_texture = 1.0f;
 
 	instance->shape = draw_shape_circle;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 	draw_auto_pop_stacks();
 } 
@@ -394,6 +431,7 @@ draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 	instance->omit_texture = 1.0f;
 
 	instance->shape = draw_shape_tri;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 	draw_auto_pop_stacks();
 }
@@ -420,6 +458,7 @@ draw_text(str_t text, vec2_t pos) {
 		instance->color3 = draw_top_color3().vec;
 
 		instance->shape = draw_shape_rect;
+		instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
 
 		pos.x += glyph->advance;
 	}
@@ -464,6 +503,8 @@ draw_stack_impl(softness, f32);
 
 draw_stack_impl(font, font_t*);
 draw_stack_impl(font_size, f32);
+
+draw_stack_impl(clip_mask, rect_t);
 
 function void
 draw_push_color(color_t color) {
@@ -537,5 +578,6 @@ draw_pop_radii() {
 	draw_pop_radius2();
 	draw_pop_radius3();
 }
+
 
 #endif // DRAW_CPP

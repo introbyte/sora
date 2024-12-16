@@ -6,23 +6,26 @@
 // todo: 
 // 
 // [ ] - find memory leak.
-// [ ] - fix color palette situation.
+// [~] - fix color palette situation.
+// [~] - maybe change up the style system all together.
+//     [~] - global way to turn off borders, shadows, etc.
+//     [~] - can more easily change style and colors of individual wigets.  
 // [~] - add panels.
 //     [x] - calculating rects.
 //     [x] - building panel tree.
 //     [x] - resizing.
 //     [x] - good api
-//     [ ] - clamp sizes.
-// [ ] - add tabs.
-//     [ ] - implement views.
-//     [ ] - add views to panel list.
-//     [ ] - 
-// [ ] - *fix clipping.
+//     [x] - clamp sizes.
+//	   [ ] - add tabs.
+//         [ ] - implement views.
+//         [ ] - add views to panel list.
+//         [ ] - 
+// [~] - *fix clipping.
 // [ ] - *support fancier text (colored)
 // [ ] - deal with tabs in fonts correctly.
 // [ ] - scroll bars.
-// [ ] - tooltips.
-// [ ] - cutoff text (...).
+// [x] - tooltips.
+// [x] - cutoff text (...).
 // [~] - widgets. 
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
@@ -39,6 +42,8 @@
 //     [x] - double and triple click.
 // [ ] - frame focusing.
 // [~] - clean up pass.
+//     [ ] - color picker indicator animations.
+//     [ ] - 
 // 
 // * - needs to be added to draw layer.
 //
@@ -211,14 +216,32 @@ enum {
 };
 
 enum ui_color {
-	ui_color_none,
 	ui_color_background,
 	ui_color_text,
 	ui_color_border,
 	ui_color_hover,
 	ui_color_active,
+	ui_color_shadow,
 	ui_color_accent,
 	ui_color_count,
+};
+
+enum ui_color_group {
+	ui_color_group_default,
+	ui_color_group_label,
+	ui_color_group_button,
+	ui_color_group_slider,
+	ui_color_group_checkbox,
+	ui_color_group_expander,
+	ui_color_group_number_edit,
+	ui_color_group_color_picker,
+	ui_color_group_text_edit,
+	ui_color_group_combo_box,
+	ui_color_group_panel,
+	ui_color_group_view_tab,
+	ui_color_group_tooltip,
+	ui_color_group_popup,
+	ui_color_group_count,
 };
 
 // structs
@@ -233,18 +256,51 @@ struct ui_size_t {
 	f32 strictness;
 };
 
-union ui_palette_t {
+union ui_color_group_t {
 
 	color_t colors[ui_color_count];
 
 	struct {
-		color_t none;
 		color_t background;
 		color_t text;
 		color_t border;
 		color_t hover;
 		color_t active;
+		color_t shadow;
 		color_t accent;
+	};
+};
+
+struct ui_theme_t {
+
+	// style
+	b8 borders;
+	b8 shadows;
+	f32 rounding;
+	f32 padding;
+
+	// TODO: add more padding options (panel padding, text padding, widget padding).
+
+	// colors
+	union {
+		ui_color_group_t groups[ui_color_group_count];
+
+		struct {
+			ui_color_group_t default;
+			ui_color_group_t label;
+			ui_color_group_t button;
+			ui_color_group_t slider;
+			ui_color_group_t checkbox;
+			ui_color_group_t expander;
+			ui_color_group_t number_edit;
+			ui_color_group_t color_picker;
+			ui_color_group_t text_edit;
+			ui_color_group_t combo_box;
+			ui_color_group_t panel;
+			ui_color_group_t view_tab;
+			ui_color_group_t tooltip;
+			ui_color_group_t popup;
+		};
 	};
 };
 
@@ -381,7 +437,7 @@ struct ui_frame_t {
 	os_cursor hover_cursor;
 	ui_axis layout_axis;
 	vec4_t rounding;
-	ui_palette_t palette;
+	ui_color_group_t color_group;
 	gfx_texture_t* texture;
 	font_t* font;
 	f32 font_size;
@@ -447,7 +503,7 @@ ui_stack_node_decl(rounding_00, f32)
 ui_stack_node_decl(rounding_01, f32)
 ui_stack_node_decl(rounding_10, f32)
 ui_stack_node_decl(rounding_11, f32)
-ui_stack_node_decl(palette, ui_palette_t)
+ui_stack_node_decl(color_group, ui_color_group_t)
 ui_stack_node_decl(font, font_t*)
 ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
@@ -568,6 +624,11 @@ struct ui_context_t {
 	ui_frame_t* tooltip_root;
 	ui_frame_t* context_root;
 
+	// defaults
+	ui_theme_t theme;
+	font_t* font;
+	font_t* icon_font;
+
 	// stack defaults
 	ui_stack_decl_default(parent);
 	ui_stack_decl_default(flags);
@@ -586,7 +647,7 @@ struct ui_context_t {
 	ui_stack_decl_default(rounding_01);
 	ui_stack_decl_default(rounding_10);
 	ui_stack_decl_default(rounding_11);
-	ui_stack_decl_default(palette);
+	ui_stack_decl_default(color_group);
 	ui_stack_decl_default(font);
 	ui_stack_decl_default(font_size);
 	ui_stack_decl_default(focus_hot);
@@ -610,7 +671,7 @@ struct ui_context_t {
 	ui_stack_decl(rounding_01);
 	ui_stack_decl(rounding_10);
 	ui_stack_decl(rounding_11);
-	ui_stack_decl(palette);
+	ui_stack_decl(color_group);
 	ui_stack_decl(font);
 	ui_stack_decl(font_size);
 	ui_stack_decl(focus_hot);
@@ -631,13 +692,11 @@ struct ui_state_t {
 	ui_context_t* ui_free;
 	ui_context_t* ui_active;
 
-	// defaults
-	ui_palette_t default_palette;
-	font_t* default_font;
-	font_t* default_icon_font;
-
 	// event list
 	ui_event_list_t event_list;
+
+	// default theme
+	ui_theme_t default_theme;
 
 	// event bindings
 	ui_event_binding_t event_bindings[64];
@@ -686,7 +745,7 @@ function i32   ui_string_find_word_index(str_t string, i32 start_index, i32 end_
 function void  ui_string_find_word_boundaries(str_t string, i32 index, i32* word_start, i32* word_end);
 
 // key
-function u64 ui_hash_string(u32 seed, str_t string);
+function u64 ui_hash_string(u64 seed, str_t string);
 function ui_key_t ui_key_from_string(ui_key_t seed_key, str_t string);
 function ui_key_t ui_key_from_stringf(ui_key_t seed_key, char* fmt, ...);
 function b8 ui_key_equals(ui_key_t a, ui_key_t b);
@@ -772,9 +831,6 @@ function ui_panel_rec_t ui_panel_rec_depth_first(ui_panel_t* panel);
 function rect_t ui_rect_from_panel_child(ui_panel_t* panel, rect_t rect);
 function rect_t ui_rect_from_panel(arena_t* scratch, ui_panel_t* panel, rect_t root_rect);
 
-
-
-
 // widgets
 
 function ui_interaction ui_button(str_t label);
@@ -785,6 +841,7 @@ function ui_interaction ui_slider(str_t label, i32* value, i32 min, i32 max);
 function ui_interaction ui_slider(str_t label, f32* value, f32 min, f32 max);
 function ui_interaction ui_checkbox(str_t label, b8* value);
 function ui_interaction ui_expander(str_t label, b8* is_expanded);
+function ui_interaction ui_float_edit(str_t label, f32* value);
 function ui_interaction ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val);
 function ui_interaction ui_color_hue_bar(str_t label, f32* hue, f32 sat, f32 val);
 function ui_interaction ui_color_sat_bar(str_t label, f32 hue, f32* sat, f32 val);
@@ -828,7 +885,7 @@ ui_stack_func(rounding_00, f32)
 ui_stack_func(rounding_01, f32)
 ui_stack_func(rounding_10, f32)
 ui_stack_func(rounding_11, f32)
-ui_stack_func(palette, ui_palette_t)
+ui_stack_func(color_group, ui_color_group_t)
 ui_stack_func(font, font_t*)
 ui_stack_func(font_size, f32)
 ui_stack_func(focus_hot, ui_focus_type)
@@ -843,7 +900,10 @@ function void ui_push_rect(rect_t rect);
 function void ui_pop_rect();
 function void ui_set_next_rect(rect_t rect);
 
-
+// TODO: color var 
+function void ui_push_color_var(ui_color color_id, color_t color);
+function void ui_pop_color_var(ui_color color_id);
+function void ui_set_next_color_var(ui_color color_id, color_t color);
 
 
 #endif // UI_H

@@ -34,6 +34,8 @@ enum draw_shape {
 
 struct draw_constants_t {
 	vec2_t window_size;
+	vec2_t padding;
+	rect_t clip_masks[128];
 };
 
 struct draw_instance_t {
@@ -52,6 +54,7 @@ struct draw_instance_t {
 	f32 softness;
 	f32 omit_texture;
 	i32 shape;
+	i32 clip_index;
 };
 
 struct draw_batch_t {
@@ -78,6 +81,7 @@ draw_stack_node_decl(softness, f32);
 
 draw_stack_node_decl(font, font_t*);
 draw_stack_node_decl(font_size, f32);
+draw_stack_node_decl(clip_mask, rect_t);
 
 struct draw_state_t {
 
@@ -85,6 +89,7 @@ struct draw_state_t {
 	gfx_buffer_t* instance_buffer;
 	gfx_buffer_t* constant_buffer;
 	draw_constants_t constants;
+	i32 clip_mask_count;
 	gfx_pipeline_t pipeline;
 	gfx_shader_t* shader;
 	font_t* font;
@@ -111,6 +116,8 @@ struct draw_state_t {
 	draw_stack_decl(font);
 	draw_stack_decl(font_size);
 
+	draw_stack_decl(clip_mask);
+
 	// stack defaults
 	gfx_stack_default_decl(color0);
 	gfx_stack_default_decl(color1);
@@ -127,6 +134,8 @@ struct draw_state_t {
 
 	gfx_stack_default_decl(font);
 	gfx_stack_default_decl(font_size);
+
+	gfx_stack_default_decl(clip_mask);
 
 };
 
@@ -168,6 +177,8 @@ draw_stack_func_decl(softness, f32);
 
 draw_stack_func_decl(font, font_t*);
 draw_stack_func_decl(font_size, f32);
+
+draw_stack_func_decl(clip_mask, rect_t);
 
 // group stacks
 function void draw_push_color(color_t);

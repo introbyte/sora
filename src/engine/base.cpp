@@ -1839,6 +1839,11 @@ rect(vec2_t p0, vec2_t p1) {
 	return { p0.x, p0.y, p1.x, p1.y };
 }
 
+inlnfunc b8 
+rect_equals(rect_t a, rect_t b) {
+	return (a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1);
+}
+
 inlnfunc void
 rect_validate(rect_t& r) {
 	if (r.x0 > r.x1) {

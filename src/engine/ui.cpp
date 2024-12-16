@@ -67,25 +67,96 @@ ui_init() {
 	ui_state.last_click_time[1] = 0;
 	ui_state.last_click_time[2] = 0;
 
-	// default resources
-	ui_state.default_palette.background = color(0x282828ff);
-	ui_state.default_palette.border = color(0x3d3d3dff);
-	ui_state.default_palette.hover = color(0x151515ff);
-	ui_state.default_palette.active = color(0x151515ff);
-	ui_state.default_palette.text = color(0xe2e2e2ff);
-	ui_state.default_palette.accent = color(0x5bd9ffff); // blue
+	ui_state.default_theme.borders = true;
+	ui_state.default_theme.shadows = true;
+	ui_state.default_theme.rounding = 2.0f;
+	ui_state.default_theme.padding = 2.0f;
+
+	// default
+	ui_color_group_t* default = &ui_state.default_theme.default;
+	default->background = color(0x3d3d3dff);
+	default->border = color(0x303030ff);
+	default->hover = color(0x151515ff);
+	default->active = color(0x151515ff);
+	default->text = color(0xe2e2e2ff);
+	default->shadow = color(0xe00000015);
+	default->accent = color(0x5bd9ffff);
+
+	// label
+	ui_color_group_t* label = &ui_state.default_theme.label;
+	*label = *default;
 	
-	ui_state.default_font = draw_state.font;
-	ui_state.default_icon_font = font_open(str("res/fonts/icons.ttf"));
+	// button
+	ui_color_group_t* button = &ui_state.default_theme.button;
+	*button = *default;
+
+	// slider
+	ui_color_group_t* slider = &ui_state.default_theme.slider;
+	*slider = *default;
+	slider->accent.a = 0.3f;
+
+	// checkbox
+	ui_color_group_t* checkbox = &ui_state.default_theme.checkbox;
+	*checkbox = *default;
+	checkbox->accent.a = 0.3f;
+
+	// expander
+	ui_color_group_t* expander = &ui_state.default_theme.expander;
+	*expander = *default;
+	expander->background = color(0x3d3d3dff);
+
+	// number edit
+	ui_color_group_t* number_edit = &ui_state.default_theme.number_edit;
+	*number_edit = *default;
+
+	// color picker
+	ui_color_group_t* color_picker = &ui_state.default_theme.color_picker;
+	*color_picker = *default;
+
+	// text edit
+	ui_color_group_t* text_edit = &ui_state.default_theme.text_edit;
+	*text_edit = *default;
+
+	// combo box
+	ui_color_group_t* combo_box = &ui_state.default_theme.combo_box;
+	*combo_box = *default;
+
+	// panel
+	ui_color_group_t* panel = &ui_state.default_theme.panel;
+	*panel = *default;
+	panel->background = color(0x303030ff);
+
+	ui_color_group_t* view_tab = &ui_state.default_theme.view_tab;
+	*view_tab = *default;
+	view_tab->background = color(0x303030ff);
+
+	// tooltip
+	ui_color_group_t* tooltip = &ui_state.default_theme.tooltip;
+	*tooltip = *default;
+	tooltip->background = color(0x1d1d1dff);
+	tooltip->border = color(0x242424ff);
+
+	// context
+	ui_color_group_t* popup = &ui_state.default_theme.popup;
+	*popup = *default;
+	popup->background = color(0x1d1d1dff);
+	popup->border = color(0x242424ff);
+
+	//// default resources
+	//ui_state.default_palette.background = color(0x282828ff);
+	//ui_state.default_palette.border = color(0x3d3d3dff);
+	//ui_state.default_palette.hover = color(0x151515ff);
+	//ui_state.default_palette.active = color(0x151515ff);
+	//ui_state.default_palette.text = color(0xe2e2e2ff);
+	//ui_state.default_palette.accent = color(0x5bd9ffff); // blue
+	//
+	//ui_state.default_font = draw_state.font;
+	//ui_state.default_icon_font = font_open(str("res/fonts/icons.ttf"));
 
 }
 
 function void
 ui_release() {
-
-	// release assets
-	font_close(ui_state.default_font);
-	font_close(ui_state.default_icon_font);
 
 	// release arenas
 	arena_release(ui_state.arena);
@@ -208,6 +279,13 @@ ui_context_create(gfx_renderer_t* renderer) {
 	context->panel_root->percent_of_parent = 1.0f;
 	context->panel_root->split_axis = ui_axis_x;
 
+	// default font
+	context->font = draw_state.font;
+	context->icon_font = font_open(str("res/fonts/icons.ttf"));
+
+	// default theme
+	context->theme = ui_state.default_theme;
+
 	// default stack
 	ui_default_init(parent, nullptr);
 	ui_default_init(flags, 0);
@@ -226,8 +304,8 @@ ui_context_create(gfx_renderer_t* renderer) {
 	ui_default_init(rounding_01, 2.0f);
 	ui_default_init(rounding_10, 2.0f);
 	ui_default_init(rounding_11, 2.0f);
-	ui_default_init(palette, ui_state.default_palette);
-	ui_default_init(font, ui_state.default_font);
+	ui_default_init(color_group, context->theme.default);
+	ui_default_init(font, context->font);
 	ui_default_init(font_size, 9.0f);
 	ui_default_init(focus_hot, ui_focus_type_null);
 	ui_default_init(focus_active, ui_focus_type_null);
@@ -256,6 +334,9 @@ ui_context_release(ui_context_t* context) {
 	dll_remove(ui_state.ui_first, ui_state.ui_last, context);
 	stack_push(ui_state.ui_free, context);
 
+	// release assets
+	font_close(context->icon_font);
+
 	// release arenas
 	arena_release(context->arena);
 	arena_release(context->per_frame_arena);
@@ -283,6 +364,12 @@ ui_begin_frame(ui_context_t* context) {
 		}
 	}
 
+	// set defaults
+	ui_default_init(rounding_00, context->theme.rounding);
+	ui_default_init(rounding_01, context->theme.rounding);
+	ui_default_init(rounding_10, context->theme.rounding);
+	ui_default_init(rounding_11, context->theme.rounding);
+
 	// reset stacks
 	ui_stack_reset(parent);
 	ui_stack_reset(flags);
@@ -301,7 +388,7 @@ ui_begin_frame(ui_context_t* context) {
 	ui_stack_reset(rounding_01);
 	ui_stack_reset(rounding_10);
 	ui_stack_reset(rounding_11);
-	ui_stack_reset(palette);
+	ui_stack_reset(color_group);
 	ui_stack_reset(font);
 	ui_stack_reset(font_size);
 	ui_stack_reset(focus_hot);
@@ -360,32 +447,35 @@ ui_begin_frame(ui_context_t* context) {
 	rect_t client_rect = rect(0.0f, 0.0f, (f32)context->window->resolution.x, (f32)context->window->resolution.y);
 
 	// build non leaf panel ui
-	for (ui_panel_t* panel = context->panel_root; panel != 0;) {
-		ui_panel_rec_t rec = ui_panel_rec_depth_first(panel);
+	for (ui_panel_t* panel = context->panel_root; panel != 0; panel = ui_panel_rec_depth_first(panel).next) {
+		
 		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
-		vec2_t panel_size = rect_size(panel_rect);
+		ui_axis split_axis = panel->split_axis;
 
-		for (ui_panel_t* child = panel->child_first; child != nullptr && child->next != nullptr; child = child->next) {
+		// build drag boundaries
+		for (ui_panel_t* child = panel->child_first; child != nullptr && child->next != nullptr; child = child->next) {	
 
-			// build draw boundaries
-			rect_t child_rect = ui_rect_from_panel_child(child, panel_rect);
-			rect_t boundary_rect = child_rect;
-			boundary_rect.v0[panel->split_axis] = boundary_rect.v1[panel->split_axis];
-			boundary_rect.v0[panel->split_axis] -= 5;
-			boundary_rect.v1[panel->split_axis] += 4;
+			ui_panel_t* min_child = child;
+			ui_panel_t* max_child = child->next;
 
+			rect_t min_child_rect = ui_rect_from_panel_child(child, panel_rect);
+			rect_t max_child_rect = ui_rect_from_panel_child(max_child, panel_rect);
+
+			// calculate boundary rect
+			rect_t boundary_rect = { 0 };
+			boundary_rect.v0[split_axis]  = min_child_rect.v1[split_axis] - 4.0f;
+			boundary_rect.v1[split_axis]  = max_child_rect.v0[split_axis] + 4.0f;
+			boundary_rect.v0[!split_axis] = panel_rect.v0[!split_axis];
+			boundary_rect.v1[!split_axis] = panel_rect.v1[!split_axis];	
+
+			// build frame
 			ui_set_next_rect(boundary_rect);
-			ui_set_next_hover_cursor(panel->split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
-			ui_frame_flags flags = 
-				ui_frame_flag_clickable |
-				ui_frame_flag_floating;
+			ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
+			ui_frame_flags flags = ui_frame_flag_clickable |ui_frame_flag_floating;
 			ui_frame_t* frame = ui_frame_from_string(str_format(context->scratch_arena, "###panel_boundary_%p", panel), flags);
 			ui_interaction interaction = ui_frame_interaction(frame);
 
 			if (interaction & ui_interaction_left_dragging) {
-
-				ui_panel_t* min_child = child;
-				ui_panel_t* max_child = child->next;
 
 				if (interaction & ui_interaction_left_pressed) {
 					vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
@@ -395,20 +485,33 @@ ui_begin_frame(ui_context_t* context) {
 				vec2_t drag_data = *(vec2_t*)ui_get_drag_data();
 				vec2_t mouse_delta = ui_get_drag_delta();
 
-				f32 min_child_pre_drag = drag_data.x * panel_size[panel->split_axis];
-				f32 max_child_pre_drag = drag_data.y * panel_size[panel->split_axis];
-				
-				min_child_pre_drag += mouse_delta[panel->split_axis];
-				max_child_pre_drag -= mouse_delta[panel->split_axis];
+				f32 total_size = rect_size(panel_rect)[split_axis];
 
-				min_child->percent_of_parent = min_child_pre_drag / panel_size[panel->split_axis];
-				max_child->percent_of_parent = max_child_pre_drag / panel_size[panel->split_axis];
+				// min child
+				f32 min_pct_before = drag_data[0];
+				f32 min_px_before = min_pct_before * total_size;
+				f32 min_px_after = max(min_px_before + mouse_delta[split_axis], 50.0f);
+				f32 min_pct_after = min_px_after / total_size;
+				f32 pct_delta = min_pct_after - min_pct_before;
+
+				// max child
+				f32 max_pct_before = drag_data[1];
+				f32 max_pct_after = max_pct_before - pct_delta;
+				f32 max_px_after = max_pct_after * total_size;
+				if (max_px_after < 50.0f) {
+					max_px_after = 50.0f;
+					max_pct_after = max_px_after / total_size;
+					pct_delta = -(max_pct_after - max_pct_before);
+					min_pct_after = min_pct_before + pct_delta;
+				}
+
+				min_child->percent_of_parent = min_pct_after;
+				max_child->percent_of_parent = max_pct_after;
 
 			}
 
 		}
 		
-		panel = rec.next;
 	}
 
 	// build leaf panel ui
@@ -416,20 +519,22 @@ ui_begin_frame(ui_context_t* context) {
 		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
 		
 		if (panel->child_first == nullptr && panel != context->panel_root) {
-			ui_frame_flags flags = 
-				ui_frame_flag_draw_background |
-				ui_frame_flag_draw_border;
-			
-			ui_palette_t palette = ui_state.default_palette;
-			palette.background = color(0x232323ff);
-			palette.border = color(0x2c2c2cff);
 
-			ui_set_next_palette(palette);
-			ui_set_next_rect(rect_shrink(panel_rect, 2.0f));
+			// build panel frame
+			ui_frame_flags flags = ui_frame_flag_draw_background | ui_frame_flag_clip;
+			
+			rect_t adjusted_rect = panel_rect;
+			adjusted_rect.y0 += 20.0f;
+
+			ui_set_next_color_group(ui_state.ui_active->theme.panel);
+			ui_set_next_rounding_11(0.0f);
+			ui_set_next_rect(rect_shrink(adjusted_rect, 2.0f));
 			str_t panel_string = str_format(context->scratch_arena, "##panel_frame_%p", panel);
 			ui_frame_t* panel_frame = ui_frame_from_string(panel_string, flags);
 
 			panel->frame = panel_frame;
+
+
 		}
 		
 	}
@@ -522,32 +627,32 @@ ui_end_frame(ui_context_t* context) {
 		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame);
 
 		// grab frame info
-		ui_palette_t* palette = &frame->palette;
+		ui_color_group_t* color_group = &frame->color_group;
 
 		// frame shadow
 		if (frame->flags & ui_frame_flag_draw_shadow) {
-			draw_set_next_color(color(0x00000015));
+			draw_set_next_color(color_group->shadow);
 			draw_set_next_radii(frame->rounding);
 			draw_rect(rect_translate(frame->rect, 1.0f));
 		}
 
 		// determine color
-		color_t border_color = palette->border;
-		color_t background_color = palette->background;
+		color_t border_color = color_group->border;
+		color_t background_color = color_group->background;
 
 		// background
 		if (frame->flags & ui_frame_flag_draw_background) {
 
 			// hover effects
 			if (frame->flags & ui_frame_flag_draw_hover_effects) {
-				background_color = color_lerp(background_color, color_add(background_color, palette->hover), frame->hover_t);
-				border_color = color_lerp(border_color, color_add(border_color, palette->hover), frame->hover_t);
+				background_color = color_lerp(background_color, color_add(background_color, color_group->hover), frame->hover_t);
+				border_color = color_lerp(border_color, color_add(border_color, color_group->hover), frame->hover_t);
 			}
 			
 			// active effects
 			if (frame->flags & (ui_frame_flag_draw_active_effects)) {
-				background_color = color_lerp(background_color, color_add(background_color, palette->active), frame->active_t);
-				border_color = color_lerp(border_color, color_add(border_color, palette->active), frame->hover_t);
+				background_color = color_lerp(background_color, color_add(background_color, color_group->active), frame->active_t);
+				border_color = color_lerp(border_color, color_add(border_color, color_group->active), frame->hover_t);
 			}
 
 			// background
@@ -566,19 +671,24 @@ ui_end_frame(ui_context_t* context) {
 	
 		// clip
 		if (frame->flags & ui_frame_flag_clip) {
-			//rect_t top_clip = gfx_top_clip();
-			//rect_t new_clip = rect_shrink(frame->rect, 1.0f);
-			//if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
-			//	new_clip = rect_intersection(new_clip, top_clip);
-			//}
-			//gfx_push_clip(new_clip);
+			rect_t top_clip = draw_top_clip_mask();
+			rect_t new_clip = rect_shrink(frame->rect, 1.0f);
+			if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
+				new_clip = rect_intersection(new_clip, top_clip);
+			}
+			rect_validate(new_clip);
+			draw_push_clip_mask(new_clip);
 		}
 
 		// text
 		if (frame->flags & ui_frame_flag_draw_text) {
 
+			// truncate text if needed
+			f32 frame_width = rect_width(frame->rect);
+			str_t text = font_text_truncate(context->scratch_arena, frame->font, frame->font_size, frame->string, frame_width, str("..."));
+
 			// calculate text pos
-			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
+			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, text, frame->rect, frame->text_alignment);
 			
 #if 0 // debug text position
 			draw_set_next_color(color(0xff0000ff));
@@ -587,17 +697,19 @@ ui_end_frame(ui_context_t* context) {
 			f32 font_height = font_text_get_height(frame->font, frame->font_size, frame->string);
 			draw_rect(rect(text_pos.x, text_pos.y, text_pos.x + font_width, text_pos.y + font_height));
 #endif
+
+
 			draw_push_font(frame->font);
 			draw_push_font_size(frame->font_size);
 
 			{
 				// text shadow
-				draw_set_next_color(color(0x15151580));
-				draw_text(frame->string, vec2_add(text_pos, 1.0f));
+				draw_set_next_color(color_group->shadow);
+				draw_text(text, vec2_add(text_pos, 1.0f));
 
 				// text
-				draw_set_next_color(palette->text);
-				draw_text(frame->string, text_pos);
+				draw_set_next_color(color_group->text);
+				draw_text(text, text_pos);
 			}
 
 			draw_pop_font();
@@ -621,7 +733,7 @@ ui_end_frame(ui_context_t* context) {
 			
 			// pop clips
 			if (f->flags & ui_frame_flag_clip) {
-				//gfx_pop_clip();
+				draw_pop_clip_mask();
 			}
 		}
 
@@ -787,6 +899,7 @@ function ui_size_t
 ui_size_text(f32 padding) {
 	return { ui_size_type_text, padding, 0.0f };
 }
+
 
 // alignment functions
 
@@ -1456,7 +1569,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 	frame->rounding.y = ui_top_rounding_01();
 	frame->rounding.z = ui_top_rounding_10();
 	frame->rounding.w = ui_top_rounding_11();
-	frame->palette = ui_top_palette();
+	frame->color_group = ui_top_color_group();
 	frame->font = ui_top_font();
 	frame->font_size = ui_top_font_size();
 	
@@ -1860,14 +1973,11 @@ ui_tooltip_begin() {
 
 	ui_state.ui_active->tooltip_open = 1;
 
-	ui_palette_t palette = ui_state.default_palette;
-	palette.background = color(0x121212ff);
-	palette.border = color(0x1d1d1dff);
 
 	ui_set_next_parent(ui_state.ui_active->tooltip_root);
 	ui_set_next_pref_width(ui_size_by_child(1.0f));
 	ui_set_next_pref_height(ui_size_by_child(1.0f));
-	ui_set_next_palette(palette);
+	ui_set_next_color_group(ui_state.ui_active->theme.tooltip);
 	ui_frame_flags flags =
 		ui_frame_flag_draw_background |
 		ui_frame_flag_draw_border |
@@ -1902,37 +2012,12 @@ ui_spacer(ui_size_t size = ui_size_pixel(2.0f, 1.0f)) {
 }
 
 function ui_interaction
-ui_button(str_t label) {
-
-	ui_frame_flags flags =
-		ui_frame_flag_clickable |
-		ui_frame_flag_draw;
-
-	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_frame_t* frame = ui_frame_from_string(label, flags);
-	ui_interaction interaction = ui_frame_interaction(frame);
-
-	return interaction;
-}
-
-function ui_interaction
-ui_buttonf(char* fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	str_t display_string = str_formatv(ui_state.ui_active->scratch_arena, fmt, args);
-	va_end(args);
-
-	ui_interaction interaction = ui_button(display_string);
-
-	return interaction;
-}
-
-function ui_interaction
 ui_label(str_t label) {
 
 	ui_frame_flags flags =
 		ui_frame_flag_draw_text;
 
+	ui_set_next_color_group(ui_state.ui_active->theme.label);
 	ui_frame_t* frame = ui_frame_from_string(str(""), flags);
 	frame->string = ui_string_display_format(label);
 	ui_interaction interaction = ui_frame_interaction(frame);
@@ -1953,6 +2038,33 @@ ui_labelf(char* fmt, ...) {
 }
 
 function ui_interaction
+ui_button(str_t label) {
+
+	ui_frame_flags flags =
+		ui_frame_flag_clickable |
+		ui_frame_flag_draw;
+
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_color_group(ui_state.ui_active->theme.button);
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+
+	return interaction;
+}
+
+function ui_interaction
+ui_buttonf(char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	str_t display_string = str_formatv(ui_state.ui_active->scratch_arena, fmt, args);
+	va_end(args);
+
+	ui_interaction interaction = ui_button(display_string);
+
+	return interaction;
+}
+
+function ui_interaction
 ui_slider(str_t label, i32* value, i32 min, i32 max) {
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
@@ -1960,6 +2072,7 @@ ui_slider(str_t label, i32* value, i32 min, i32 max) {
 
 	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_text_alignment(ui_text_alignment_center);
+	ui_set_next_color_group(ui_state.ui_active->theme.slider);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	str_t text = str_format(ui_state.ui_active->per_frame_arena, "%i", *value);
 	ui_frame_set_display_text(frame, text);
@@ -1989,6 +2102,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 
 	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_text_alignment(ui_text_alignment_center);
+	ui_set_next_color_group(ui_state.ui_active->theme.slider);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	str_t text = str_format(ui_state.ui_active->per_frame_arena, "%.2f", *value);
 	ui_frame_set_display_text(frame, text);
@@ -2015,6 +2129,7 @@ ui_checkbox(str_t label, b8* value) {
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_layout_axis(ui_axis_x);
+	ui_push_color_group(ui_state.ui_active->theme.checkbox);
 
 	u32 flags = ui_frame_flag_clickable;
 	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
@@ -2022,13 +2137,17 @@ ui_checkbox(str_t label, b8* value) {
 	ui_push_parent(parent_frame);
 	{
 		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_set_next_font(ui_state.default_icon_font);
+		ui_set_next_font(ui_state.ui_active->icon_font);
 
 		u32 flag_frame_flags =
 			ui_frame_flag_draw_text | ui_frame_flag_draw_background |
 			ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
 			ui_frame_flag_draw_shadow | ui_frame_flag_draw_border;
 		
+		if (*value) {
+			
+		}
+
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), flag_frame_flags);
 		icon_frame->active_t = parent_frame->active_t;
 		icon_frame->hover_t = parent_frame->hover_t;
@@ -2041,10 +2160,11 @@ ui_checkbox(str_t label, b8* value) {
 		ui_label(label);
 	}
 	ui_pop_parent();
+	ui_pop_color_group();
 
 	ui_interaction interaction = ui_frame_interaction(parent_frame);
 
-	if (interaction & ui_interaction_left_released) {
+	if (interaction & ui_interaction_left_clicked) {
 		*value = !*value;
 	}
 
@@ -2059,6 +2179,7 @@ ui_expander(str_t label, b8* is_expanded) {
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
 	ui_set_next_layout_axis(ui_axis_x);
+	ui_push_color_group(ui_state.ui_active->theme.expander);
 
 	u32 flags =
 		ui_frame_flag_clickable | ui_frame_flag_draw_background |
@@ -2069,7 +2190,7 @@ ui_expander(str_t label, b8* is_expanded) {
 	ui_push_parent(parent_frame);
 	{
 		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_set_next_font(ui_state.default_icon_font);
+		ui_set_next_font(ui_state.ui_active->icon_font);
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
 		if (*is_expanded) {
 			ui_frame_set_display_text(icon_frame, str("v"));
@@ -2083,14 +2204,58 @@ ui_expander(str_t label, b8* is_expanded) {
 		ui_label(label);
 	}
 	ui_pop_parent();
+	ui_pop_color_group();
 
 	ui_interaction interaction = ui_frame_interaction(parent_frame);
 
-	if (interaction & ui_interaction_left_released) {
+	if (interaction & ui_interaction_left_clicked) {
 		*is_expanded = !*is_expanded;
 	}
 
 	return interaction;
+}
+
+function ui_interaction 
+ui_float_edit(str_t label, f32* value) {
+
+	// build parent frame
+	ui_set_next_layout_axis(ui_axis_x);
+	ui_push_color_group(ui_state.ui_active->theme.number_edit);
+
+	ui_frame_t* parent_frame = ui_frame_from_string(label, 0);
+	ui_interaction interaction = ui_frame_interaction(parent_frame);
+
+	ui_push_parent(parent_frame);
+	{
+
+		u32 flag_frame_flags = ui_frame_flag_draw | ui_frame_flag_clickable;
+		ui_set_next_text_alignment(ui_text_alignment_center);
+		ui_set_next_font(ui_state.ui_active->icon_font);
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_frame_t* decrement_frame = ui_frame_from_string(str("<"), flag_frame_flags);
+		ui_interaction decrement_interaction = ui_frame_interaction(decrement_frame);
+
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(label);
+
+
+		ui_set_next_text_alignment(ui_text_alignment_center);
+		ui_set_next_font(ui_state.ui_active->icon_font);
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_frame_t* increment_frame = ui_frame_from_string(str(">"), flag_frame_flags);
+		ui_interaction increment_interaction = ui_frame_interaction(increment_frame);
+
+	}
+	ui_pop_parent();
+	ui_pop_color_group();
+
+	//if (interaction & ui_interaction_left_released) {
+	//	*value = !*value;
+	//}
+
+	return interaction;
+
 }
 
 function ui_interaction
@@ -2554,7 +2719,7 @@ ui_combo(str_t label, i32* current, const char** items, u32 item_count) {
 		ui_label(combo_label);
 
 		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_set_next_font(ui_state.default_icon_font);
+		ui_set_next_font(ui_state.ui_active->icon_font);
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
 		ui_frame_set_display_text(icon_frame, str("v"));
 
@@ -2608,8 +2773,7 @@ ui_slider_draw_function(ui_frame_t* frame) {
 	rect_t bar_rect = frame->rect;
 	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
 
-	color_t color = frame->palette.accent;
-	color.a = 0.3f;
+	color_t color = frame->color_group.accent;
 	draw_set_next_color(color);
 	draw_set_next_radii(frame->rounding);
 	draw_rect(bar_rect);
@@ -2966,7 +3130,7 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		}
 
 		// draw circle border
-		draw_set_next_color(frame->palette.border);
+		draw_set_next_color(frame->color_group.border);
 		draw_set_next_thickness(1.75f);
 		draw_circle(frame_center, wheel_radius + 0.25f, 0.0f, 360.0f);
 	}
@@ -3071,7 +3235,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		ui_state.ui_active->mark_target_pos.x = mark_offset;
 
 		// draw cursor
-		draw_set_next_color(frame->palette.accent);
+		draw_set_next_color(frame->color_group.accent);
 
 		f32 left = ui_state.ui_active->cursor_pos.x;
 		f32 right = cursor_offset;
@@ -3091,7 +3255,7 @@ ui_text_edit_draw_function(ui_frame_t* frame) {
 		draw_rect(cursor_rect);
 
 		// draw mark
-		color_t mark_color = frame->palette.accent;
+		color_t mark_color = frame->color_group.accent;
 		mark_color.a = 0.3f;
 		draw_set_next_color(mark_color);
 		rect_t mark_rect = rect(
@@ -3190,7 +3354,7 @@ ui_auto_pop_stacks() {
 	ui_stack_auto_pop_impl(rounding_01);
 	ui_stack_auto_pop_impl(rounding_10);
 	ui_stack_auto_pop_impl(rounding_11);
-	ui_stack_auto_pop_impl(palette);
+	ui_stack_auto_pop_impl(color_group);
 	ui_stack_auto_pop_impl(font);
 	ui_stack_auto_pop_impl(font_size);
 	ui_stack_auto_pop_impl(focus_hot);
@@ -3215,7 +3379,7 @@ ui_stack_impl(rounding_00, f32)
 ui_stack_impl(rounding_01, f32)
 ui_stack_impl(rounding_10, f32)
 ui_stack_impl(rounding_11, f32)
-ui_stack_impl(palette, ui_palette_t)
+ui_stack_impl(color_group, ui_color_group_t)
 ui_stack_impl(font, font_t*)
 ui_stack_impl(font_size, f32)
 ui_stack_impl(focus_hot, ui_focus_type)
@@ -3247,8 +3411,6 @@ ui_set_next_rounding(f32 rounding) {
 }
 
 
-
-
 function void 
 ui_push_rect(rect_t rect) {
 	ui_push_fixed_x(rect.x0);
@@ -3272,6 +3434,8 @@ ui_set_next_rect(rect_t rect) {
 	ui_set_next_fixed_width(rect.x1 - rect.x0);
 	ui_set_next_fixed_height(rect.y1 - rect.y0);
 }
+
+
 
 
 #endif // UI_CPP

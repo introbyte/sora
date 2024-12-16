@@ -15,25 +15,33 @@
 Texture2D color_texture : register(t0);
 SamplerState texture_sampler : register(s0);
 
+struct rect_t {
+    float2 p0;
+    float2 p1;
+};
+
 cbuffer globals : register(b0) {
     float2 window_size;
+    float2 padding;
+    rect_t clip_masks[128];
 }
 
 struct vs_in {
-    float4 bbox      : BBOX;
-    float4 texcoords : TEX;
-    float2 point0    : PNT0;
-    float2 point1    : PNT1;
-    float2 point2    : PNT2;
-    float2 point3    : PNT3;
-    float4 color0    : COL0;
-    float4 color1    : COL1;
-    float4 color2    : COL2;
-    float4 color3    : COL3;
-    float4 radii     : RAD;
-    float3 style     : STY;
-    int    shape     : SHP;
-    uint   vertex_id : SV_VertexID;
+    float4 bbox       : BBOX;
+    float4 texcoords  : TEX;
+    float2 point0     : PNT0;
+    float2 point1     : PNT1;
+    float2 point2     : PNT2;
+    float2 point3     : PNT3;
+    float4 color0     : COL0;
+    float4 color1     : COL1;
+    float4 color2     : COL2;
+    float4 color3     : COL3;
+    float4 radii      : RAD;
+    float3 style      : STY;
+    int    shape      : SHP;
+    int    clip_index : CLP;
+    uint   vertex_id  : SV_VertexID;
 };
 
 struct ps_in {
@@ -52,6 +60,7 @@ struct ps_in {
     float4 radii       : RAD;
     float3 style       : STY;
     int shape          : SHP;
+    int clip_index     : CLP;
     
 };
 
@@ -66,12 +75,12 @@ ps_in vs_main(vs_in input) {
     float2 tex_p1 = { input.texcoords.zw };
     
     // per-vertex arrays
-    float2 vertex_positions[] = {
-        float2(p0.x, p0.y),
+        float2 vertex_positions[] = {
+            float2(p0.x, p0.y),
         float2(p0.x, p1.y),
         float2(p1.x, p0.y),
         float2(p1.x, p1.y),
-    };
+        };
     
     float2 vertex_texcoords[] = {
         float2(tex_p0.x, tex_p0.y),
@@ -104,6 +113,7 @@ ps_in vs_main(vs_in input) {
     output.radii = input.radii;
     output.style = input.style;
     output.shape = input.shape;
+    output.clip_index = input.clip_index;
     
     return output;
 }
@@ -259,6 +269,13 @@ float4 ps_main(ps_in input) : SV_TARGET {
     
     float4 sdf_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     float4 tex_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    
+    // clip if needed
+    rect_t clip_mask = clip_masks[input.clip_index];
+    if (input.pos.x < clip_mask.p0.x || input.pos.x > clip_mask.p1.x ||
+        input.pos.y < clip_mask.p0.y || input.pos.y > clip_mask.p1.y) {
+        discard;
+    }
     
     float2 sample_pos = (2.0f * input.col_coord - 1.0f) * input.half_size;
     

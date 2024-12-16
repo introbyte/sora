@@ -60,6 +60,8 @@ function font_glyph_t* font_get_glyph(font_t*, f32, u32);
 function f32 font_text_get_width(font_t*, f32, str_t);
 function f32 font_text_get_height(font_t*, f32, str_t);
 
+function str_t font_text_truncate(arena_t* arena, font_t* font, f32 font_size, str_t string, f32 max_width, str_t trail_string);
+
 // helper
 function u32 font_glyph_hash(font_t*, f32, u32);
 function font_raster_t font_glyph_raster(arena_t*, font_t*, f32, u32); // backend

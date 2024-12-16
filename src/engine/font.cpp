@@ -65,7 +65,48 @@ font_text_get_height(font_t* font, f32 size, str_t string) {
 	return h;
 }
 
+function str_t 
+font_text_truncate(arena_t* arena, font_t* font, f32 font_size, str_t string, f32 max_width, str_t trail_string) {
 
+	// TODO: clean up pass, try to get rid of alloc.
+
+	// copy original string
+	char* buffer = (char*)arena_alloc(arena, sizeof(char) * string.size);
+	memcpy(buffer, string.data, string.size);
+	str_t result = { 0 };
+
+	f32 trail_width = font_text_get_width(font, font_size, trail_string);
+
+	f32 width = 0.0f;
+	i32 glyph_count = 0;
+	b8 trail_needed = false;
+
+	for (; glyph_count < string.size; glyph_count++) {
+		char c = *(string.data + glyph_count);
+		font_glyph_t* glyph = font_get_glyph(font, font_size, (u8)c);
+		width += glyph->advance;
+
+		if (width > max_width) {
+			trail_needed = true;
+			break;
+		}
+	}
+
+	u32 needed_size = string.size;
+
+	if (trail_needed) {
+		glyph_count -= trail_string.size;
+		needed_size = glyph_count + trail_string.size;
+		
+		// copy string
+		memcpy(buffer + glyph_count, trail_string.data, sizeof(char) * trail_string.size);
+		
+	}
+
+	result = str(buffer, needed_size);
+
+	return result;
+}
 
 // helper functions
 

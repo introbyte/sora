@@ -79,6 +79,11 @@
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
 
+// flags
+#define flag_set(flags, mask) ((flags) |= (mask))
+#define flag_remove(flags, mask) ((flags) &= ~(mask))
+#define flag_has(flags, mask) ((flags) & (mask) != 0)
+
 // stack
 #define stack_push_n(f, n, next) ((n)->next = (f), (f) = (n))
 #define stack_pop_n(f, next) (((f) == 0) ? 0 : ((f) = (f)->next))
@@ -539,6 +544,7 @@ inlnfunc vec4_t vec4_project(vec4_t, vec4_t);
 // rect
 inlnfunc rect_t rect(f32, f32, f32, f32);
 inlnfunc rect_t rect(vec2_t, vec2_t);
+inlnfunc b8     rect_equals(rect_t a, rect_t b);
 inlnfunc void   rect_validate(rect_t&);
 inlnfunc b8     rect_contains(rect_t, vec2_t);
 inlnfunc b8     rect_contains(rect_t, rect_t);
