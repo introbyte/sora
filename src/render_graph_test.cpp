@@ -265,6 +265,7 @@ app_ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
 
 		ui_panel_begin(top);
 		{
+
 			ui_set_next_pref_width(ui_size_percent(1.0f));
 			ui_set_next_pref_height(ui_size_percent(1.0f));
 			ui_image(str("image"), screen_texture);

@@ -12,36 +12,35 @@
 #define pi (3.14159265359)
 #define two_pi (6.28318530718)
 
-Texture2D color_texture : register(t0);
-SamplerState texture_sampler : register(s0);
+Texture2D color_texture[16];
+SamplerState texture_sampler;
 
 struct rect_t {
     float2 p0;
     float2 p1;
 };
 
-cbuffer globals : register(b0) {
+cbuffer globals {
     float2 window_size;
     float2 padding;
     rect_t clip_masks[128];
 }
 
 struct vs_in {
-    float4 bbox       : BBOX;
-    float4 texcoords  : TEX;
-    float2 point0     : PNT0;
-    float2 point1     : PNT1;
-    float2 point2     : PNT2;
-    float2 point3     : PNT3;
-    float4 color0     : COL0;
-    float4 color1     : COL1;
-    float4 color2     : COL2;
-    float4 color3     : COL3;
-    float4 radii      : RAD;
-    float3 style      : STY;
-    int    shape      : SHP;
-    int    clip_index : CLP;
-    uint   vertex_id  : SV_VertexID;
+    float4 bbox          : BBOX;
+    float4 texcoords     : TEX;
+    float2 point0        : PNT0;
+    float2 point1        : PNT1;
+    float2 point2        : PNT2;
+    float2 point3        : PNT3;
+    float4 color0        : COL0;
+    float4 color1        : COL1;
+    float4 color2        : COL2;
+    float4 color3        : COL3;
+    float4 radii         : RAD;
+    float2 style         : STY;
+    uint   indices       : IDX;
+    uint   vertex_id     : SV_VertexID;
 };
 
 struct ps_in {
@@ -58,10 +57,10 @@ struct ps_in {
     float4 color2      : COL2;
     float4 color3      : COL3;
     float4 radii       : RAD;
-    float3 style       : STY;
-    int shape          : SHP;
-    int clip_index     : CLP;
-    
+    float2 style       : STY;
+    uint shape          : SHP;
+    uint texture_index  : TID;
+    uint clip_index     : CLP;
 };
 
 ps_in vs_main(vs_in input) {
@@ -74,13 +73,18 @@ ps_in vs_main(vs_in input) {
     float2 tex_p0 = { input.texcoords.xy };
     float2 tex_p1 = { input.texcoords.zw };
     
+    // unpack indices
+    uint shape_index = (input.indices >> 24) & 0xFF;
+    uint texture_index = (input.indices >> 16) & 0xFF;
+    uint clip_index = (input.indices >> 8) & 0xFF;
+    
     // per-vertex arrays
-        float2 vertex_positions[] = {
-            float2(p0.x, p0.y),
+    float2 vertex_positions[] = {
+        float2(p0.x, p0.y),
         float2(p0.x, p1.y),
         float2(p1.x, p0.y),
         float2(p1.x, p1.y),
-        };
+    };
     
     float2 vertex_texcoords[] = {
         float2(tex_p0.x, tex_p0.y),
@@ -112,8 +116,9 @@ ps_in vs_main(vs_in input) {
     output.color3 = input.color3;
     output.radii = input.radii;
     output.style = input.style;
-    output.shape = input.shape;
-    output.clip_index = input.clip_index;
+    output.shape = shape_index;
+    output.texture_index = texture_index;
+    output.clip_index = clip_index;
     
     return output;
 }
@@ -222,50 +227,38 @@ float4 blend_color(float4 color0, float4 color1, float4 color2, float4 color3, f
     return lerp(color_a, color_b, uv.y);
 }
 
-//float4 draw_radial(vs_out input) {
+float4 sample_texture(int id, float2 uv) {
     
-//    // sdf sample
-//    float2 sample_pos = (2.0f * input.uv - 1.0f) * input.half_size.x;
+    float4 result = float4(0.0f, 0.0f, 0.0f, 0.0f);
     
-//    float disk_s = sdf_circle(sample_pos, input.half_size.x - input.softness * 2.0f);
-//    float disk_t = 1.0f - smoothstep(0.0f, 2.0f * input.softness, disk_s);
+    switch (id) {
+        case 0: { result = color_texture[0].Sample(texture_sampler, uv); break; }
+        case 1: { result = color_texture[1].Sample(texture_sampler, uv); break; }
+        case 2: { result = color_texture[2].Sample(texture_sampler, uv); break; }
+        case 3: { result = color_texture[3].Sample(texture_sampler, uv); break; }
+        case 4: { result = color_texture[4].Sample(texture_sampler, uv); break; }
+        case 5: { result = color_texture[5].Sample(texture_sampler, uv); break; }
+        case 6: { result = color_texture[6].Sample(texture_sampler, uv); break; }
+        case 7: { result = color_texture[7].Sample(texture_sampler, uv); break; }
+        case 8: { result = color_texture[8].Sample(texture_sampler, uv); break; }
+        case 9: { result = color_texture[9].Sample(texture_sampler, uv); break; }
+        case 10: { result = color_texture[10].Sample(texture_sampler, uv); break; }
+        case 11: { result = color_texture[11].Sample(texture_sampler, uv); break; }
+        case 12: { result = color_texture[12].Sample(texture_sampler, uv); break; }
+        case 13: { result = color_texture[13].Sample(texture_sampler, uv); break; }
+        case 14: { result = color_texture[14].Sample(texture_sampler, uv); break; }
+        case 15: { result = color_texture[15].Sample(texture_sampler, uv); break; }
+    }
     
-//    float border_s = sdf_circle(sample_pos, input.half_size.x - input.softness * 2.0f - input.thickness);
-//    float border_t = smoothstep(0.0f, 2.0f * input.softness, border_s);
+    return result;
     
-//    float angle_diff = (input.p0.y - input.p0.x);
-//    float2 uv = mul(((input.uv - 0.5f) * 2.0f), uv_rotate(input.p0.x));
-//    float a = atan2(uv.y, uv.x);
-//    float theta = (a < 0.0) ? (a + TWO_PI) / TWO_PI : a / TWO_PI;
-//    float bar = step(theta, (angle_diff) / TWO_PI);
-    
-//    // blend color
-//    float2 polar_uv = frac(polar(uv));
-//    float2 sample_uv = float2(polar_uv.x, polar_uv.y * (TWO_PI / angle_diff));
-    
-//    float4 top_color = lerp(input.col0, input.col2, sample_uv.x);
-//    float4 bottom_color = lerp(input.col1, input.col3, sample_uv.x);
-//    float4 color = lerp(top_color, bottom_color, sample_uv.y);
-    
-//    if (input.thickness == 0.0f) {
-//        border_t = 1.0f;
-//    }
-    
-//    float4 final_color = color;
-//    final_color.a *= disk_t;
-//    final_color.a *= border_t;
-//    final_color.a *= bar;
-    
-//    return final_color;
-//}
-
+}
 
 float4 ps_main(ps_in input) : SV_TARGET { 
     
     // unpack style params
     float thickness = input.style.x;
     float softness = input.style.y;
-    float omit_texture = input.style.z;
     
     float4 sdf_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     float4 tex_color = float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -277,14 +270,11 @@ float4 ps_main(ps_in input) : SV_TARGET {
         discard;
     }
     
-    float2 sample_pos = (2.0f * input.col_coord - 1.0f) * input.half_size;
-    
-    // sample texture if needed
-    if (omit_texture != 1.0f) {
-        tex_color = color_texture.Sample(texture_sampler, input.texcoord);
-    }
+    // sample texture
+    tex_color = sample_texture(input.texture_index, input.texcoord);
     
     // draw sdf shapes
+    float2 sample_pos = (2.0f * input.col_coord - 1.0f) * input.half_size;
     switch (input.shape) {
         
         case draw_shape_rect:{
@@ -318,7 +308,7 @@ float4 ps_main(ps_in input) : SV_TARGET {
             break;
         }
         
-        case draw_shape_line: {;
+        case draw_shape_line:{;
             
             float line_s = sdf_line(sample_pos, input.point1.xy, input.point0.xy) - (thickness * 0.25f);
             float line_t = 1.0f - smoothstep(0.0f, 2.0f * softness, line_s);
@@ -361,7 +351,7 @@ float4 ps_main(ps_in input) : SV_TARGET {
         }
         
         case draw_shape_ring:{
-            
+            // TODO;
             break;
         }
         

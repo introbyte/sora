@@ -5,7 +5,7 @@
 
 // todo:
 //
-// [ ] - combine all textures to an array and package index in instance data.
+// [x] - combine all textures to an array and package index in instance data.
 //       this keeps our one draw call feature.
 // [ ] - 
 //
@@ -28,6 +28,9 @@ draw_stack_push_func(name, type)\
 draw_stack_pop_func(name, type)\
 draw_stack_set_next_func(name, type)\
 
+#define draw_max_clip_rects 128
+#define draw_max_textures 16
+
 // enums
 
 enum draw_shape {
@@ -45,7 +48,7 @@ enum draw_shape {
 struct draw_constants_t {
 	vec2_t window_size;
 	vec2_t padding;
-	rect_t clip_masks[128];
+	rect_t clip_masks[draw_max_clip_rects];
 };
 
 struct draw_instance_t {
@@ -62,16 +65,13 @@ struct draw_instance_t {
 	vec4_t radii;
 	f32 thickness;
 	f32 softness;
-	f32 omit_texture;
-	i32 shape;
-	i32 clip_index;
+	u32 indices;
 };
 
 struct draw_batch_t {
 	draw_batch_t* next;
 	draw_batch_t* prev;
-
-	gfx_texture_t* texture;
+	
 	draw_instance_t* instances;
 	u32 instance_count;
 };
@@ -105,8 +105,13 @@ struct draw_state_t {
 	i32 clip_mask_count;
 	gfx_pipeline_t pipeline;
 	gfx_shader_t* shader;
-	font_t* font;
-	
+	gfx_texture_t* texture;
+	font_t* font;	
+
+
+	gfx_texture_t* texture_list[draw_max_textures];
+	u32 texture_count;
+
 	// batches
 	arena_t* batch_arena;
 	draw_batch_t* batch_first;
@@ -166,7 +171,10 @@ function void draw_release();
 function void draw_begin(gfx_renderer_t*);
 function void draw_end(gfx_renderer_t*);
 
-function draw_instance_t* draw_get_instance(gfx_texture_t*);
+function draw_instance_t* draw_get_instance();
+
+function i32 draw_get_texture_index(gfx_texture_t* texture);
+function i32 draw_get_clip_mask_index(rect_t rect);
 
 function void draw_rect(rect_t);
 function void draw_image(rect_t);

@@ -453,6 +453,24 @@ gfx_set_texture(gfx_texture_t* texture, u32 slot, gfx_texture_usage texture_usag
 }
 
 function void
+gfx_set_texture_array(gfx_texture_t** textures, u32 texture_count, u32 slot, gfx_texture_usage texture_usage) {
+
+	// make list of srvs
+	ID3D11ShaderResourceView** srvs = (ID3D11ShaderResourceView**)arena_alloc(gfx_state.scratch_arena, sizeof(ID3D11ShaderResourceView*) * texture_count);
+	for (i32 i = 0; i < texture_count; i++) {
+		srvs[i] = textures[i]->srv;
+	}
+
+	switch (texture_usage) {
+		case gfx_texture_usage_ps: {
+			gfx_state.device_context->PSSetShaderResources(slot, texture_count, srvs);
+			break;
+		}
+	}
+	
+}
+
+function void
 gfx_set_shader(gfx_shader_t* shader) {
 	if (shader != nullptr) {
 		gfx_state.device_context->VSSetShader(shader->vertex_shader, 0, 0);

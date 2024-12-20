@@ -94,12 +94,14 @@ draw_init() {
 		{ "COL",  2, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{ "COL",  3, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
 		{ "RAD",  0, gfx_vertex_format_float4, gfx_vertex_class_per_instance },
-		{ "STY",  0, gfx_vertex_format_float3, gfx_vertex_class_per_instance },
-		{ "SHP",  0, gfx_vertex_format_int,    gfx_vertex_class_per_instance },
-		{ "CLP",  0, gfx_vertex_format_int,    gfx_vertex_class_per_instance },
+		{ "STY",  0, gfx_vertex_format_float2, gfx_vertex_class_per_instance },
+		{ "IDX",  0, gfx_vertex_format_uint,   gfx_vertex_class_per_instance },
 	};
-	draw_state.shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), shader_2d_attributes, 14);
+	draw_state.shader = gfx_shader_load(str("res/shaders/shader_2d.hlsl"), shader_2d_attributes, array_count(shader_2d_attributes));
 	draw_state.font = font_open(str("res/fonts/segoe_ui.ttf"));
+
+	u32 data = 0xffffffff;
+	draw_state.texture = gfx_texture_create(uvec2(1, 1), gfx_texture_format_rgba8, &data);
 
 	draw_state.pipeline = gfx_pipeline_create();
 	draw_state.pipeline.depth_mode = gfx_depth_none;
@@ -136,6 +138,7 @@ draw_release() {
 	gfx_buffer_release(draw_state.instance_buffer);
 
 	// release assets
+	gfx_texture_release(draw_state.texture);
 	gfx_shader_release(draw_state.shader);
 	font_close(draw_state.font);
 
@@ -155,6 +158,10 @@ draw_begin(gfx_renderer_t* renderer) {
 	draw_state.pipeline.viewport = screen;
 	draw_state.pipeline.scissor = screen;
 	draw_state.constants.window_size = vec2(screen.x1, screen.y1);
+
+	// reset texture list
+	memset(draw_state.texture_list, 0, sizeof(gfx_texture_t*) * draw_max_textures);
+	draw_state.texture_count = 0;
 
 	// reset clip mask
 	memset(draw_state.constants.clip_masks, 0, sizeof(rect_t) * 128);
@@ -181,8 +188,10 @@ draw_begin(gfx_renderer_t* renderer) {
 
 	draw_stack_reset(texture);
 	
+	// push default clip mask and texture
 	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y));
-	draw_push_texture(font_state.atlas_texture);
+	draw_push_texture(draw_state.texture);
+	
 }
 
 function void 
@@ -195,10 +204,9 @@ draw_end(gfx_renderer_t* renderer) {
 	gfx_set_pipeline(draw_state.pipeline);
 	gfx_set_shader(draw_state.shader);
 	gfx_set_buffer(draw_state.constant_buffer);
+	gfx_set_texture_array(draw_state.texture_list, draw_state.texture_count, 0, gfx_texture_usage_ps);
 
 	for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
-
-		gfx_set_texture(batch->texture);
 
 		// fill instance buffer
 		gfx_buffer_fill(draw_state.instance_buffer, batch->instances, batch->instance_count * sizeof(draw_instance_t));
@@ -210,7 +218,7 @@ draw_end(gfx_renderer_t* renderer) {
 }
 
 function draw_instance_t*
-draw_get_instance(gfx_texture_t* texture) {
+draw_get_instance() {
 
 	// find a batch
 	draw_batch_t* batch = nullptr;
@@ -219,8 +227,7 @@ draw_get_instance(gfx_texture_t* texture) {
 	for (draw_batch_t* b = draw_state.batch_first; b != 0; b = b->next) {
 
 		// if batch has space, and texture matches
-		if (((b->instance_count + 1) * sizeof(draw_instance_t)) < (kilobytes(256)) &&
-			b->texture == texture) {
+		if (((b->instance_count + 1) * sizeof(draw_instance_t)) < (kilobytes(256))) {
 			batch = b;
 			break;
 		}
@@ -231,7 +238,6 @@ draw_get_instance(gfx_texture_t* texture) {
 
 		batch = (draw_batch_t*)arena_alloc(draw_state.batch_arena, sizeof(draw_batch_t));
 		
-		batch->texture = texture;
 		batch->instances = (draw_instance_t*)arena_alloc(draw_state.batch_arena, kilobytes(256));
 		batch->instance_count = 0;
 		
@@ -245,6 +251,27 @@ draw_get_instance(gfx_texture_t* texture) {
 	memset(instance, 0, sizeof(draw_instance_t));
 
 	return instance;
+}
+
+function i32
+draw_get_texture_index(gfx_texture_t* texture) {
+
+	// find index if in list
+	i32 index = 0;
+	for (; index < draw_state.texture_count; index++) {
+		if (texture == draw_state.texture_list[index]) {
+			break;
+		}
+	}
+
+	// we didn't find one, add to list
+	if (index == draw_state.texture_count) {
+		draw_state.texture_list[draw_state.texture_count] = texture;
+		draw_state.texture_count++;
+	}
+
+	return index;
+
 }
 
 function i32
@@ -267,12 +294,17 @@ draw_get_clip_mask_index(rect_t rect) {
 	return index;
 }
 
+inlnfunc u32
+draw_pack_indices(u32 shape, u32 texture, u32 clip) {
+	return (shape << 24) | (texture << 16) | (clip << 8);
+}
+
 
 
 function void 
 draw_rect(rect_t rect) {
 
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 
 	rect_validate(rect);
 
@@ -287,10 +319,12 @@ draw_rect(rect_t rect) {
 	instance->radii = draw_top_radii();
 	instance->thickness = draw_top_thickness();
 	instance->softness = draw_top_softness();
-	instance->omit_texture = 1.0f;
 
-	instance->shape = draw_shape_rect;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_rect,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
 
 	draw_auto_pop_stacks();
 }
@@ -298,7 +332,7 @@ draw_rect(rect_t rect) {
 function void
 draw_image(rect_t rect) {
 
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 
 	rect_validate(rect);
 
@@ -313,10 +347,12 @@ draw_image(rect_t rect) {
 	instance->radii = draw_top_radii();
 	instance->thickness = draw_top_thickness();
 	instance->softness = draw_top_softness();
-	instance->omit_texture = 0.0f;
 
-	instance->shape = draw_shape_rect;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_rect,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
 
 	draw_auto_pop_stacks();
 
@@ -327,7 +363,7 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 
 	// order: (0, 0), (0, 1), (1, 1), (1, 0);
 
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 
 	f32 softness = draw_top_softness();
 
@@ -358,10 +394,12 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 
 	instance->thickness = draw_top_thickness();
 	instance->softness = softness;
-	instance->omit_texture = 1.0f;
 
-	instance->shape = draw_shape_quad;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_quad,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
 
 	draw_auto_pop_stacks();
 }
@@ -369,7 +407,7 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 function void
 draw_line(vec2_t p0, vec2_t p1) {
 
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 
 	f32 softness = draw_top_softness();
 
@@ -394,10 +432,12 @@ draw_line(vec2_t p0, vec2_t p1) {
 
 	instance->thickness = draw_top_thickness();
 	instance->softness = softness;
-	instance->omit_texture = 1.0f;
 
-	instance->shape = draw_shape_line;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_line,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
 
 	draw_auto_pop_stacks();
 }
@@ -405,7 +445,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 function void 
 draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 	
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 	
 	f32 softness = draw_top_softness();
 
@@ -420,10 +460,13 @@ draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 	
 	instance->thickness = draw_top_thickness();
 	instance->softness = softness;
-	instance->omit_texture = 1.0f;
 
-	instance->shape = draw_shape_circle;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_circle,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
+
 
 	draw_auto_pop_stacks();
 } 
@@ -431,7 +474,7 @@ draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 function void
 draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 
-	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+	draw_instance_t* instance = draw_get_instance();
 
 	f32 softness = draw_top_softness();
 
@@ -461,10 +504,13 @@ draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 
 	instance->thickness = draw_top_thickness();
 	instance->softness = softness;
-	instance->omit_texture = 1.0f;
 
-	instance->shape = draw_shape_tri;
-	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+	instance->indices = draw_pack_indices(
+		draw_shape_tri,
+		draw_get_texture_index(draw_top_texture()),
+		draw_get_clip_mask_index(draw_top_clip_mask())
+	);
+
 
 	draw_auto_pop_stacks();
 }
@@ -477,7 +523,7 @@ draw_text(str_t text, vec2_t pos) {
 
 	for (u32 i = 0; i < text.size; i++) {
 
-		draw_instance_t* instance = draw_get_instance(draw_top_texture());
+		draw_instance_t* instance = draw_get_instance();
 		
 		u8 codepoint = *(text.data + i);
 		font_glyph_t* glyph = font_get_glyph(font, font_size, codepoint);
@@ -490,8 +536,11 @@ draw_text(str_t text, vec2_t pos) {
 		instance->color2 = draw_top_color2().vec;
 		instance->color3 = draw_top_color3().vec;
 
-		instance->shape = draw_shape_rect;
-		instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+		instance->indices = draw_pack_indices(
+			draw_shape_rect,
+			draw_get_texture_index(font_state.atlas_texture),
+			draw_get_clip_mask_index(draw_top_clip_mask())
+		);
 
 		pos.x += glyph->advance;
 	}
