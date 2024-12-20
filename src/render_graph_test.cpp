@@ -32,12 +32,13 @@ global ui_context_t* ui_context;
 global render_graph_t* graph;
 global b8 quit = false;
 
-
 global ui_panel_t* left;
 global ui_panel_t* right;
 global ui_panel_t* top;
 global ui_panel_t* bottom;
 
+global gfx_texture_t* screen_texture;
+global gfx_compute_shader_t* compute_shader;
 
 // functions
 
@@ -90,6 +91,15 @@ app_init() {
 	render_graph_pass_connect(ui_pass, graph->output_pass);
 
 	render_graph_build(graph);
+
+	// load compute shader
+	screen_texture = gfx_texture_create(uvec2(512, 512));
+	compute_shader = gfx_compute_shader_load(str("res/shaders/compute/atmosphere.hlsl"));
+	gfx_set_compute_shader(compute_shader);
+	gfx_set_texture(screen_texture, 0, gfx_texture_usage_cs);
+	gfx_dispatch(32, 32, 1);
+	gfx_set_compute_shader();
+	gfx_set_texture(nullptr, 0);
 
 }
 
@@ -222,7 +232,7 @@ app_ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
 		{
 			ui_push_pref_width(ui_size_percent(1.0f));
 			ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
-			
+
 			ui_set_next_text_alignment(ui_text_alignment_left);
 			ui_buttonf("Left Button");
 			ui_spacer();
@@ -241,11 +251,25 @@ app_ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
 			ui_spacer();
 			ui_checkbox(str("Some Option 3"), &value_2);
 
+
+			persist i32 current_selection = 2;
+			char* items[] = {
+				"Item 1", "Item 2", "Item 3",
+			};
+			ui_combo(str("Combo Box"), &current_selection, items, 3);
+
 			ui_pop_pref_width();
 			ui_pop_pref_height();
 		}
 		ui_panel_end();
 
+		ui_panel_begin(top);
+		{
+			ui_set_next_pref_width(ui_size_percent(1.0f));
+			ui_set_next_pref_height(ui_size_percent(1.0f));
+			ui_image(str("image"), screen_texture);
+		}
+		ui_panel_end();
 
 		ui_end_frame(ui_context);
 		draw_end(renderer);

@@ -508,6 +508,7 @@ ui_stack_node_decl(font, font_t*)
 ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
 ui_stack_node_decl(focus_active, ui_focus_type)
+ui_stack_node_decl(texture, gfx_texture_t*)
 
 // view
 
@@ -652,6 +653,7 @@ struct ui_context_t {
 	ui_stack_decl_default(font_size);
 	ui_stack_decl_default(focus_hot);
 	ui_stack_decl_default(focus_active);
+	ui_stack_decl_default(texture);
 
 	// stacks
 	ui_stack_decl(parent);
@@ -676,6 +678,7 @@ struct ui_context_t {
 	ui_stack_decl(font_size);
 	ui_stack_decl(focus_hot);
 	ui_stack_decl(focus_active);
+	ui_stack_decl(texture);
 
 
 };
@@ -833,10 +836,11 @@ function rect_t ui_rect_from_panel(arena_t* scratch, ui_panel_t* panel, rect_t r
 
 // widgets
 
-function ui_interaction ui_button(str_t label);
-function ui_interaction ui_buttonf(char* fmt, ...);
 function ui_interaction ui_label(str_t label);
 function ui_interaction ui_labelf(char* fmt, ...);
+function ui_interaction ui_button(str_t label);
+function ui_interaction ui_buttonf(char* fmt, ...);
+function ui_interaction ui_image(str_t label, gfx_texture_t* texture);
 function ui_interaction ui_slider(str_t label, i32* value, i32 min, i32 max);
 function ui_interaction ui_slider(str_t label, f32* value, f32 min, f32 max);
 function ui_interaction ui_checkbox(str_t label, b8* value);
@@ -890,6 +894,7 @@ ui_stack_func(font, font_t*)
 ui_stack_func(font_size, f32)
 ui_stack_func(focus_hot, ui_focus_type)
 ui_stack_func(focus_active, ui_focus_type)
+ui_stack_func(texture, gfx_texture_t*)
 
 // groups
 function void ui_push_rounding(f32 rounding);

@@ -39,6 +39,7 @@ struct gfx_texture_t {
 	gfx_texture_desc_t desc;
 	ID3D11Texture2D* id;
 	ID3D11ShaderResourceView* srv;
+	ID3D11UnorderedAccessView* uav;
 };
 
 // shader 
@@ -52,6 +53,17 @@ struct gfx_shader_t {
 	ID3D11VertexShader* vertex_shader;
 	ID3D11PixelShader* pixel_shader;
 	ID3D11InputLayout* input_layout;
+};
+
+// compute shader
+struct gfx_compute_shader_t {
+	gfx_compute_shader_t* next;
+	gfx_compute_shader_t* prev;
+
+	str_t name;
+	str_t filepath;
+	u32 last_modified;
+	ID3D11ComputeShader* compute_shader;
 };
 
 // render target
@@ -114,6 +126,10 @@ struct gfx_state_t {
 	gfx_shader_t* shader_first;
 	gfx_shader_t* shader_last;
 	gfx_shader_t* shader_free;
+
+	gfx_compute_shader_t* compute_shader_first;
+	gfx_compute_shader_t* compute_shader_last;
+	gfx_compute_shader_t* compute_shader_free;
 
 	gfx_render_target_t* render_target_first;
 	gfx_render_target_t* render_target_last;

@@ -310,8 +310,10 @@ gfx_draw_instanced(u32 vertex_count, u32 instance_count, u32 start_vertex_index,
 	gfx_state.device_context->DrawInstanced(vertex_count, instance_count, start_vertex_index, start_instance_index);
 }
 
-
-// pipeline
+function void 
+gfx_dispatch(u32 thread_group_x, u32 thread_group_y, u32 thread_group_z) {
+	gfx_state.device_context->Dispatch(thread_group_x, thread_group_y, thread_group_z);
+}
 
 function void 
 gfx_set_sampler(gfx_filter_mode filter_mode, gfx_wrap_mode wrap_mode, u32 slot) {
@@ -425,15 +427,51 @@ gfx_set_buffer(gfx_buffer_t* buffer, u32 slot, u32 stride) {
 }
 
 function void
-gfx_set_texture(gfx_texture_t* texture, u32 slot) {
-	gfx_state.device_context->PSSetShaderResources(slot, 1, &texture->srv);
+gfx_set_texture(gfx_texture_t* texture, u32 slot, gfx_texture_usage texture_usage) {
+	if (texture != nullptr) {
+		switch (texture_usage) {
+
+			case gfx_texture_usage_ps: {
+				gfx_state.device_context->PSSetShaderResources(slot, 1, &texture->srv);
+				break;
+			}
+
+			case gfx_texture_usage_cs: {
+				gfx_state.device_context->CSSetShaderResources(slot, 1, &texture->srv);
+				gfx_state.device_context->CSSetUnorderedAccessViews(slot, 1, &texture->uav, nullptr);
+				break;
+			}
+		}
+
+	} else {
+		ID3D11UnorderedAccessView* null_uav = nullptr;
+		ID3D11ShaderResourceView* null_srv = nullptr;
+		gfx_state.device_context->PSSetShaderResources(slot, 1, &null_srv);
+		gfx_state.device_context->CSSetShaderResources(slot, 1, &null_srv);
+		gfx_state.device_context->CSSetUnorderedAccessViews(slot, 1, &null_uav, nullptr);
+	}
 }
 
 function void
 gfx_set_shader(gfx_shader_t* shader) {
-	gfx_state.device_context->VSSetShader(shader->vertex_shader, 0, 0);
-	gfx_state.device_context->PSSetShader(shader->pixel_shader, 0, 0);
-	gfx_state.device_context->IASetInputLayout(shader->input_layout);
+	if (shader != nullptr) {
+		gfx_state.device_context->VSSetShader(shader->vertex_shader, 0, 0);
+		gfx_state.device_context->PSSetShader(shader->pixel_shader, 0, 0);
+		gfx_state.device_context->IASetInputLayout(shader->input_layout);
+	} else {
+		gfx_state.device_context->VSSetShader(nullptr, 0, 0);
+		gfx_state.device_context->PSSetShader(nullptr, 0, 0);
+		gfx_state.device_context->IASetInputLayout(nullptr);
+	}
+}
+
+function void 
+gfx_set_compute_shader(gfx_compute_shader_t* shader) {
+	if (shader != nullptr) {
+		gfx_state.device_context->CSSetShader(shader->compute_shader, 0, 0);
+	} else {
+		gfx_state.device_context->CSSetShader(nullptr, 0, 0);
+	}
 }
 
 function void
@@ -686,7 +724,7 @@ gfx_texture_create_ex(gfx_texture_desc_t desc, void* data) {
 			HRESULT hr = 0;
 
 			// determine bind flags
-			D3D11_BIND_FLAG bind_flags = D3D11_BIND_SHADER_RESOURCE;
+			D3D11_BIND_FLAG bind_flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS);
 			if (desc.render_target) {
 				if (_texture_format_is_depth(desc.format)) {
 					bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_DEPTH_STENCIL);
@@ -732,6 +770,15 @@ gfx_texture_create_ex(gfx_texture_desc_t desc, void* data) {
 			}
 			hr = gfx_state.device->CreateShaderResourceView(texture->id, &srv_desc, &texture->srv);
 			gfx_assert(hr, "failed to create shader resource view for texture: '%.*s'.", desc.name.size, desc.name.data);
+
+			// create uav
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = { 0 };
+			uav_desc.Format = texture_desc.Format;
+			uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+			uav_desc.Texture2D.MipSlice = 0;
+
+			hr = gfx_state.device->CreateUnorderedAccessView(texture->id, &uav_desc, &texture->uav);
+			gfx_assert(hr, "failed to create unorderd access view for texture: '%.*s'.", desc.name.size, desc.name.data);
 
 			break;
 		}
@@ -848,6 +895,7 @@ gfx_texture_blit(gfx_texture_t* texture_dst, gfx_texture_t* texture_src) {
 
 
 // shaders
+
 function gfx_shader_t* 
 gfx_shader_create_ex(str_t src, gfx_shader_desc_t desc) {
 
@@ -864,7 +912,7 @@ gfx_shader_create_ex(str_t src, gfx_shader_desc_t desc) {
 	// fill description
 	shader->desc = desc;
 
-	// compile vertex shader
+	// compile shader
 	gfx_shader_compile(shader, src);
 	
 	return shader;
@@ -1019,6 +1067,118 @@ shader_build_cleanup:
 	}
 
 }
+
+
+// compute shader
+
+function gfx_compute_shader_t*
+gfx_compute_shader_create(str_t src, str_t name) {
+
+	// get from resource pool or create
+	gfx_compute_shader_t* shader = gfx_state.compute_shader_free;
+	if (shader != nullptr) {
+		stack_pop(gfx_state.compute_shader_free);
+	} else {
+		shader = (gfx_compute_shader_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_compute_shader_t));
+	}
+	memset(shader, 0, sizeof(gfx_compute_shader_t));
+	dll_push_back(gfx_state.compute_shader_first, gfx_state.compute_shader_last, shader);
+
+	shader->name = name;
+
+	// compile shader
+	gfx_compute_shader_compile(shader, src);
+
+	return shader;
+}
+
+function gfx_compute_shader_t*
+gfx_compute_shader_load(str_t filepath) {
+
+	// load src from file
+	str_t src = os_file_read_all(gfx_state.scratch_arena, filepath);
+
+	// get name
+	str_t name = str_get_file_name(filepath);
+
+	// create and return shader
+	gfx_compute_shader_t* shader = gfx_compute_shader_create(src, name);
+	shader->filepath = filepath;
+
+	// get last modified time
+	os_file_attributes_t file_attributes = os_file_get_attributes(filepath);
+	shader->last_modified = file_attributes.last_modified;
+
+	return shader;
+}
+
+function void
+gfx_compute_shader_release(gfx_compute_shader_t* shader) {
+
+	// release d3d11
+	if (shader->compute_shader != nullptr) { shader->compute_shader->Release(); shader->compute_shader = nullptr; }
+
+	// push to free stack
+	dll_remove(gfx_state.compute_shader_first, gfx_state.compute_shader_last, shader);
+	stack_push(gfx_state.compute_shader_free, shader);
+
+	shader = nullptr;
+}
+
+function void
+gfx_compute_shader_compile(gfx_compute_shader_t* shader, str_t src) {
+
+	HRESULT hr;
+	b8 success = false;
+	ID3DBlob* cs_blob = nullptr;
+	ID3DBlob* cs_error_blob = nullptr;
+	ID3D11ComputeShader* compute_shader = nullptr;
+
+	u32 compile_flags = 0;
+
+#if defined(BUILD_DEBUG)
+	compile_flags |= D3DCOMPILE_DEBUG;
+#endif 
+
+	if (src.size == 0) {
+		goto shader_build_cleanup;
+	}
+
+	// compile vertex shader
+	hr = D3DCompile(src.data, src.size, (char*)shader->name.data, 0, 0, "cs_main", "cs_5_0", compile_flags, 0, &cs_blob, &cs_error_blob);
+
+	if (cs_error_blob) {
+		cstr error_msg = (cstr)cs_error_blob->GetBufferPointer();
+		printf("[error] failed to compile compute shader:\n\n%s\n", error_msg);
+		goto shader_build_cleanup;
+	}
+	hr = gfx_state.device->CreateComputeShader(cs_blob->GetBufferPointer(), cs_blob->GetBufferSize(), nullptr, &compute_shader);
+
+	if (hr == S_OK) {
+
+		// release old shader if needed
+		if (shader->compute_shader != nullptr) { shader->compute_shader->Release(); }
+
+		// set new shaders
+		shader->compute_shader = compute_shader;
+
+		success = true;
+
+		printf("[info] successfully created compute shader: '%.*s'\n", shader->name.size, shader->name.data);
+	}
+
+shader_build_cleanup:
+
+	if (cs_blob != nullptr) { cs_blob->Release(); }
+	if (cs_error_blob != nullptr) { cs_error_blob->Release(); }
+
+	if (!success) {
+		if (compute_shader != nullptr) { compute_shader->Release(); }
+	}
+
+}
+
+
 
 
 // render target

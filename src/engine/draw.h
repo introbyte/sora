@@ -3,6 +3,16 @@
 #ifndef DRAW_H
 #define DRAW_H
 
+// todo:
+//
+// [ ] - combine all textures to an array and package index in instance data.
+//       this keeps our one draw call feature.
+// [ ] - 
+//
+//
+//
+//
+
 // defines
 
 #define draw_stack_node_decl(name, type) struct draw_##name##_node_t { draw_##name##_node_t* next; type v; };
@@ -61,6 +71,7 @@ struct draw_batch_t {
 	draw_batch_t* next;
 	draw_batch_t* prev;
 
+	gfx_texture_t* texture;
 	draw_instance_t* instances;
 	u32 instance_count;
 };
@@ -82,6 +93,8 @@ draw_stack_node_decl(softness, f32);
 draw_stack_node_decl(font, font_t*);
 draw_stack_node_decl(font_size, f32);
 draw_stack_node_decl(clip_mask, rect_t);
+
+draw_stack_node_decl(texture, gfx_texture_t*);
 
 struct draw_state_t {
 
@@ -118,6 +131,8 @@ struct draw_state_t {
 
 	draw_stack_decl(clip_mask);
 
+	draw_stack_decl(texture);
+
 	// stack defaults
 	gfx_stack_default_decl(color0);
 	gfx_stack_default_decl(color1);
@@ -137,6 +152,8 @@ struct draw_state_t {
 
 	gfx_stack_default_decl(clip_mask);
 
+	gfx_stack_default_decl(texture);
+
 };
 
 // globals
@@ -149,7 +166,7 @@ function void draw_release();
 function void draw_begin(gfx_renderer_t*);
 function void draw_end(gfx_renderer_t*);
 
-function draw_instance_t* draw_get_instance();
+function draw_instance_t* draw_get_instance(gfx_texture_t*);
 
 function void draw_rect(rect_t);
 function void draw_image(rect_t);
@@ -179,6 +196,8 @@ draw_stack_func_decl(font, font_t*);
 draw_stack_func_decl(font_size, f32);
 
 draw_stack_func_decl(clip_mask, rect_t);
+
+draw_stack_func_decl(texture, gfx_texture_t*);
 
 // group stacks
 function void draw_push_color(color_t);

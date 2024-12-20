@@ -124,6 +124,8 @@ draw_init() {
 
 	draw_default_init(clip_mask, rect(0.0f, 0.0f, 4096.0f, 4096.0f));
 
+	draw_default_init(texture, font_state.atlas_texture);
+
 }
 
 function void 
@@ -176,9 +178,11 @@ draw_begin(gfx_renderer_t* renderer) {
 	draw_stack_reset(font_size);
 
 	draw_stack_reset(clip_mask);
+
+	draw_stack_reset(texture);
 	
 	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y));
-
+	draw_push_texture(font_state.atlas_texture);
 }
 
 function void 
@@ -190,10 +194,11 @@ draw_end(gfx_renderer_t* renderer) {
 	// set state
 	gfx_set_pipeline(draw_state.pipeline);
 	gfx_set_shader(draw_state.shader);
-	gfx_set_texture(font_state.atlas_texture);
 	gfx_set_buffer(draw_state.constant_buffer);
 
 	for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
+
+		gfx_set_texture(batch->texture);
 
 		// fill instance buffer
 		gfx_buffer_fill(draw_state.instance_buffer, batch->instances, batch->instance_count * sizeof(draw_instance_t));
@@ -201,20 +206,21 @@ draw_end(gfx_renderer_t* renderer) {
 
 		gfx_draw_instanced(4, batch->instance_count);
 	}
-
-
+	
 }
 
 function draw_instance_t*
-draw_get_instance() {
+draw_get_instance(gfx_texture_t* texture) {
 
 	// find a batch
 	draw_batch_t* batch = nullptr;
 
 	// search batch list
 	for (draw_batch_t* b = draw_state.batch_first; b != 0; b = b->next) {
-		// if batch has space
-		if (((b->instance_count + 1) * sizeof(draw_instance_t)) < (kilobytes(256))) {
+
+		// if batch has space, and texture matches
+		if (((b->instance_count + 1) * sizeof(draw_instance_t)) < (kilobytes(256)) &&
+			b->texture == texture) {
 			batch = b;
 			break;
 		}
@@ -225,6 +231,7 @@ draw_get_instance() {
 
 		batch = (draw_batch_t*)arena_alloc(draw_state.batch_arena, sizeof(draw_batch_t));
 		
+		batch->texture = texture;
 		batch->instances = (draw_instance_t*)arena_alloc(draw_state.batch_arena, kilobytes(256));
 		batch->instance_count = 0;
 		
@@ -254,7 +261,6 @@ draw_get_clip_mask_index(rect_t rect) {
 	// we didn't find one, add to list
 	if (index == draw_state.clip_mask_count) {
 		draw_state.constants.clip_masks[draw_state.clip_mask_count] = rect;
-		index++;
 		draw_state.clip_mask_count++;
 	}
 
@@ -266,7 +272,7 @@ draw_get_clip_mask_index(rect_t rect) {
 function void 
 draw_rect(rect_t rect) {
 
-	draw_instance_t* instance = draw_get_instance();
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
 
 	rect_validate(rect);
 
@@ -290,11 +296,38 @@ draw_rect(rect_t rect) {
 }
 
 function void
+draw_image(rect_t rect) {
+
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
+
+	rect_validate(rect);
+
+	instance->bbox = rect;
+	instance->tex = { 0.0f, 0.0f, 1.0f, 1.0f };
+
+	instance->color0 = draw_top_color0().vec;
+	instance->color1 = draw_top_color1().vec;
+	instance->color2 = draw_top_color2().vec;
+	instance->color3 = draw_top_color3().vec;
+
+	instance->radii = draw_top_radii();
+	instance->thickness = draw_top_thickness();
+	instance->softness = draw_top_softness();
+	instance->omit_texture = 0.0f;
+
+	instance->shape = draw_shape_rect;
+	instance->clip_index = draw_get_clip_mask_index(draw_top_clip_mask());
+
+	draw_auto_pop_stacks();
+
+}
+
+function void
 draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 
 	// order: (0, 0), (0, 1), (1, 1), (1, 0);
 
-	draw_instance_t* instance = draw_get_instance();
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
 
 	f32 softness = draw_top_softness();
 
@@ -336,7 +369,7 @@ draw_quad(vec2_t p0, vec2_t p1, vec2_t p2, vec2_t p3) {
 function void
 draw_line(vec2_t p0, vec2_t p1) {
 
-	draw_instance_t* instance = draw_get_instance();
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
 
 	f32 softness = draw_top_softness();
 
@@ -372,7 +405,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 function void 
 draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 	
-	draw_instance_t* instance = draw_get_instance();
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
 	
 	f32 softness = draw_top_softness();
 
@@ -398,7 +431,7 @@ draw_circle(vec2_t pos, f32 radius, f32 start_angle, f32 end_angle) {
 function void
 draw_tri(vec2_t p0, vec2_t p1, vec2_t p2) {
 
-	draw_instance_t* instance = draw_get_instance();
+	draw_instance_t* instance = draw_get_instance(draw_top_texture());
 
 	f32 softness = draw_top_softness();
 
@@ -444,7 +477,7 @@ draw_text(str_t text, vec2_t pos) {
 
 	for (u32 i = 0; i < text.size; i++) {
 
-		draw_instance_t* instance = draw_get_instance();
+		draw_instance_t* instance = draw_get_instance(draw_top_texture());
 		
 		u8 codepoint = *(text.data + i);
 		font_glyph_t* glyph = font_get_glyph(font, font_size, codepoint);
@@ -486,6 +519,10 @@ draw_auto_pop_stacks() {
 	draw_stack_auto_pop_impl(font);
 	draw_stack_auto_pop_impl(font_size);
 
+	draw_stack_auto_pop_impl(clip_mask);
+
+	draw_stack_auto_pop_impl(texture);
+
 }
 
 draw_stack_impl(color0, color_t);
@@ -505,6 +542,8 @@ draw_stack_impl(font, font_t*);
 draw_stack_impl(font_size, f32);
 
 draw_stack_impl(clip_mask, rect_t);
+
+draw_stack_impl(texture, gfx_texture_t*);
 
 function void
 draw_push_color(color_t color) {

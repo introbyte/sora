@@ -3,6 +3,24 @@
 #ifndef GFX_H
 #define GFX_H
 
+// todo:
+//
+// [~] - resources
+//     [x] - buffers.
+//         [x] - vertex, index, and constant
+//     [x] - textures.
+//         [x] - 2d.
+//         [ ] - 3d.
+//     [x] - shaders.
+//         [x] - vertex and pixel.
+//         [~] - compute.
+//     [x] - render targets.
+//
+// [ ] - make resources into entities to have one entity resource list.
+//
+//
+
+
 // enums
 
 // NOTE: not sure if this will be used.
@@ -25,6 +43,12 @@ enum gfx_buffer_type {
 	gfx_buffer_type_vertex,
 	gfx_buffer_type_index,
 	gfx_buffer_type_constant,
+};
+
+enum gfx_texture_usage {
+	_gfx_texture_usage_null,
+	gfx_texture_usage_ps,
+	gfx_texture_usage_cs,
 };
 
 enum gfx_texture_format {
@@ -177,6 +201,9 @@ struct gfx_shader_desc_t {
 };
 struct gfx_shader_t; // defined in backends.
 
+// compute shader
+struct gfx_compute_shader_t; // defined in backends.
+
 // render target
 struct gfx_render_target_desc_t {
 	uvec2_t size;
@@ -211,12 +238,11 @@ function void gfx_init();
 function void gfx_release();
 function void gfx_update();
 
-function void gfx_draw(u32, u32 = 0);
-function void gfx_draw_indexed(u32, u32 = 0, u32 = 0);
-function void gfx_draw_instanced(u32, u32, u32 = 0, u32 = 0);
+function void gfx_draw(u32 vertex_count, u32 start_index = 0);
+function void gfx_draw_indexed(u32 index_count, u32 start_index = 0, u32 offset = 0);
+function void gfx_draw_instanced(u32 vertex_count, u32 instance_count, u32 start_vertex_index = 0, u32 start_instnace_index = 0);
 
-// pipeline
-function gfx_pipeline_t gfx_pipeline_create();
+function void gfx_dispatch(u32 thread_group_x, u32 thread_group_y, u32 thread_group_z);
 
 function void gfx_set_sampler(gfx_filter_mode, gfx_wrap_mode, u32);
 function void gfx_set_topology(gfx_topology_type);
@@ -226,9 +252,13 @@ function void gfx_set_scissor(rect_t);
 function void gfx_set_depth_mode(gfx_depth_mode);
 function void gfx_set_pipeline(gfx_pipeline_t);
 function void gfx_set_buffer(gfx_buffer_t*, u32 = 0, u32 = 0);
-function void gfx_set_texture(gfx_texture_t*, u32 = 0);
-function void gfx_set_shader(gfx_shader_t*);
+function void gfx_set_texture(gfx_texture_t*, u32 slot = 0, gfx_texture_usage texture_usage = gfx_texture_usage_ps);
+function void gfx_set_shader(gfx_shader_t* = nullptr);
+function void gfx_set_compute_shader(gfx_compute_shader_t* = nullptr);
 function void gfx_set_render_target(gfx_render_target_t* = nullptr);
+
+// pipeline
+function gfx_pipeline_t gfx_pipeline_create();
 
 // renderer
 function gfx_renderer_t* gfx_renderer_create(os_window_t*, color_t);
@@ -256,6 +286,12 @@ function gfx_shader_t* gfx_shader_create(str_t, str_t, gfx_shader_attribute_t*, 
 function gfx_shader_t* gfx_shader_load(str_t, gfx_shader_attribute_t*, u32);
 function void gfx_shader_release(gfx_shader_t*);
 function void gfx_shader_compile(gfx_shader_t*, str_t);
+
+// compute shaders
+function gfx_compute_shader_t* gfx_compute_shader_create(str_t src, str_t name);
+function gfx_compute_shader_t* gfx_compute_shader_load(str_t filepath);
+function void gfx_compute_shader_release(gfx_compute_shader_t* shader);
+function void gfx_compute_shader_compile(gfx_compute_shader_t* shader, str_t src);
 
 // render target
 function gfx_render_target_t* gfx_render_target_create_ex(gfx_render_target_desc_t);

@@ -309,6 +309,7 @@ ui_context_create(gfx_renderer_t* renderer) {
 	ui_default_init(font_size, 9.0f);
 	ui_default_init(focus_hot, ui_focus_type_null);
 	ui_default_init(focus_active, ui_focus_type_null);
+	ui_default_init(texture, nullptr);
 
 	// set keys to zero
 	context->hovered_frame_key = { 0 };
@@ -393,6 +394,8 @@ ui_begin_frame(ui_context_t* context) {
 	ui_stack_reset(font_size);
 	ui_stack_reset(focus_hot);
 	ui_stack_reset(focus_active);
+	ui_stack_reset(texture);
+	
 	
 	// TODO: do navigation
 
@@ -656,9 +659,14 @@ ui_end_frame(ui_context_t* context) {
 			}
 
 			// background
-			draw_set_next_color(background_color);
-			draw_set_next_radii(frame->rounding);
-			draw_rect(frame->rect);
+			if (frame->texture != nullptr) {
+				draw_set_next_texture(frame->texture);
+				draw_image(frame->rect);
+			} else {
+				draw_set_next_color(background_color);
+				draw_set_next_radii(frame->rounding);
+				draw_rect(frame->rect);
+			}
 		}
 
 		// border
@@ -680,15 +688,21 @@ ui_end_frame(ui_context_t* context) {
 			draw_push_clip_mask(new_clip);
 		}
 
+#if 0 // debug frame position
+		draw_set_next_color(color(0xffff00ff));
+		draw_set_next_thickness(1.0f);
+		draw_rect(frame->rect);
+#endif 
+
 		// text
 		if (frame->flags & ui_frame_flag_draw_text) {
 
 			// truncate text if needed
 			f32 frame_width = rect_width(frame->rect);
-			str_t text = font_text_truncate(context->scratch_arena, frame->font, frame->font_size, frame->string, frame_width, str("..."));
+			//str_t text = font_text_truncate(context->scratch_arena, frame->font, frame->font_size, frame->string, frame_width, str("..."));
 
 			// calculate text pos
-			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, text, frame->rect, frame->text_alignment);
+			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
 			
 #if 0 // debug text position
 			draw_set_next_color(color(0xff0000ff));
@@ -698,18 +712,17 @@ ui_end_frame(ui_context_t* context) {
 			draw_rect(rect(text_pos.x, text_pos.y, text_pos.x + font_width, text_pos.y + font_height));
 #endif
 
-
 			draw_push_font(frame->font);
 			draw_push_font_size(frame->font_size);
 
 			{
 				// text shadow
 				draw_set_next_color(color_group->shadow);
-				draw_text(text, vec2_add(text_pos, 1.0f));
+				draw_text(frame->string, vec2_add(text_pos, 1.0f));
 
 				// text
 				draw_set_next_color(color_group->text);
-				draw_text(text, text_pos);
+				draw_text(frame->string, text_pos);
 			}
 
 			draw_pop_font();
@@ -1570,6 +1583,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 	frame->rounding.z = ui_top_rounding_10();
 	frame->rounding.w = ui_top_rounding_11();
 	frame->color_group = ui_top_color_group();
+	frame->texture = ui_top_texture();
 	frame->font = ui_top_font();
 	frame->font_size = ui_top_font_size();
 	
@@ -1963,9 +1977,6 @@ ui_view_release(ui_view_t* view) {
 
 
 
-
-
-
 // tooltip
 
 function void
@@ -2064,13 +2075,24 @@ ui_buttonf(char* fmt, ...) {
 	return interaction;
 }
 
+function ui_interaction 
+ui_image(str_t label, gfx_texture_t* texture) {
+
+	ui_frame_flags flags = ui_frame_flag_draw_background;
+	ui_set_next_texture(texture);
+	ui_frame_t* frame = ui_frame_from_string(label, flags);
+	ui_interaction interaction = ui_frame_interaction(frame);
+
+	return interaction;
+}
+
 function ui_interaction
 ui_slider(str_t label, i32* value, i32 min, i32 max) {
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
 
-	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_hover_cursor(os_cursor_resize_EW);
 	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_set_next_color_group(ui_state.ui_active->theme.slider);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
@@ -2100,7 +2122,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 		ui_frame_flag_clickable |
 		ui_frame_flag_draw;
 
-	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_hover_cursor(os_cursor_resize_EW);
 	ui_set_next_text_alignment(ui_text_alignment_center);
 	ui_set_next_color_group(ui_state.ui_active->theme.slider);
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
@@ -2692,7 +2714,7 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 }
 
 function ui_interaction
-ui_combo(str_t label, i32* current, const char** items, u32 item_count) {
+ui_combo(str_t label, i32* current, char** items, u32 item_count) {
 
 	// build parent frame
 	ui_set_next_hover_cursor(os_cursor_hand_point);
@@ -3384,6 +3406,7 @@ ui_stack_impl(font, font_t*)
 ui_stack_impl(font_size, f32)
 ui_stack_impl(focus_hot, ui_focus_type)
 ui_stack_impl(focus_active, ui_focus_type)
+ui_stack_impl(texture, gfx_texture_t*)
 
 // groups
 function void
