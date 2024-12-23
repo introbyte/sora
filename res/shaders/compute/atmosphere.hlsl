@@ -284,6 +284,6 @@ float fbm_worley(float3 st, int octaves, int rep) {
 
 [numthreads(16, 16, 1)]
 void cs_main(uint3 id : SV_DispatchThreadID) {
-    float value = fbm_worley(float3(id.x / 256.0f, id.y / 256.0f, id.z / 256.0f), 5, 2);
+    float value = fbm_perlin(float3(id.x / 512.0f, id.y / 512.0f, id.z / 512.0f), 5, 2);
     output_texture[id.xy] = float4(value, value, value, 1.0f);
 }

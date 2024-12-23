@@ -1948,24 +1948,22 @@ rect_round(rect_t r) {
 // color 
 
 inlnfunc color_t
-color(u32 hex, color_format format) {
+color(u32 hex) {
 	color_t result = { 0 };
 	result.r = (f32)((hex & 0xff000000) >> 24) / 255.0f;
 	result.g = (f32)((hex & 0x00ff0000) >> 16) / 255.0f;
 	result.b = (f32)((hex & 0x0000ff00) >> 8) / 255.0f;
 	result.a = (f32)((hex & 0x000000ff) >> 0) / 255.0f;
-	result.format = format;
 	return result;
 }
 
 inlnfunc color_t
-color(f32 r, f32 g, f32 b, f32 a, color_format format) {
+color(f32 r, f32 g, f32 b, f32 a) {
 	color_t col;
 	col.r = r;
 	col.g = g;
 	col.b = b;
 	col.a = a;
-	col.format = format;
 	return col;
 }
 
@@ -1991,16 +1989,18 @@ color_lerp(color_t a, color_t b, f32 t) {
 
 inlnfunc color_t
 color_rgb_to_hsv(color_t rgb) {
-	if (rgb.format == color_format_hsv) { return rgb; }
 
 	f32 c_max = max(rgb.r, max(rgb.g, rgb.b));
 	f32 c_min = min(rgb.r, min(rgb.g, rgb.b));
 	f32 delta = c_max - c_min;
-	f32 h = ((delta == 0.0f) ? 0.0f :
+
+	f32 h = (
+		(delta == 0.0f) ? 0.0f :
 		(c_max == rgb.r) ? fmodf((rgb.g - rgb.b) / delta + 6.0f, 6.0f) :
 		(c_max == rgb.g) ? (rgb.b - rgb.r) / delta + 2.0f :
 		(c_max == rgb.b) ? (rgb.r - rgb.g) / delta + 4.0f :
-		0.0f);
+		0.0f
+	);
 	f32 s = (c_max == 0.0f) ? 0.0f : (delta / c_max);
 	f32 v = c_max;
 
@@ -2009,18 +2009,13 @@ color_rgb_to_hsv(color_t rgb) {
 	hsv_color.s = s;
 	hsv_color.v = v;
 	hsv_color.a = rgb.a;
-	hsv_color.format = color_format_hsv;
 	return hsv_color;
 
 }
 
 inlnfunc color_t
 color_hsv_to_rgb(color_t hsv) {
-
-	if (hsv.format == color_format_rgb) {
-		return hsv;
-	}
-
+	
 	f32 h = fmodf(hsv.h * 360.0f, 360.0f);
 	f32 s = hsv.s;
 	f32 v = hsv.v;
@@ -2064,7 +2059,6 @@ color_hsv_to_rgb(color_t hsv) {
 	rgb_color.g = clamp_01(g + m);
 	rgb_color.b = clamp_01(b + m);
 	rgb_color.a = hsv.a;
-	rgb_color.format = color_format_rgb;
 
 	return rgb_color;
 }
@@ -2077,18 +2071,6 @@ barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c) {
 	vec2_t v0 = vec2_sub(b, a);
 	vec2_t v1 = vec2_sub(c, a);
 	vec2_t v2 = vec2_sub(p, a);
-
-	//f32 d00 = vec2_dot(v0, v0);
-	//f32 d01 = vec2_dot(v0, v1);
-	//f32 d11 = vec2_dot(v1, v1);
-	//f32 d20 = vec2_dot(v2, v0);
-	//f32 d21 = vec2_dot(v2, v1);
-
-	//f32 denom = d00 * d11 - d01 * d01;
-
-	//f32 v = (d11 * d20 - d01 * d21) / denom;
-	//f32 w = (d00 * d21 - d01 * d20) / denom;
-	//f32 u = 1.0f - v - w;
 
 	f32 denom = v0.x * v1.y - v1.x * v0.y;
 

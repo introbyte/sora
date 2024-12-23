@@ -12,7 +12,7 @@ render_init() {
 
 	// allocate arena
 	render_state.arena = arena_create(gigabytes(2));
-
+	
 	render_state.render_graph_first = nullptr;
 	render_state.render_graph_last = nullptr;
 	render_state.render_graph_free = nullptr;
@@ -22,6 +22,11 @@ render_init() {
 
 function void 
 render_release() {
+
+	// release all graphs
+	for (render_graph_t* graph = render_state.render_graph_first; graph != nullptr; graph = graph->next) {
+		render_graph_release(graph);
+	}
 
 	// release arena
 	arena_release(render_state.arena);
@@ -34,6 +39,7 @@ render_release() {
 function render_graph_t* 
 render_graph_create(gfx_renderer_t* renderer) {
 
+	// find from free stack or create one
 	render_graph_t* graph = render_state.render_graph_free;
 	if (graph != nullptr) {
 		stack_pop(render_state.render_graph_free);
@@ -55,10 +61,9 @@ render_graph_create(gfx_renderer_t* renderer) {
 	// add output pass
 	render_pass_desc_t desc = { 0 };
 	desc.label = str("output");
-	desc.size = renderer->resolution;
-	desc.execute_func = _render_pass_output_function;
-	desc.format = gfx_texture_format_rgba8;
-	desc.flags = 0;
+	desc.setup_func = _render_pass_output_setup;
+	desc.execute_func = _render_pass_output_execute;
+	desc.release_func = _render_pass_output_release;
 	graph->output_pass = render_graph_add_pass(graph, desc);
 
 	return graph;
@@ -67,54 +72,81 @@ render_graph_create(gfx_renderer_t* renderer) {
 function void 
 render_graph_release(render_graph_t* graph) {
 
-	// remove render targets in passes
-	for (render_pass_node_t* node = graph->pass_list.first; node != 0; node = node->next) {
-		gfx_render_target_release(node->pass->data.render_target);
+	// release user data in all passes
+	for (render_pass_t* pass = graph->pass_first; pass != nullptr; pass = pass->list_next) {
+		if (pass->release != nullptr) {
+			pass->release(pass);
+		}
 	}
-	
-	dll_remove(render_state.render_graph_first, render_state.render_graph_last, graph);
-	stack_push(render_state.render_graph_free, graph);
+
+	// release arenas
 	arena_release(graph->pass_arena);
 	arena_release(graph->list_arena);
+	
+	// remove from list and add to free stack
+	dll_remove(render_state.render_graph_first, render_state.render_graph_last, graph);
+	stack_push(render_state.render_graph_free, graph);
+
 }
 
 function render_pass_t*
 render_graph_add_pass(render_graph_t* graph, render_pass_desc_t desc) {
 
-	// grab from free list
-	render_pass_t* pass = graph->free_pass;
+	// grab from free stack or create one
+	render_pass_t* pass = graph->pass_free;
 	if (pass != nullptr) {
-		stack_pop(graph->free_pass);
+		stack_pop_n(graph->pass_free, list_next);
 	} else {
 		pass = (render_pass_t*)arena_alloc(graph->pass_arena, sizeof(render_pass_t));
 	}
 	memset(pass, 0, sizeof(render_pass_t));
-	graph->pass_count++;
 	
+	// set arena
 	pass->arena = graph->pass_arena;
+
+	// fill struct
+	pass->label = desc.label;
+	pass->setup = desc.setup_func;
 	pass->execute = desc.execute_func;
-	pass->desc = desc;
-	pass->data.render_target = gfx_render_target_create(desc.format, desc.size, desc.flags);
-	pass->data.pass = pass;
-	pass->data.graph = graph;
+	pass->release = desc.release_func;
+
+	// add to graph's pass list
+	dll_push_back_np(graph->pass_first, graph->pass_last, pass, list_next, list_prev);
+	graph->pass_count++;
 
 	return pass;
 }
 
 function void 
 render_graph_remove_pass(render_graph_t* graph, render_pass_t* pass) {
-	if (pass->parent != 0) {
-		dll_remove(pass->parent->first, pass->parent->last, pass);
+
+	// remove from tree
+	render_graph_pass_disconnect(pass);
+
+	// release any user data
+	if (pass->release != nullptr) {
+		pass->release(pass);
 	}
-	stack_push(graph->free_pass, pass);
+
+	// remove from graph's pass list 
+	dll_remove_np(graph->pass_first, graph->pass_last, pass, list_next, list_prev);
 	graph->pass_count--;
-	gfx_render_target_release(pass->data.render_target);
+
+	// add to free stack
+	stack_push_n(graph->pass_free, pass, list_next);
+
 }
 
 function void
 render_graph_pass_connect(render_pass_t* pass, render_pass_t* parent, render_pass_t* prev = nullptr) {
-	dll_insert(parent->first, parent->last, prev, pass);
-	pass->parent = parent;
+	dll_insert_np(parent->tree_first, parent->tree_last, prev, pass, tree_next, tree_prev);
+	pass->tree_parent = parent;
+}
+
+function void
+render_graph_pass_disconnect(render_pass_t* pass) {
+	dll_remove_np(pass->tree_parent->tree_first, pass->tree_parent->tree_last, pass, tree_next, tree_prev);
+	pass->tree_next = pass->tree_prev = pass->tree_parent = nullptr;
 }
 
 function void
@@ -123,16 +155,23 @@ render_graph_build(render_graph_t* graph) {
 	// clear list if needed
 	arena_clear(graph->list_arena);
 
-	// get ordered pass list
-	graph->pass_list = render_pass_list_from_graph(graph->list_arena, graph);
+	// create execution order pass list
+	graph->execute_list = render_pass_list_from_graph(graph->list_arena, graph);
 
+	// setup 
+	for (render_pass_node_t* node = graph->execute_list.first; node != 0; node = node->next) {
+		if (node->pass->setup != nullptr) {
+			node->pass->setup(node->pass);
+		}
+	}
 }
 
 function void
 render_graph_execute(render_graph_t* graph) {
 
-	for (render_pass_node_t* node = graph->pass_list.first; node != 0; node = node->next) {
-		render_pass_data_t* prev_data = nullptr;
+	for (render_pass_node_t* node = graph->execute_list.first; node != 0; node = node->next) {
+
+		void* prev_data = nullptr;
 		if (node->prev != nullptr) {
 			prev_data = &node->prev->pass->data;
 		}
@@ -148,13 +187,15 @@ render_graph_execute(render_graph_t* graph) {
 
 function render_pass_rec_t
 render_pass_depth_first(render_pass_t* node) {
+	// pre order depth first search
+
 	render_pass_rec_t rec = { 0 };
-	if (node->first != 0) {
-		rec.next = node->first;
+	if (node->tree_first != 0) {
+		rec.next = node->tree_first;
 		rec.push_count++;
-	} else for (render_pass_t* n = node; n != 0; n = n->parent) {
-		if (n->next != 0) {
-			rec.next = n->next;
+	} else for (render_pass_t* n = node; n != 0; n = n->tree_parent) {
+		if (n->tree_next != 0) {
+			rec.next = n->tree_next;
 			break;
 		}
 		rec.pop_count++;
@@ -167,6 +208,7 @@ render_pass_list_from_graph(arena_t* arena, render_graph_t* graph) {
 	
 	render_pass_list_t list = { 0 };
 
+	// make list in depth first order
 	for (render_pass_t* pass = graph->output_pass; pass != 0;) {
 		render_pass_rec_t rec = render_pass_depth_first(pass);
 		render_pass_node_t* list_node = (render_pass_node_t*)arena_calloc(arena, sizeof(render_pass_node_t));
@@ -195,13 +237,24 @@ render_pass_list_from_graph(arena_t* arena, render_graph_t* graph) {
 // internal
 
 function void
-_render_pass_output_function(render_pass_data_t* in, render_pass_data_t* out) {
-	if (in != nullptr && out != nullptr) {
-		if (in->render_target != nullptr) {
-			// blit in data to screen
-			gfx_renderer_blit(out->graph->renderer, in->render_target->color_texture);
-		}
+_render_pass_output_setup(render_pass_t* pass) {
+
+}
+
+function void
+_render_pass_output_execute(void* input_data, void* output_data) {
+	if (input_data != nullptr && output_data != nullptr) {
+		//if (input_data->render_target != nullptr) {
+		//	// blit in data to screen
+		//	gfx_renderer_blit(out->graph->renderer, in->render_target->color_texture);
+		//}
 	}
 }
+
+function void
+_render_pass_output_release(render_pass_t* pass) {
+
+}
+
 
 #endif // RENDER_GRAPH_CPP

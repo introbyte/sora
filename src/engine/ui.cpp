@@ -2281,7 +2281,7 @@ ui_float_edit(str_t label, f32* value) {
 }
 
 function ui_interaction
-ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val) {
+ui_color_quad(str_t label, f32 hue, f32* sat, f32* val) {
 
 	// build frame and set draw data
 	ui_set_next_hover_cursor(os_cursor_hand_point);
@@ -2289,7 +2289,7 @@ ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val) {
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_color_data_t));
-	ui_frame_set_custom_draw(frame, ui_color_sat_val_quad_draw_function, data);
+	ui_frame_set_custom_draw(frame, ui_color_quad_draw_function, data);
 
 	// interaction
 	if (interaction & ui_interaction_left_dragging) {
@@ -2388,7 +2388,7 @@ ui_color_val_bar(str_t label, f32 hue, f32 sat, f32* val) {
 }
 
 function ui_interaction
-ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
+ui_color_ring(str_t label, f32* hue, f32* sat, f32* val) {
 
 	enum {
 		area_clicked_none,
@@ -2401,7 +2401,7 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_color_data_t));
-	ui_frame_set_custom_draw(frame, ui_color_wheel_draw_function, data);
+	ui_frame_set_custom_draw(frame, ui_color_ring_draw_function, data);
 
 	// calculate frame and mouse info
 	vec2_t frame_center = rect_center(frame->rect);
@@ -2485,7 +2485,7 @@ ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val) {
 }
 
 function ui_interaction
-ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
+ui_color_wheel(str_t label, f32* hue, f32* sat, f32 val) {
 
 	enum {
 		area_clicked_none,
@@ -2497,7 +2497,7 @@ ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val) {
 	ui_frame_t* frame = ui_frame_from_string(label, flags);
 	ui_interaction interaction = ui_frame_interaction(frame);
 	ui_color_data_t* data = (ui_color_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_color_data_t));
-	ui_frame_set_custom_draw(frame, ui_color_hue_sat_circle_draw_function, data);
+	ui_frame_set_custom_draw(frame, ui_color_wheel_draw_function, data);
 
 	// calculate frame and mouse info
 	vec2_t frame_center = rect_center(frame->rect);
@@ -2812,19 +2812,19 @@ ui_color_hue_bar_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 
 	// unpack color
-	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f));
 
 	// draw hue bars
 	{
 		f32 step = 1.0f / 6.0f;
 		color_t segments[] = {
-			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f}),
 		};
 
 		for (i32 i = 0; i < 6; i++) {
@@ -2861,16 +2861,20 @@ ui_color_hue_bar_draw_function(ui_frame_t* frame) {
 	{
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
+		f32 indicator_size = 6.0f;
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		
 		// borders
 		draw_set_next_color(color(0x151515ff));
-		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 2.0f, 0.0f, 360.0f);
 
 		draw_set_next_color(color(0xe2e2e2ff));
-		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 1.0f, 0.0f, 360.0f);
 
 		// color
 		draw_set_next_color(hue_col);
-		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size, 0.0f, 360.0f);
 	}
 }
 
@@ -2885,9 +2889,9 @@ ui_color_sat_bar_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 
 	// unpack color
-	color_t hue_val_col = color_hsv_to_rgb(color(data->hue, 1.0f, data->val, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
-	color_t val_col = color_hsv_to_rgb(color(0.0f, 0.0f, data->val, 1.0f, color_format_hsv));
+	color_t hue_val_col = color_hsv_to_rgb(color(data->hue, 1.0f, data->val, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
+	color_t val_col = color_hsv_to_rgb(color(0.0f, 0.0f, data->val, 1.0f));
 
 	// draw val bar
 	{
@@ -2903,16 +2907,20 @@ ui_color_sat_bar_draw_function(ui_frame_t* frame) {
 	{
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->sat * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
+		f32 indicator_size = 6.0f;
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+
 		// borders
 		draw_set_next_color(color(0x151515ff));
-		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 2.0f, 0.0f, 360.0f);
 
 		draw_set_next_color(color(0xe2e2e2ff));
-		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 1.0f, 0.0f, 360.0f);
 
 		// color
 		draw_set_next_color(rgb_col);
-		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size, 0.0f, 360.0f);
 	}
 }
 
@@ -2927,8 +2935,8 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 	f32 frame_height = rect_height(frame->rect);
 
 	// unpack color
-	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
 
 	// draw val bar
 	{
@@ -2944,29 +2952,33 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 	{
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
+		f32 indicator_size = 6.0f;
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+
 		// borders
 		draw_set_next_color(color(0x151515ff));
-		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 2.0f, 0.0f, 360.0f);
 
 		draw_set_next_color(color(0xe2e2e2ff));
-		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 1.0f, 0.0f, 360.0f);
 
 		// color
 		draw_set_next_color(rgb_col);
-		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size, 0.0f, 360.0f);
 	}
 
 }
 
 function void
-ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
+ui_color_quad_draw_function(ui_frame_t* frame) {
 
 	// get data
 	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
 
 	// unpack color
-	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
 
 	// frame info
 	f32 frame_width = rect_width(frame->rect);
@@ -2980,37 +2992,42 @@ ui_color_sat_val_quad_draw_function(ui_frame_t* frame) {
 	draw_set_next_radii(frame->rounding);
 	draw_rect(frame->rect);
 
-	// draw indicator
-	vec2_t indicator_pos = vec2(
-		frame->rect.x0 + (data->sat * frame_width),
-		frame->rect.y0 + ((1.0f - data->val) * frame_height)
-	);
 
 	{
+		// draw indicator
+		vec2_t indicator_pos = vec2(
+			frame->rect.x0 + (data->sat * frame_width),
+			frame->rect.y0 + ((1.0f - data->val) * frame_height)
+		);
+
+		f32 indicator_size = 6.0f;
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+
 		// borders
 		draw_set_next_color(color(0x151515ff));
-		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 2.0f, 0.0f, 360.0f);
 
 		draw_set_next_color(color(0xe2e2e2ff));
-		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 1.0f, 0.0f, 360.0f);
 
 		// color
 		draw_set_next_color(rgb_col);
-		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size, 0.0f, 360.0f);
 	}
 
 
 }
 
 function void
-ui_color_wheel_draw_function(ui_frame_t* frame) {
+ui_color_ring_draw_function(ui_frame_t* frame) {
 
 	// get data
 	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
 
 	// unpack color
-	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
 
 	// frame info
 	f32 frame_width = rect_width(frame->rect);
@@ -3035,13 +3052,13 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		// draw hue arcs
 		f32 step = 1.0f / 6.0f;
 		color_t segments[] = {
-			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f}),
 		};
 
 		for (i32 i = 0; i < 6; i++) {
@@ -3105,15 +3122,15 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 }
 
 function void
-ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
+ui_color_wheel_draw_function(ui_frame_t* frame) {
 
 	// get data
 	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
 
 	// unpack color
-	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
-	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f));
 
 	// frame info
 	f32 frame_width = rect_width(frame->rect);
@@ -3131,13 +3148,13 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
 		color_t segments[] = {
-			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f}),
 		};
 
 		for (i32 i = 0; i < 6; i++) {
@@ -3161,16 +3178,20 @@ ui_color_hue_sat_circle_draw_function(ui_frame_t* frame) {
 	{
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
 
+		f32 indicator_size = 6.0f;
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+
 		// borders
 		draw_set_next_color(color(0x151515ff));
-		draw_circle(indicator_pos, 8.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 2.0f, 0.0f, 360.0f);
 
 		draw_set_next_color(color(0xe2e2e2ff));
-		draw_circle(indicator_pos, 7.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size + 1.0f, 0.0f, 360.0f);
 
 		// color
 		draw_set_next_color(hue_sat_col);
-		draw_circle(indicator_pos, 6.0f, 0.0f, 360.0f);
+		draw_circle(indicator_pos, indicator_size, 0.0f, 360.0f);
 	}
 
 }
@@ -3182,9 +3203,9 @@ ui_color_hex_draw_function(ui_frame_t* frame) {
 	ui_color_data_t* data = (ui_color_data_t*)frame->custom_draw_data;
 
 	// unpack color
-	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f, color_format_hsv));
-	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f, color_format_hsv));
-	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f, color_format_hsv));
+	color_t hue_col = color_hsv_to_rgb(color(data->hue, 1.0f, 1.0f, 1.0f));
+	color_t rgb_col = color_hsv_to_rgb(color(data->hue, data->sat, data->val, 1.0f));
+	color_t hue_sat_col = color_hsv_to_rgb(color(data->hue, data->sat, 1.0f, 1.0f));
 
 	// frame info
 	f32 frame_width = rect_width(frame->rect);
@@ -3202,13 +3223,13 @@ ui_color_hex_draw_function(ui_frame_t* frame) {
 		// draw hue bars
 		f32 step = 1.0f / 6.0f;
 		color_t segments[] = {
-			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
-			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f, color_format_hsv}),
+			color_hsv_to_rgb({0 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({1 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({2 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({3 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({4 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({5 * step, 1.0f, 1.0f, 1.0f}),
+			color_hsv_to_rgb({6 * step, 1.0f, 1.0f, 1.0f}),
 		};
 
 		for (i32 i = 0; i < 6; i++) {

@@ -141,11 +141,6 @@ enum : u32 {
 	str_match_flag_keep_empties = (1 << 4),
 };
 
-enum color_format {
-	color_format_rgb,
-	color_format_hsv,
-};
-
 // structs
 
 // memory arena
@@ -194,6 +189,7 @@ struct codepoint_t {
 
 // math
 
+// vec2
 union vec2_t {
 
 	f32 data[2];
@@ -206,14 +202,33 @@ union vec2_t {
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
-struct ivec2_t {
-	i32 x, y;
+// ivec2
+union ivec2_t {
+
+	i32 data[2];
+
+	struct {
+		i32 x, y;
+	};
+
+	inline i32& operator[](i32 index) { return data[index]; }
+	inline const i32& operator[](i32 index) const { return data[index]; }
 };
 
-struct uvec2_t {
-	u32 x, y;
+// uvec2
+union uvec2_t {
+
+	u32 data[2];
+
+	struct {
+		u32 x, y;
+	};
+
+	inline u32& operator[](i32 index) { return data[index]; }
+	inline const u32& operator[](i32 index) const { return data[index]; }
 };
 
+// vec3
 union vec3_t {
 
 	f32 data[3];
@@ -236,6 +251,7 @@ union vec3_t {
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
+// vec4
 union vec4_t {
 
 	f32 data[4];
@@ -353,6 +369,7 @@ union mat4_t {
 // misc
 
 union rect_t {
+
 	struct {
 		f32 x0, y0;
 		f32 x1, y1;
@@ -362,23 +379,22 @@ union rect_t {
 		vec2_t v0;
 		vec2_t v1;
 	};
-
-
+	
 };
 
-struct color_t {
-	union {
-		struct {
-			union {
-				struct { f32 r, g, b; };
-				struct { f32 h, s, v; };
-			};
-			f32 a;
-		};
-		vec4_t vec;
+union color_t {
+
+	struct { 
+		f32 r, g, b, a; 
 	};
-	color_format format;
+
+	struct {
+		f32 h, s, v, a;
+	};
+
+	vec4_t vec;
 };
+
 
 // globals
 
@@ -456,15 +472,6 @@ inlnfunc f32 remap(f32, f32, f32, f32, f32);
 inlnfunc f32 lerp(f32, f32, f32);
 inlnfunc f32 s_sqrt(f32);
 
-// color
-inlnfunc color_t color(u32, color_format = color_format_rgb);
-inlnfunc color_t color(f32, f32, f32, f32, color_format = color_format_rgb);
-inlnfunc color_t color_add(color_t, f32);
-inlnfunc color_t color_add(color_t, color_t);
-inlnfunc color_t color_lerp(color_t, color_t, f32);
-inlnfunc color_t color_rgb_to_hsv(color_t);
-inlnfunc color_t color_hsv_to_rgb(color_t);
-
 // vec2 
 inlnfunc vec2_t vec2(f32);
 inlnfunc vec2_t vec2(f32, f32);
@@ -477,12 +484,12 @@ inlnfunc vec2_t vec2_mul(vec2_t, vec2_t);
 inlnfunc vec2_t vec2_div(vec2_t, f32);
 inlnfunc vec2_t vec2_div(vec2_t, vec2_t);
 inlnfunc b8     vec2_equals(vec2_t, vec2_t);
-inlnfunc f32 vec2_dot(vec2_t, vec2_t);
-inlnfunc f32 vec2_cross(vec2_t, vec2_t);
-inlnfunc f32 vec2_length(vec2_t);
+inlnfunc f32    vec2_dot(vec2_t, vec2_t);
+inlnfunc f32    vec2_cross(vec2_t, vec2_t);
+inlnfunc f32    vec2_length(vec2_t);
 inlnfunc vec2_t vec2_normalize(vec2_t);
 inlnfunc vec2_t vec2_direction(vec2_t, vec2_t);
-inlnfunc f32 vec2_to_angle(vec2_t);
+inlnfunc f32    vec2_to_angle(vec2_t);
 inlnfunc vec2_t vec2_from_angle(f32, f32 = 1);
 inlnfunc vec2_t vec2_rotate(vec2_t, f32);
 inlnfunc vec2_t vec2_lerp(vec2_t, vec2_t, f32);
@@ -584,7 +591,7 @@ inlnfunc quat_t quat_slerp(quat_t, quat_t, f32);
 
 // mat4
 inlnfunc mat4_t mat4(f32);
-inlnfunc b8 mat4_equals(mat4_t, mat4_t);
+inlnfunc b8     mat4_equals(mat4_t, mat4_t);
 inlnfunc mat4_t mat4_transpose(mat4_t);
 inlnfunc mat4_t mat4_from_quat(quat_t);
 
@@ -600,7 +607,16 @@ inlnfunc mat4_t mat4_inv_perspective(mat4_t);
 inlnfunc mat4_t mat4_orthographic(f32, f32, f32, f32, f32, f32);
 inlnfunc mat4_t mat4_perspective(f32, f32, f32, f32);
 inlnfunc mat4_t mat4_lookat(vec3_t, vec3_t, vec3_t);
-function void mat4_print(mat4_t);
+function void   mat4_print(mat4_t);
+
+// color
+inlnfunc color_t color(u32 hex);
+inlnfunc color_t color(f32 r, f32 g, f32 b, f32 a = 1.0f);
+inlnfunc color_t color_add(color_t a, f32 b);
+inlnfunc color_t color_add(color_t a, color_t b);
+inlnfunc color_t color_lerp(color_t a, color_t b, f32 t);
+inlnfunc color_t color_rgb_to_hsv(color_t rgb);
+inlnfunc color_t color_hsv_to_rgb(color_t hsv);
 
 // misc
 function vec3_t barycentric(vec2_t, vec2_t, vec2_t, vec2_t);

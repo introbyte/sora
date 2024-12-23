@@ -32,11 +32,6 @@ global ui_context_t* ui_context;
 global render_graph_t* graph;
 global b8 quit = false;
 
-global ui_panel_t* left;
-global ui_panel_t* right;
-global ui_panel_t* top;
-global ui_panel_t* bottom;
-
 global gfx_texture_t* screen_texture;
 global gfx_compute_shader_t* compute_shader;
 
@@ -45,8 +40,16 @@ global gfx_compute_shader_t* compute_shader;
 function void app_init();
 function void app_release();
 function void app_frame();
-function void app_main_pass(render_pass_data_t* in, render_pass_data_t* out);
-function void app_ui_pass(render_pass_data_t* in, render_pass_data_t* out);
+
+// main pass
+function void app_main_pass_setup(render_pass_t* pass);
+function void app_main_pass_execute(void* in, void* out);
+function void app_main_pass_release(render_pass_t* pass);
+
+// ui pass
+function void app_ui_pass_setup(render_pass_t* pass);
+function void app_ui_pass_execute(void* in, void* out);
+function void app_ui_pass_release(render_pass_t* pass);
 
 // implementation
 
@@ -61,40 +64,34 @@ app_init() {
 	// set frame function
 	os_window_set_frame_function(window, app_frame);
 
-	// create panels
-	left = ui_panel_create(ui_context, 0.4f);
-	right = ui_panel_create(ui_context, 0.6f, ui_axis_y);
-	top = ui_panel_create(ui_context, 0.25f);
-	bottom = ui_panel_create(ui_context, 0.75f);
-
-	ui_panel_insert(right, bottom);
-	ui_panel_insert(right, top);
-	ui_panel_insert(ui_context->panel_root, right);
-	ui_panel_insert(ui_context->panel_root, left);
-
 	// create render graph
 	graph = render_graph_create(renderer);
+
+	// main pass
 	render_pass_desc_t desc = { 0 };
 	desc.label = str("main");
-	desc.size = renderer->resolution;
-	desc.execute_func = app_main_pass;
-	desc.format = gfx_texture_format_rgba8;
+	desc.setup_func = app_main_pass_setup;
+	desc.execute_func = app_main_pass_execute;
+	desc.release_func = app_main_pass_release;
 	render_pass_t* main_pass = render_graph_add_pass(graph, desc);
 
+	// ui pass
 	desc.label = str("ui");
-	desc.size = renderer->resolution;
-	desc.execute_func = app_ui_pass;
-	desc.format = gfx_texture_format_rgba8;
+	desc.setup_func = app_ui_pass_setup;
+	desc.execute_func = app_ui_pass_execute;
+	desc.release_func = app_ui_pass_release;
 	render_pass_t* ui_pass = render_graph_add_pass(graph, desc);
 
+	// build render graph
 	render_graph_pass_connect(main_pass, ui_pass);
 	render_graph_pass_connect(ui_pass, graph->output_pass);
-
 	render_graph_build(graph);
 
 	// load compute shader
 	screen_texture = gfx_texture_create(uvec2(512, 512));
 	compute_shader = gfx_compute_shader_load(str("res/shaders/compute/atmosphere.hlsl"));
+
+	// run compute shader
 	gfx_set_compute_shader(compute_shader);
 	gfx_set_texture(screen_texture, 0, gfx_texture_usage_cs);
 	gfx_dispatch(32, 32, 1);
@@ -112,170 +109,39 @@ app_release() {
 
 }
 
-function void
-app_main_pass(render_pass_data_t* in, render_pass_data_t* out) {
-	if (out->render_target != nullptr) {
-		
-		// resize if needed
-		if (!uvec2_equals(out->render_target->size, renderer->resolution)) {
-			gfx_render_target_resize(out->render_target, renderer->resolution);
-		}
 
-		gfx_set_render_target(out->render_target);
-		gfx_render_target_clear(out->render_target, color(0x1d1d1dff));
+// main pass
 
-		// render scene
-
-		
-
-
-	}
+function void 
+app_main_pass_setup(render_pass_t* pass) {
 
 }
 
 function void
-app_ui_pass(render_pass_data_t* in, render_pass_data_t* out) {
-	if (out->render_target != nullptr) {
+app_main_pass_execute(void* in, void* out) {	
 
-		// resize if needed
-		if (!uvec2_equals(out->render_target->size, renderer->resolution)) {
-			gfx_render_target_resize(out->render_target, renderer->resolution);
-		}
+}
 
-		gfx_set_render_target(out->render_target);
+function void 
+app_main_pass_release(render_pass_t* pass) {
 
-		// blit previous
-		if (in->render_target != nullptr) {
-			gfx_texture_blit(out->render_target->color_texture, in->render_target->color_texture);
-		}
-
-		// draw ui
-		draw_begin(renderer);
-		ui_begin_frame(ui_context);
+}
 
 
-		ui_panel_begin(left);
-		{
+// ui pass
 
-			ui_push_pref_width(ui_size_percent(1.0f));
-			ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+function void
+app_ui_pass_setup(render_pass_t* pass) {
 
-			// labels
-			ui_labelf("This is a label.");
-			ui_spacer();
+}
 
-			// buttons
-			ui_interaction interaction = ui_buttonf("Button");
-			if (interaction & ui_interaction_hovered) {
-				ui_tooltip_begin();
-				ui_set_next_pref_width(ui_size_text(2.0f));
-				ui_labelf("This is a tooltip.");
-				ui_tooltip_end();
-			}
+function void
+app_ui_pass_execute(void* in, void* out) {
 
-			ui_spacer();
+}
 
-			// checkbox
-			persist b8 checkbox_value;
-			ui_checkbox(str("Checkbox"), &checkbox_value);
-			ui_spacer();
-
-			// slider
-			persist f32 slider_value = 0.35f;
-			ui_slider(str("slider"), &ui_context->theme.rounding, 0.0f, 8.0f);
-			ui_spacer();
-
-			persist f32 float_edit_value = 10.75f;
-			ui_float_edit(str("float_edit"), &float_edit_value);
-			ui_spacer();
-
-			// expander
-			persist b8 expander_value = false;
-			ui_expander(str("Color Pickers"), &expander_value);
-			ui_spacer();
-			persist color_t hsv_color = color(1.0f, 0.5f, 0.7f, color_format_hsv);
-			if (expander_value) {
-
-				ui_labelf("Color Wheel");
-				ui_spacer();
-				ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
-				ui_color_hue_sat_circle(str("color_wheel"), &hsv_color.h, &hsv_color.s, hsv_color.v);
-				ui_spacer();
-				ui_color_val_bar(str("color_val"), hsv_color.h, hsv_color.s, &hsv_color.v);
-
-				ui_spacer();
-				ui_labelf("Color Ring");
-				ui_spacer();
-
-				ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
-				ui_color_wheel(str("color_ring"), &hsv_color.h, &hsv_color.s, &hsv_color.v);
-
-
-				ui_spacer();
-				ui_labelf("Color Quad");
-				ui_spacer();
-
-				ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
-				ui_color_sat_val_quad(str("color_quad"), hsv_color.h, &hsv_color.s, &hsv_color.v);
-				ui_color_hue_bar(str("hue_bar"), &hsv_color.h, hsv_color.s, hsv_color.v);
-
-			}
-
-			ui_pop_pref_width();
-			ui_pop_pref_height();
-
-		}
-		ui_panel_end();
-
-
-		ui_panel_begin(bottom);
-		{
-			ui_push_pref_width(ui_size_percent(1.0f));
-			ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
-
-			ui_set_next_text_alignment(ui_text_alignment_left);
-			ui_buttonf("Left Button");
-			ui_spacer();
-			ui_set_next_text_alignment(ui_text_alignment_center);
-			ui_buttonf("Center Button");
-			ui_spacer();
-			ui_set_next_text_alignment(ui_text_alignment_right);
-			ui_buttonf("Right Button");
-			ui_spacer();
-			persist b8 value_0 = false;
-			persist b8 value_1 = true;
-			persist b8 value_2 = false;
-			ui_checkbox(str("Some Option 1"), &value_0);
-			ui_spacer();
-			ui_checkbox(str("Some Option 2"), &value_1);
-			ui_spacer();
-			ui_checkbox(str("Some Option 3"), &value_2);
-
-
-			persist i32 current_selection = 2;
-			char* items[] = {
-				"Item 1", "Item 2", "Item 3",
-			};
-			ui_combo(str("Combo Box"), &current_selection, items, 3);
-
-			ui_pop_pref_width();
-			ui_pop_pref_height();
-		}
-		ui_panel_end();
-
-		ui_panel_begin(top);
-		{
-
-			ui_set_next_pref_width(ui_size_percent(1.0f));
-			ui_set_next_pref_height(ui_size_percent(1.0f));
-			ui_image(str("image"), screen_texture);
-		}
-		ui_panel_end();
-
-		ui_end_frame(ui_context);
-		draw_end(renderer);
-
-	}
+function void
+app_ui_pass_release(render_pass_t* pass) {
 
 }
 
@@ -301,6 +167,23 @@ app_frame() {
 		gfx_renderer_begin(renderer);
 
 		render_graph_execute(graph);
+
+
+		draw_begin(renderer);
+		ui_begin_frame(ui_context);
+
+
+		ui_push_pref_width(ui_size_pixel(200.0f, 1.0f));
+		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+
+		u32 index = 1;
+		for (render_pass_node_t* node = graph->execute_list.first; node != 0; node = node->next) {
+			ui_labelf("%u : %s", index, node->pass->label.data);
+			index++;
+		}
+
+		ui_end_frame(ui_context);
+		draw_end(renderer);
 
 		gfx_renderer_end(renderer);
 	}

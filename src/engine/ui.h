@@ -846,12 +846,12 @@ function ui_interaction ui_slider(str_t label, f32* value, f32 min, f32 max);
 function ui_interaction ui_checkbox(str_t label, b8* value);
 function ui_interaction ui_expander(str_t label, b8* is_expanded);
 function ui_interaction ui_float_edit(str_t label, f32* value);
-function ui_interaction ui_color_sat_val_quad(str_t label, f32 hue, f32* sat, f32* val);
+function ui_interaction ui_color_quad(str_t label, f32 hue, f32* sat, f32* val);
 function ui_interaction ui_color_hue_bar(str_t label, f32* hue, f32 sat, f32 val);
 function ui_interaction ui_color_sat_bar(str_t label, f32 hue, f32* sat, f32 val);
 function ui_interaction ui_color_val_bar(str_t label, f32 hue, f32 sat, f32* val);
-function ui_interaction ui_color_wheel(str_t label, f32* hue, f32* sat, f32* val);
-function ui_interaction ui_color_hue_sat_circle(str_t label, f32* hue, f32* sat, f32 val);
+function ui_interaction ui_color_ring(str_t label, f32* hue, f32* sat, f32* val);
+function ui_interaction ui_color_wheel(str_t label, f32* hue, f32* sat, f32 val);
 function ui_interaction ui_color_hex(str_t label, f32* hue, f32* sat, f32 val);
 function ui_interaction ui_text_edit(str_t label, char* buffer, u32 buffer_max_size, u32* out_size);
 function ui_interaction ui_combo(str_t label, i32* current, char** items, u32 item_count);
@@ -863,9 +863,9 @@ function void ui_color_hue_bar_draw_function(ui_frame_t* frame);
 function void ui_color_sat_bar_draw_function(ui_frame_t* frame);
 function void ui_color_val_bar_draw_function(ui_frame_t* frame);
 
-function void ui_color_sat_val_quad_draw_function(ui_frame_t* frame);
+function void ui_color_quad_draw_function(ui_frame_t* frame);
+function void ui_color_ring_draw_function(ui_frame_t* frame);
 function void ui_color_wheel_draw_function(ui_frame_t* frame);
-function void ui_color_hue_sat_circle_draw_function(ui_frame_t* frame);
 function void ui_color_hex_draw_function(ui_frame_t* frame);
 
 function void ui_text_edit_draw_function(ui_frame_t* frame);
