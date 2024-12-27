@@ -787,6 +787,7 @@ function b8 ui_key_released(os_key key, os_modifiers modifiers);
 function b8 ui_text(u32 codepoint);
 function ui_event_binding_t* ui_event_get_binding(os_key key, os_modifiers modifiers);
 function ui_text_op_t ui_event_to_text_op(arena_t* arena, ui_event_t* event, str_t string, ui_text_point_t cursor, ui_text_point_t mark);
+function void ui_kill_action();
 
 // drag state
 function void ui_store_drag_data(void* data, u32 size);

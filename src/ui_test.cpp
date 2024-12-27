@@ -17,6 +17,30 @@
 #include "engine/draw.cpp"
 #include "engine/ui.cpp"
 
+
+// structs
+
+struct node_t {
+	node_t* next;
+	node_t* prev;
+
+	str_t label;
+	vec2_t pos;
+	ui_frame_t* frame;
+	f32 value;
+};
+
+struct node_state_t {
+	
+	arena_t* arena;
+
+	node_t* node_first;
+	node_t* node_last;
+	node_t* node_free;
+
+};
+
+
 // globals
 global os_window_t* window;
 global gfx_renderer_t* renderer;
@@ -28,20 +52,172 @@ global ui_panel_t* right;
 global ui_panel_t* top;
 global ui_panel_t* bottom;
 
+global node_state_t node_state;
+
 // functions
 
 function void app_init();
 function void app_release();
 function void app_frame();
 
+// node
+
+// node state
+function void node_state_init();
+function void node_state_release();
+function void node_state_render();
+
+// node
+function node_t* node_create(str_t label, vec2_t pos);
+function void node_release(node_t* node);
+function void node_bring_to_front(node_t* node);
+
 // implementation
+
+// node state
+
+function void
+node_state_init() {
+
+	node_state.arena = arena_create(megabytes(64));
+
+	node_state.node_first = nullptr;
+	node_state.node_last = nullptr;
+	node_state.node_free = nullptr;
+
+}
+
+function void
+node_state_release() {
+	arena_release(node_state.arena);
+}
+
+function void
+node_state_render() {
+
+	// get parent panel pos
+
+	f32 panel_x = top->frame->rect.x0;
+	f32 panel_y = top->frame->rect.y0;
+
+	for (node_t* node = node_state.node_first; node != nullptr; node = node->next) {
+
+		ui_set_next_fixed_x(panel_x + node->pos.x);
+		ui_set_next_fixed_y(panel_y + node->pos.y);
+		ui_set_next_fixed_width(150.0f);
+		ui_set_next_pref_height(ui_size_by_child(1.0f));
+		ui_set_next_rounding(8.0f);
+		ui_set_next_color_group(ui_state.default_theme.popup);
+
+		ui_key_t node_key = ui_key_from_stringf({0}, "%s_%p", node->label.data, node);
+		ui_frame_flags flags =
+			ui_frame_flag_draw_background |
+			ui_frame_flag_draw_border |
+			ui_frame_flag_draw_shadow |
+			ui_frame_flag_floating |
+			ui_frame_flag_clickable;
+		ui_frame_t* frame = ui_frame_from_key(node_key, flags);
+
+		ui_push_seed_key(node_key);
+		ui_push_parent(frame);
+		ui_push_pref_width(ui_size_percent(1.0f));
+		ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
+
+		ui_spacer();
+		ui_label(node->label);
+		ui_spacer();
+		//ui_slider(str("slider"), &node->value, 0.0f, 10.0f);
+		
+		ui_row_begin();
+		ui_push_pref_height(ui_size_percent(1.0f));
+
+		ui_set_next_pref_width(ui_size_pixel(20.0f, 1.0f));
+		ui_interaction button_1_interaction = ui_buttonf("*###button_1");
+		if (button_1_interaction & ui_interaction_left_released) {
+			printf("here!\n");
+		}
+
+
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_labelf("Label");
+
+		ui_set_next_pref_width(ui_size_pixel(20.0f, 1.0f));
+		ui_buttonf("*###button_2");
+
+		ui_pop_pref_height();
+		ui_row_end();
+		
+		
+		
+		ui_spacer();
+	
+
+		ui_pop_seed_key();
+		ui_pop_parent();
+		ui_pop_pref_width();
+		ui_pop_pref_height();
+
+		ui_interaction interaction = ui_frame_interaction(frame);
+		
+		if (interaction & ui_interaction_left_pressed) {
+			node_bring_to_front(node);
+		}
+
+		if (interaction & ui_interaction_left_dragging) {
+
+			node->pos.x += window->mouse_delta.x;
+			node->pos.y += window->mouse_delta.y;
+
+		}
+
+
+	}
+
+
+}
+
+// node
+
+function node_t* 
+node_create(str_t label, vec2_t pos) {
+
+	node_t* node = node_state.node_free;
+	if (node != nullptr) {
+		stack_pop(node_state.node_free);
+	} else {
+		node = (node_t*)arena_alloc(node_state.arena, sizeof(node_t));
+	}
+	memset(node, 0, sizeof(node_t));
+	dll_push_back(node_state.node_first, node_state.node_last, node);
+
+	node->label = label;
+	node->pos = pos;
+	node->value = random_f32_range(0.0f, 10.0f);
+	
+	return node;
+}
+
+function void
+node_release(node_t* node) {
+	dll_remove(node_state.node_first, node_state.node_last, node);
+	stack_push(node_state.node_free, node);
+}
+
+function void 
+node_bring_to_front(node_t* node) {
+
+	dll_remove(node_state.node_first, node_state.node_last, node);
+	dll_push_front(node_state.node_first, node_state.node_last, node);
+
+}
+
 
 function void
 app_init() {
 
 	// open window and create renderer
 	window = os_window_open(str("ui_test"), 1280, 960);
-	renderer = gfx_renderer_create(window, color(0x000000ff));
+	renderer = gfx_renderer_create(window, color(0x262626ff));
 	ui = ui_context_create(renderer);
 
 	// set frame function
@@ -57,6 +233,11 @@ app_init() {
 	ui_panel_insert(right, top);
 	ui_panel_insert(ui->panel_root, right);
 	ui_panel_insert(ui->panel_root, left);
+
+
+	// create nodes
+	node_create(str("Node 1"), vec2(50.0f, 50.0f));
+	node_create(str("Node 2"), vec2(250.0f, 80.0f));
 
 }
 
@@ -77,7 +258,7 @@ app_frame() {
 	os_update();
 	gfx_update();
 	ui_update();
-
+	
 	// hotkeys
 	if (os_key_press(window, os_key_F11)) {
 		os_window_fullscreen(window);
@@ -92,6 +273,7 @@ app_frame() {
 		gfx_renderer_begin(renderer);
 		draw_begin(renderer);
 		ui_begin_frame(ui);
+
 
 		ui_panel_begin(left);
 		{
@@ -202,11 +384,23 @@ app_frame() {
 		}
 		ui_panel_end();
 
-		ui_panel_begin(top);
+		ui_frame_t* panel_frame = ui_panel_begin(top);
 		{
-			
+
+			node_state_render();
+
+
+			ui_interaction panel_interaction = ui_frame_interaction(panel_frame);
+
+			if (panel_interaction & ui_interaction_middle_dragging) {
+				panel_frame->view_offset_target.x -= window->mouse_delta.x;
+				panel_frame->view_offset_target.y -= window->mouse_delta.y;
+				os_set_cursor(os_cursor_resize_NS);
+			}
+
 		}
 		ui_panel_end();
+		
 
 		ui_end_frame(ui);
 		draw_end(renderer);
@@ -230,6 +424,7 @@ app_entry_point(i32 argc, char** argv) {
 	font_init();
 	draw_init();
 	ui_init();
+	node_state_init();
 
 	// init
 	app_init();
@@ -243,6 +438,7 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
+	node_state_release();
 	ui_release();
 	draw_release();
 	font_release();

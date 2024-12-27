@@ -548,6 +548,32 @@ draw_text(str_t text, vec2_t pos) {
 	draw_auto_pop_stacks();
 }
 
+function void
+draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1) {
+
+	const i32 count = 32;
+	vec2_t prev_point = p0;
+
+	for (i32 i = 1; i < count; i++) {
+
+		f32 t = (f32)i / (f32)count;
+
+		vec2_t v0 = vec2_lerp(p0, c0, t);
+		vec2_t v1 = vec2_lerp(c0, c1, t);
+		vec2_t v2 = vec2_lerp(c1, p1, t);
+
+		vec2_t v3 = vec2_lerp(v0, v1, t);
+		vec2_t v4 = vec2_lerp(v1, v2, t);
+
+		vec2_t curve_point = vec2_lerp(v3, v4, t);
+
+		draw_line(prev_point, curve_point);
+
+		prev_point = curve_point;
+	}
+
+}
+
 // stack functions
 
 function void

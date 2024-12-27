@@ -1221,6 +1221,13 @@ ui_event_to_text_op(arena_t* arena, ui_event_t* event, str_t string, ui_text_poi
 	return text_op;
 }
 
+function void
+ui_kill_action() {
+	for (i32 i = 0; i < os_mouse_button_count; i++) {
+		ui_state.ui_active->active_frame_key[i] = { 0 };
+	}
+}
+
 // drag state
 
 function void 
@@ -1850,11 +1857,12 @@ ui_panel_begin(ui_panel_t* panel) {
 
 	ui_set_next_parent(panel->frame);
 	ui_set_next_rect(rect_shrink(panel->frame->rect, 8.0f));
-	ui_frame_t* inner_frame = ui_frame_from_string(str(""), ui_frame_flag_floating);
+	ui_key_t inner_key = ui_key_from_stringf({0}, "###%p_inner_frame", panel);
+	ui_frame_t* inner_frame = ui_frame_from_key(inner_key, ui_frame_flag_floating | ui_frame_flag_clickable);
 
 	ui_push_parent(inner_frame);
 
-	return panel->frame;
+	return inner_frame;
 }
 
 function void 

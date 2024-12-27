@@ -974,6 +974,39 @@ vec3_clamp(vec3_t v, f32 a, f32 b) {
 	return { clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b) };
 }
 
+// ivec3
+inlnfunc ivec3_t 
+ivec3(i32 v) {
+	return { v, v, v };
+}
+
+inlnfunc ivec3_t 
+ivec3(i32 x, i32 y, i32 z) {
+	return { x, y, z };
+}
+
+inlnfunc b8 
+ivec3_equals(ivec3_t a, ivec3_t b) {
+	return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+// uvec3
+inlnfunc uvec3_t 
+uvec3(u32 v) {
+	return { v, v, v };
+}
+
+inlnfunc uvec3_t 
+uvec3(u32 x, u32 y, u32 z) {
+	return { x, y, z };
+}
+
+inlnfunc b8 
+uvec3_equals(uvec3_t a, uvec3_t b) {
+	return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+
 // vec4
 
 inlnfunc vec4_t

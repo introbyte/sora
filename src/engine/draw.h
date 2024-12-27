@@ -184,6 +184,9 @@ function void draw_circle(vec2_t, f32, f32, f32);
 function void draw_tri(vec2_t, vec2_t, vec2_t);
 function void draw_text(str_t, vec2_t);
 
+function void draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1);
+
+
 // stacks
 function void draw_auto_pop_stacks();
 

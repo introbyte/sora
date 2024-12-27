@@ -251,6 +251,37 @@ union vec3_t {
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
+// ivec3
+
+union ivec3_t {
+	i32 data[3];
+	
+	struct {
+		i32 x, y, z;
+	};
+
+	inline i32& operator[](i32 index) { return data[index]; }
+	inline const i32& operator[](i32 index) const { return data[index]; }
+
+
+};
+
+// uvec3
+
+union uvec3_t {
+
+	u32 data[3];
+
+	struct {
+		u32 x, y, z;
+	};
+
+	inline u32& operator[](i32 index) { return data[index]; }
+	inline const u32& operator[](i32 index) const { return data[index]; }
+
+};
+
+
 // vec4
 union vec4_t {
 
@@ -527,6 +558,16 @@ inlnfunc f32    vec3_angle_between(vec3_t, vec3_t);
 inlnfunc vec3_t vec3_project(vec3_t, vec3_t);
 inlnfunc vec3_t vec3_rotate(vec3_t, quat_t);
 inlnfunc vec3_t vec3_clamp(vec3_t, f32, f32);
+
+// ivec3
+inlnfunc ivec3_t ivec3(i32);
+inlnfunc ivec3_t ivec3(i32, i32, i32);
+inlnfunc b8      ivec3_equals(ivec3_t, ivec3_t);
+
+// uvec3
+inlnfunc uvec3_t uvec3(u32);
+inlnfunc uvec3_t uvec3(u32, u32, u32);
+inlnfunc b8      uvec3_equals(uvec3_t, uvec3_t);
 
 // vec4
 inlnfunc vec4_t vec4(f32);

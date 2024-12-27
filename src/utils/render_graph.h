@@ -107,6 +107,15 @@ struct render_state_t {
 	
 };
 
+// output render pass data
+
+struct output_render_pass_data_t {
+	gfx_renderer_t* renderer;
+	gfx_render_target_t* render_target;
+};
+
+
+
 // global
 
 global render_state_t render_state;

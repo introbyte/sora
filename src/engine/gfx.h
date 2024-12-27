@@ -5,6 +5,12 @@
 
 // todo:
 //
+// [ ] - make resources into entities to have one entity resource list.
+//     [ ] - create union gfx_entity.
+// [ ] - use handles for resources instead of raw ptrs.
+//     [ ] - create resource keys.
+//     [ ] - hash name into keys.
+//     [ ] - retrieve resource from keys.
 // [~] - resources
 //     [x] - buffers.
 //         [x] - vertex, index, and constant
@@ -15,9 +21,6 @@
 //         [x] - vertex and pixel.
 //         [~] - compute.
 //     [x] - render targets.
-//
-// [ ] - make resources into entities to have one entity resource list.
-//
 //
 
 
@@ -186,6 +189,16 @@ struct gfx_texture_desc_t {
 };
 struct gfx_texture_t; // defined in backends.
 
+// texture 3d
+struct gfx_texture_3d_desc_t {
+	str_t name;
+	uvec3_t size;
+	gfx_texture_format format;
+	gfx_usage usage;
+};
+
+struct gfx_texture_3d_t; // defined in backends.
+
 // shader
 struct gfx_shader_attribute_t {
 	char* name;
@@ -252,7 +265,9 @@ function void gfx_set_scissor(rect_t);
 function void gfx_set_depth_mode(gfx_depth_mode);
 function void gfx_set_pipeline(gfx_pipeline_t);
 function void gfx_set_buffer(gfx_buffer_t*, u32 = 0, u32 = 0);
-function void gfx_set_texture(gfx_texture_t*, u32 slot = 0, gfx_texture_usage texture_usage = gfx_texture_usage_ps);
+function void gfx_set_texture(gfx_texture_t* texture, u32 slot = 0, gfx_texture_usage usage = gfx_texture_usage_ps);
+function void gfx_set_texture_array(gfx_texture_t** textures, u32 texture_count, u32 slot, gfx_texture_usage usage);
+function void gfx_set_texture_3d(gfx_texture_3d_t* texture, u32 slot = 0, gfx_texture_usage usage = gfx_texture_usage_ps);
 function void gfx_set_shader(gfx_shader_t* = nullptr);
 function void gfx_set_compute_shader(gfx_compute_shader_t* = nullptr);
 function void gfx_set_render_target(gfx_render_target_t* = nullptr);
@@ -275,10 +290,16 @@ function void gfx_buffer_release(gfx_buffer_t*);
 // texture
 function gfx_texture_t* gfx_texture_create_ex(gfx_texture_desc_t, void* = nullptr);
 function gfx_texture_t* gfx_texture_create(uvec2_t, gfx_texture_format = gfx_texture_format_rgba8, void* = nullptr);
+function gfx_texture_t* gfx_texture_load(str_t filepath);
 function void gfx_texture_release(gfx_texture_t*);
 function void gfx_texture_fill(gfx_texture_t*, void*);
 function void gfx_texture_fill_region(gfx_texture_t*, rect_t, void*);
 function void gfx_texture_blit(gfx_texture_t*, gfx_texture_t*);
+
+function gfx_texture_3d_t* gfx_texture_3d_create_ex(gfx_texture_3d_desc_t desc, void* data = nullptr);
+function gfx_texture_3d_t* gfx_texture_3d_create(uvec3_t size, gfx_texture_format format, void* data = nullptr);
+function void gfx_texture_3d_release(gfx_texture_3d_t* texture);
+
 
 // shaders
 function gfx_shader_t* gfx_shader_create_ex(str_t, gfx_shader_desc_t);

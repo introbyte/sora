@@ -470,6 +470,12 @@ gfx_set_texture_array(gfx_texture_t** textures, u32 texture_count, u32 slot, gfx
 	
 }
 
+function void 
+gfx_set_texture_3d(gfx_texture_3d_t* texture, u32 slot = 0, gfx_texture_usage usage) {
+
+
+}
+
 function void
 gfx_set_shader(gfx_shader_t* shader) {
 	if (shader != nullptr) {
@@ -499,10 +505,10 @@ gfx_set_render_target(gfx_render_target_t* render_target) {
 		gfx_state.device_context->OMSetRenderTargets(0, nullptr, nullptr);
 	} else {
 		if (render_target->rtv != nullptr) {
-			color_t clear_color = gfx_state.renderer_active->clear_color;
-			const FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
+			//color_t clear_color = gfx_state.renderer_active->clear_color;
+			//const FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
 			gfx_state.device_context->OMSetRenderTargets(1, &render_target->rtv, render_target->dsv);
-			gfx_state.device_context->ClearRenderTargetView(render_target->rtv, clear_color_array);
+			//gfx_state.device_context->ClearRenderTargetView(render_target->rtv, clear_color_array);
 		}
 		// TODO: fix me
 
@@ -910,6 +916,30 @@ gfx_texture_blit(gfx_texture_t* texture_dst, gfx_texture_t* texture_src) {
 		}
 	}
 }
+
+
+// 3d texture
+
+function gfx_texture_3d_t* 
+gfx_texture_3d_create_ex(gfx_texture_3d_desc_t desc, void* data) {
+
+
+
+}
+
+function gfx_texture_3d_t*
+gfx_texture_3d_create(str_t name, uvec3_t size, gfx_texture_format format, void* data) {
+
+}
+
+function void
+gfx_texture_3d_release() {
+
+}
+
+
+
+
 
 
 // shaders
