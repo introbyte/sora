@@ -3,10 +3,18 @@
 #ifndef OS_H
 #define OS_H
 
+// os layer todos:
+// 
+// [x] - reduce memory arenas used if possible.
+// [ ] - switch to handles for windows, threads, files, etcs.
+// [x] - group os objects into entities.
+// [ ] - redo window update system.
+//
+
 // typedefs
 
-typedef void os_thread_function();
-typedef void os_frame_function();
+typedef void os_thread_function_t();
+typedef void os_frame_function_t();
 
 // enums
 
@@ -172,13 +180,15 @@ enum {
 
 // structs
 
+struct os_handle_t {
+	u64 data[1];
+};
+
 struct os_title_bar_client_area_t {
 	os_title_bar_client_area_t* next;
 	os_title_bar_client_area_t* prev;
 	rect_t area;
 };
-
-struct os_window_t; // defined in backends.
 
 struct os_event_t {
 
@@ -187,7 +197,7 @@ struct os_event_t {
 	os_event_t* prev;
 
 	os_event_type type;
-	os_window_t* window;
+	os_handle_t window;
 	os_key key;
 	os_mouse_button mouse;
 	os_modifiers modifiers;
@@ -202,105 +212,134 @@ struct os_event_list_t {
 	u32 count;
 };
 
-struct os_file_attributes_t {
+struct os_file_info_t {
 	u32 size;
 	u32 last_modified;
 };
 
-struct os_file_t; // defined in backends.
+struct os_system_info_t {
+	// TODO: fill out all the system info we might want.
+	u32 logical_processor_count;
+	str_t machine_name;
+};
 
-struct os_thread_t; // defined in backends.
-
-struct os_state_t; // defined in backends.
+struct os_process_info_t {
+	// TODO: fill out all the process info we might want.
+	u32 pid;
+};
 
 // functions
 
-// state
-function void os_init();
-function void os_release();
-function void os_update();
-function void os_abort(u32);
-function void os_sleep(u32);
+// state (implemented per backends)
+function void         os_init();
+function void         os_release();
+function void         os_update();
+function void         os_abort(u32 exit_code);
+function void         os_sleep(u32 ms);
+function u64          os_time_microseconds();
+function b8           os_any_window_exist();
+function void         os_set_cursor(os_cursor cursor);
 
-function u64 os_time_microseconds();
-function b8 os_any_window_exist();
 
-function void os_set_cursor(os_cursor);
-function vec2_t os_get_cursor_pos(os_window_t*);
-function void os_set_cursor_pos(os_window_t*, vec2_t);
+function os_modifiers os_get_modifiers();
+function b8           os_key_is_down(os_key key);
+function b8           os_mouse_is_down(os_mouse_button button);
+
+// handle
+function b8           os_handle_equals(os_handle_t a, os_handle_t b);
 
 // events
-function void os_event_push(os_event_t*);
-function void os_event_pop(os_event_t*);
-function os_event_t* os_event_get(os_event_type);
-function os_modifiers os_get_modifiers();
-function b8 os_key_press(os_window_t*, os_key, os_modifiers);
-function b8 os_key_release(os_window_t*, os_key, os_modifiers);
-function b8 os_mouse_press(os_window_t*, os_mouse_button, os_modifiers);
-function b8 os_mouse_release(os_window_t*, os_mouse_button, os_modifiers);
-function f32 os_mouse_scroll(os_window_t*);
-function vec2_t os_mouse_move(os_window_t*);
-function b8 os_mouse_button_is_down(os_mouse_button);
-function b8 os_key_is_down(os_key);
+function void         os_event_push(os_event_t* event);
+function void         os_event_pop(os_event_t* event);
+function os_event_t*  os_event_get(os_event_type type);
+function b8           os_key_press(os_handle_t window, os_key key, os_modifiers modifiers);
+function b8           os_key_release(os_handle_t window, os_key key, os_modifiers modifiers);
+function b8           os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifiers);
+function b8           os_mouse_release(os_handle_t window, os_mouse_button button, os_modifiers modifiers);
+function f32          os_mouse_scroll(os_handle_t window);
+function vec2_t       os_mouse_move(os_handle_t window);
+function b8           os_mouse_button_is_down(os_mouse_button);
 
-// window
+// window (implemented per backend)
+function os_handle_t  os_window_open(str_t title, u32 width, u32 height, os_window_flags flags = 0);
+function void         os_window_close(os_handle_t window);
+function void         os_window_focus(os_handle_t window);
+function void         os_window_minimize(os_handle_t window);
+function void         os_window_maximize(os_handle_t window);
+function void         os_window_restore(os_handle_t window);
+function void         os_window_fullscreen(os_handle_t window);
+function void         os_window_set_title(os_handle_t window, str_t title);
+function u32          os_window_get_dpi(os_handle_t window);
+					  
+function b8           os_window_is_maximized(os_handle_t window);
+function b8           os_window_is_minimized(os_handle_t window);
+function b8           os_window_is_fullscreen(os_handle_t window);
+					  
+function void         os_window_clear_title_bar_client_area(os_handle_t window);
+function void         os_window_add_title_bar_client_area(os_handle_t window, rect_t area);
+			          
+function void         os_window_set_frame_function(os_handle_t window, os_frame_function_t* func);
 
-function os_window_t* os_window_open(str_t, u32, u32, os_window_flags = 0);
-function void os_window_close(os_window_t*);
-function void os_window_minimize(os_window_t*);
-function void os_window_maximize(os_window_t*);
-function void os_window_restore(os_window_t*);
-function void os_window_fullscreen(os_window_t*);
-function void os_window_set_title(os_window_t*, str_t);
-function u32 os_window_get_dpi(os_window_t*);
+function vec2_t       os_window_get_cursor_pos(os_handle_t window);
+function void         os_window_set_cursor_pos(os_handle_t window, vec2_t pos);
 
-function b8 os_window_is_maximized(os_window_t*);
-function b8 os_window_is_minimized(os_window_t*);
-function b8 os_window_is_fullscreen(os_window_t*);
+function uvec2_t      os_window_get_size(os_handle_t window);
+function f32          os_window_get_delta_time(os_handle_t window);
+function vec2_t os_window_get_mouse_delta(os_handle_t window);
 
-function void os_window_clear_title_bar_client_area(os_window_t*);
-function void os_window_add_title_bar_client_area(os_window_t*, rect_t);
+// memory (implemented per backend)
+function u32          os_page_size();
+function void*        os_mem_reserve(u32 size);
+function void         os_mem_release(void* ptr, u32 size);
+function void         os_mem_commit(void* ptr, u32 size);
+function void         os_mem_decommit(void* ptr, u32 size);
 
-function void os_window_set_frame_function(os_window_t*, os_frame_function*);
+// file (implemented per backend)
+function os_handle_t  os_file_open(str_t filepath, os_file_access_flag access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);
+function void         os_file_close(os_handle_t file);
+function str_t        os_file_read_range(arena_t* arena, os_handle_t file, u32 min, u32 max);
+function str_t        os_file_read_all(arena_t* arena, str_t filepath);
+function str_t        os_file_read_all(arena_t* arena, os_handle_t file);
 
-// memory
+// file info (implemented per backend)
+function os_file_info_t os_file_get_info(os_handle_t file);
+function os_file_info_t os_file_get_info(str_t filepath);
 
-function u32 os_page_size();
-function void* os_mem_reserve(u32);
-function void os_mem_release(void*, u32);
-function void os_mem_commit(void*, u32);
-function void os_mem_decommit(void*, u32);
+// threads (implemented per backend)
+function os_handle_t  os_thread_create(os_thread_function_t* thread_func, str_t name);
+function b8           os_thread_join(os_handle_t thread, u64 endt_us);
+function void         os_thread_detach(os_handle_t thread);
+function void         os_thread_set_name(os_handle_t thread, str_t name);
 
-// file 
+// mutexes (implemented per backend)
+function os_handle_t  os_mutex_create();
+function void         os_mutex_release(os_handle_t mutex);
+function void         os_mutex_lock(os_handle_t mutex);
+function void         os_mutex_unlock(os_handle_t mutex);
 
-function os_file_t os_file_open(str_t, os_file_access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);
-function void os_file_close(os_file_t);
-function os_file_attributes_t os_file_get_attributes(os_file_t);
-function os_file_attributes_t os_file_get_attributes(str_t);
-function str_t os_file_read_range(arena_t*, os_file_t, u32, u32);
-function str_t os_file_read_all(arena_t*, str_t);
-function str_t os_file_read_all(arena_t*, os_file_t);
+// rw mutexes (implemented per backend)
+function os_handle_t  os_rw_mutex_create();
+function void         os_rw_mutex_release(os_handle_t rw_mutex);
+function void         os_rw_mutex_lock_r(os_handle_t rw_mutex);
+function void         os_rw_mutex_unlock_r(os_handle_t rw_mutex);
+function void         os_rw_mutex_lock_w(os_handle_t rw_mutex);
+function void         os_rw_mutex_unlock_w(os_handle_t rw_mutex);
 
-function void os_file_delete(str_t);
-function void os_file_move(str_t, str_t);
-function void os_file_copy(str_t, str_t);
+// condition variable
+function os_handle_t  os_condition_variable_create();
+function void         os_condition_variable_release(os_handle_t cv);
+function b8           os_condition_variable_wait(os_handle_t cv, os_handle_t mutex, u64 endt_us);
+function b8           os_condition_variable_wait_rw_r(os_handle_t cv, os_handle_t rw_mutex, u64 endt_us);
+function b8           os_condition_variable_wait_rw_w(os_handle_t cv, os_handle_t rw_mutex, u64 endt_us);
+function void         os_condition_variable_signal(os_handle_t cv);
+function void         os_condition_variable_broadcast(os_handle_t cv);
 
-// thread
-function os_thread_t* os_thread_create(os_thread_function*, str_t);
-function void os_thread_release(os_thread_t*);
-function void os_thread_set_name(os_thread_t*, str_t);
-function void os_thread_join(os_thread_t*);
-function void os_thread_detach(os_thread_t*);
 
 // backend includes
 
-#define OS_BACKEND_WIN32
-
 #if defined(OS_BACKEND_WIN32)
-#include <windows.h>
-#include <timeapi.h>
 #include "backends/os/os_win32.h"
-#elif defined*OS_BACKEND_LINUX)
+#elif defined(OS_BACKEND_LINUX)
 #include "backends/os/os_linux.h"
 #elif defined(OS_BACKEND_MACOS)
 #include "backends/os/os_macos.h"

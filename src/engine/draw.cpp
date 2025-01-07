@@ -147,20 +147,21 @@ draw_release() {
 }
 
 function void 
-draw_begin(gfx_renderer_t* renderer) {
+draw_begin(gfx_handle_t renderer) {
 	
 	// clear batch arena
 	arena_clear(draw_state.batch_arena);
 	draw_state.batch_first = draw_state.batch_last = nullptr;
 
 	// update pipeline and constant buffer
-	rect_t screen = rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y);
+	uvec2_t renderer_size = gfx_renderer_get_size(renderer);
+	rect_t screen = rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y);
 	draw_state.pipeline.viewport = screen;
 	draw_state.pipeline.scissor = screen;
 	draw_state.constants.window_size = vec2(screen.x1, screen.y1);
 
 	// reset texture list
-	memset(draw_state.texture_list, 0, sizeof(gfx_texture_t*) * draw_max_textures);
+	memset(draw_state.texture_list, 0, sizeof(gfx_handle_t) * draw_max_textures);
 	draw_state.texture_count = 0;
 
 	// reset clip mask
@@ -189,13 +190,13 @@ draw_begin(gfx_renderer_t* renderer) {
 	draw_stack_reset(texture);
 	
 	// push default clip mask and texture
-	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer->resolution.x, (f32)renderer->resolution.y));
+	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y));
 	draw_push_texture(draw_state.texture);
 	
 }
 
 function void 
-draw_end(gfx_renderer_t* renderer) {
+draw_end(gfx_handle_t renderer) {
 	
 	// update constant buffer
 	gfx_buffer_fill(draw_state.constant_buffer, &draw_state.constants, sizeof(draw_constants_t));
@@ -216,6 +217,7 @@ draw_end(gfx_renderer_t* renderer) {
 	}
 	
 }
+
 
 function draw_instance_t*
 draw_get_instance() {
@@ -254,12 +256,12 @@ draw_get_instance() {
 }
 
 function i32
-draw_get_texture_index(gfx_texture_t* texture) {
+draw_get_texture_index(gfx_handle_t texture) {
 
 	// find index if in list
 	i32 index = 0;
 	for (; index < draw_state.texture_count; index++) {
-		if (texture == draw_state.texture_list[index]) {
+		if (gfx_handle_equals(texture, draw_state.texture_list[index])) {
 			break;
 		}
 	}
@@ -409,6 +411,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 
 	draw_instance_t* instance = draw_get_instance();
 
+	f32 thickness = draw_top_thickness();
 	f32 softness = draw_top_softness();
 
 	f32 min_x = min(p0.x, p1.x);
@@ -416,7 +419,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 	f32 max_x = max(p0.x, p1.x);
 	f32 max_y = max(p0.y, p1.y);
 
-	rect_t bbox = rect_grow(rect(min_x, min_y, max_x, max_y), softness);
+	rect_t bbox = rect_grow(rect(min_x, min_y, max_x, max_y), softness + thickness + 2.0f);
 
 	vec2_t c = rect_center(bbox);
 	vec2_t c_p0 = vec2_sub(c, p0);
@@ -430,7 +433,7 @@ draw_line(vec2_t p0, vec2_t p1) {
 	instance->point0 = c_p0;
 	instance->point1 = c_p1;
 
-	instance->thickness = draw_top_thickness();
+	instance->thickness = thickness;
 	instance->softness = softness;
 
 	instance->indices = draw_pack_indices(
@@ -519,7 +522,7 @@ function void
 draw_text(str_t text, vec2_t pos) {
 
 	f32 font_size = draw_top_font_size();
-	font_t* font = draw_top_font();
+	font_handle_t font = draw_top_font();
 
 	for (u32 i = 0; i < text.size; i++) {
 
@@ -613,12 +616,12 @@ draw_stack_impl(radius3, f32);
 draw_stack_impl(thickness, f32);
 draw_stack_impl(softness, f32);
 
-draw_stack_impl(font, font_t*);
+draw_stack_impl(font, font_handle_t);
 draw_stack_impl(font_size, f32);
 
 draw_stack_impl(clip_mask, rect_t);
 
-draw_stack_impl(texture, gfx_texture_t*);
+draw_stack_impl(texture, gfx_handle_t);
 
 function void
 draw_push_color(color_t color) {

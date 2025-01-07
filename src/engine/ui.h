@@ -3,9 +3,17 @@
 #ifndef UI_H
 #define UI_H
 
-// todo: 
+// todo:
 // 
-// [ ] - find memory leak.
+// 
+// big stuff:
+// 
+// [x] - reduce memory arenas.
+// [ ] - rewrite layout algorithm.
+// [ ] - support animations(pos and size).
+// [ ] - rewrite theming system again. :(
+// 
+// 
 // [~] - fix color palette situation.
 // [~] - maybe change up the style system all together.
 //     [~] - global way to turn off borders, shadows, etc.
@@ -20,18 +28,17 @@
 //         [ ] - implement views.
 //         [ ] - add views to panel list.
 //         [ ] - 
-// [~] - *fix clipping.
+// [x] - *fix clipping.
 // [ ] - *support fancier text (colored)
-// [ ] - deal with tabs in fonts correctly.
 // [ ] - scroll bars.
 // [x] - tooltips.
 // [x] - cutoff text (...).
+//     [ ] - find a better way to do this.
 // [~] - widgets. 
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
 //         [ ] - mouse controls.
 //     [ ] - tree list.
-//     [ ] - tool tips.
 //     [ ] - list box.
 //     [~] - combo box.
 // [~] - more ui events.
@@ -40,7 +47,7 @@
 //     [x] - text ops
 //     [ ] - nagivation. 
 //     [x] - double and triple click.
-// [ ] - frame focusing.
+// [x] - frame focusing.
 // [~] - clean up pass.
 //     [ ] - color picker indicator animations.
 //     [ ] - 
@@ -67,63 +74,108 @@ ui_stack_set_next_func(name, type)\
 
 // icons
 enum {
-	icon_null          = ' ',
-	icon_check         = 'X',
-	icon_filledcircle  = '.',
-	icon_filledstar    = '*',
-	icon_hollowstar    = '8',
-	icon_plus          = '+',
-	icon_pencil        = 'e',
-	icon_trashcan      = '3',
-	icon_closedfolder  = 'M',
-	icon_openfolder    = 'N',
-	icon_fileplain     = 'f',
-	icon_filecopy      = 'F',
-	icon_filetxt       = 't',
-	icon_fileimg       = 'i',
-	icon_filesound     = ')',
-	icon_filearchive   = 'z',
-	icon_gears         = '@',
-	icon_sound0        = 's',
-	icon_sound1        = 'S',
-	icon_sound2        = 'Z',
-	icon_downtri       = 'd',
-	icon_uptri         = 'u',
-	icon_lefttri       = 'l',
-	icon_righttri      = 'r',
-	icon_leftcaret     = '<',
-	icon_rightcaret    = '>',
-	icon_upcaret       = '^',
-	icon_downcaret     = 'v',
-	icon_refresh       = 'R',
-	icon_undo          = '{',
-	icon_redo          = '}',
-	icon_machine       = 'm',
-	icon_x             = 'x',
-	icon_maximize      = 'w',
-	icon_restore       = 'b',
-	icon_minimize      = 'g',
-	icon_lock          = 'p',
-	icon_unlock        = 'q',
-	icon_tag           = 'T',
-	icon_save          = 'D',
-	icon_gamepad       = 'G',
-	icon_keyboard      = 'k',
-	icon_unfilledcheck = '!',
-	icon_filledcheck   = '1',
-	icon_warning       = 'W',
-	icon_question      = '?',
-	icon_info          = 'I',
-	icon_eye           = 'V',
-	icon_eyecovered    = 'H',
+	icon_user = ' ',
+	icon_checkmark = '!',
+	icon_cancel = '"',
+	icon_plus = '#',
+	icon_minus = '$',
+	icon_help = '%',
+	icon_info = '&',
+	icon_home = '\'',
+	icon_lock = '(',
+	icon_lock_open = ')',
+	icon_eye = '*',
+	icon_eye_off = '+',
+	icon_tag = ',',
+	icon_tags = '-',
+	icon_bookmark = '.',
+	icon_bookmark_empty = '/',
+	icon_flag = '0',
+	icon_flag_empty = '1',
+	icon_reply = '2',
+	icon_reply_all = '3',
+	icon_forward = '4',
+	icon_pencil = '5',
+	icon_repeat = '6',
+	icon_attention = '7',
+	icon_trash = '8',
+	icon_document = '9',
+	icon_document_text = ':',
+	icon_folder = ';',
+	icon_folder_open = '<',
+	icon_box = '=',
+	icon_menu = '>',
+	icon_cog = '?',
+	icon_cog_alt = '@',
+	icon_wrench = 'A',
+	icon_sliders = 'B',
+	icon_block = 'C',
+	icon_resize_full = 'D',
+	icon_resize_full_alt = 'E',
+	icon_resize_small = 'F',
+	icon_resize_vertical = 'G',
+	icon_resize_horizontal = 'H',
+	icon_move = 'I',
+	icon_zoom_in = 'J',
+	icon_zoom_out = 'K',
+	icon_down = 'L',
+	icon_up = 'M',
+	icon_left = 'N',
+	icon_right = 'O',
+	icon_down_open = 'P',
+	icon_up_open = 'Q',
+	icon_left_open = 'R',
+	icon_right_open = 'S',
+	icon_arrow_cw = 'T',
+	icon_arrow_ccw = 'U',
+	icon_arrows_cw = 'V',
+	icon_shuffle = 'W',
+	icon_play = 'X',
+	icon_stop = 'Y',
+	icon_pause = 'Z',
+	icon_to_end = '[',
+	icon_to_end_alt = '\\',
+	icon_to_start = ']',
+	icon_to_start_alt = '^',
+	icon_fast_foward = '_',
+	icon_fast_backward = '`',
+	icon_desktop = 'a',
+	icon_align_left = 'b',
+	icon_align_center = 'c',
+	icon_align_right = 'd',
+	icon_align_justify = 'e',
+	icon_list = 'f',
+	icon_indent_left = 'g',
+	icon_indent_right = 'h',
+	icon_list_bullet = 'i',
+	icon_ellipsis = 'j',
+	icon_ellipsis_vertical = 'k',
+	icon_off = 'l',
+	icon_circle_fill = 'm',
+	icon_circle = 'n',
+	icon_sort = 'o',
+	icon_sort_down = 'p',
+	icon_sort_up = 'q',
+	icon_sort_up_alt = 'r',
+	icon_sort_down_alt = 's',
+	icon_sort_name_up = 't',
+	icon_sort_name_down = 'u',
+	icon_sort_number_up = 'v',
+	icon_sort_number_down = 'w',
+	icon_sitemap = 'x',
+	icon_cube = 'y',
+	icon_cubes = 'z',
+	icon_database = '{',
+	icon_eyecropper = '|',
+	icon_brush = '}',
 };
 
 enum ui_size_type {
 	ui_size_type_null,
-	ui_size_type_pixel, // fixed pixel size
-	ui_size_type_percent, // percent of parent's size
-	ui_size_type_by_children, // children's size
-	ui_size_type_text, // text size
+	ui_size_type_pixel, // by a fixed pixel size
+	ui_size_type_percent, // by a percent of parent's size
+	ui_size_type_by_children, // by children's size
+	ui_size_type_text, // by text size
 };
 
 typedef u32 ui_axis;
@@ -137,37 +189,48 @@ enum ui_text_alignment {
 	ui_text_alignment_left,
 	ui_text_alignment_center,
 	ui_text_alignment_right,
+	ui_text_alignment_justify, // TODO: implement this
 };
 
 typedef u32 ui_interaction;
 enum {
 	ui_interaction_none = 0,
+
 	ui_interaction_left_pressed = (1 << 0),
 	ui_interaction_middle_pressed = (1 << 1),
 	ui_interaction_right_pressed = (1 << 2),
+
 	ui_interaction_left_dragging = (1 << 3),
 	ui_interaction_middle_dragging = (1 << 4),
 	ui_interaction_right_dragging = (1 << 5),
+
 	ui_interaction_left_double_dragging = (1 << 6),
 	ui_interaction_middle_double_dragging = (1 << 7),
 	ui_interaction_right_double_dragging = (1 << 8),
+
 	ui_interaction_left_triple_dragging = (1 << 9),
 	ui_interaction_middle_triple_dragging = (1 << 10),
 	ui_interaction_right_triple_dragging = (1 << 11),
+
 	ui_interaction_left_released = (1 << 12),
 	ui_interaction_middle_released = (1 << 13),
 	ui_interaction_right_released = (1 << 14),
+
 	ui_interaction_left_clicked = (1 << 15),
 	ui_interaction_middle_clicked = (1 << 16),
 	ui_interaction_right_clicked = (1 << 17),
+
 	ui_interaction_left_double_clicked = (1 << 18),
 	ui_interaction_middle_double_clicked = (1 << 19),
 	ui_interaction_right_double_clicked = (1 << 20),
+
 	ui_interaction_left_triple_clicked = (1 << 21),
 	ui_interaction_middle_triple_clicked = (1 << 22),
 	ui_interaction_right_triple_clicked = (1 << 23),
+
 	ui_interaction_keyboard_pressed = (1 << 24),
 	ui_interaction_hovered = (1 << 25),
+
 };
 
 enum ui_event_type {
@@ -304,12 +367,13 @@ struct ui_theme_t {
 	};
 };
 
+// events
 struct ui_event_t {
 	ui_event_t* next;
 	ui_event_t* prev;
 
 	os_event_t* os_event;
-	os_window_t* window;
+	os_handle_t window;
 	ui_event_type type;
 	ui_event_flags flags;
 	ui_event_delta_unit delta_unit;
@@ -438,8 +502,8 @@ struct ui_frame_t {
 	ui_axis layout_axis;
 	vec4_t rounding;
 	ui_color_group_t color_group;
-	gfx_texture_t* texture;
-	font_t* font;
+	gfx_handle_t texture;
+	font_handle_t font;
 	f32 font_size;
 	ui_frame_custom_draw_func* custom_draw_func;
 	void* custom_draw_data;
@@ -464,6 +528,7 @@ struct ui_frame_t {
 	ui_key_t nav_focus_active_key;
 	ui_key_t nav_focus_next_hot_key;
 	ui_key_t nav_focus_next_active_key;
+	void* user_data;
 
 };
 
@@ -471,18 +536,6 @@ struct ui_frame_rec_t {
 	ui_frame_t* next;
 	i32 push_count;
 	i32 pop_count;
-};
-
-struct ui_frame_node_t {
-	ui_frame_node_t* next;
-	ui_frame_node_t* prev;
-	ui_frame_t* frame;
-};
-
-struct ui_frame_list_t {
-	ui_frame_node_t* first;
-	ui_frame_node_t* last;
-	u32 count;
 };
 
 // stack nodes
@@ -504,11 +557,11 @@ ui_stack_node_decl(rounding_01, f32)
 ui_stack_node_decl(rounding_10, f32)
 ui_stack_node_decl(rounding_11, f32)
 ui_stack_node_decl(color_group, ui_color_group_t)
-ui_stack_node_decl(font, font_t*)
+ui_stack_node_decl(font, font_handle_t)
 ui_stack_node_decl(font_size, f32)
 ui_stack_node_decl(focus_hot, ui_focus_type)
 ui_stack_node_decl(focus_active, ui_focus_type)
-ui_stack_node_decl(texture, gfx_texture_t*)
+ui_stack_node_decl(texture, gfx_handle_t)
 
 // view
 
@@ -571,15 +624,13 @@ struct ui_context_t {
 	ui_context_t* prev;
 
 	// contexts
-	os_window_t* window;
-	gfx_renderer_t* renderer;
+	os_handle_t window;
+	gfx_handle_t renderer;
 
 	// arenas
 	arena_t* arena;
-	arena_t* event_arena;
 	arena_t* per_frame_arena;
 	arena_t* drag_state_arena;
-	arena_t* scratch_arena;
 
 	// state
 	u64 build_index;
@@ -627,8 +678,8 @@ struct ui_context_t {
 
 	// defaults
 	ui_theme_t theme;
-	font_t* font;
-	font_t* icon_font;
+	font_handle_t font;
+	font_handle_t icon_font;
 
 	// stack defaults
 	ui_stack_decl_default(parent);
@@ -679,42 +730,40 @@ struct ui_context_t {
 	ui_stack_decl(focus_hot);
 	ui_stack_decl(focus_active);
 	ui_stack_decl(texture);
-
-
+	
 };
 
 // state
 
 struct ui_state_t {
 	
-	arena_t* arena;	
+	arena_t* context_arena;	
 	arena_t* event_arena;
 
+	// context
 	ui_context_t* ui_first;
 	ui_context_t* ui_last;
 	ui_context_t* ui_free;
 	ui_context_t* ui_active;
 
-	// event list
+	// events
 	ui_event_list_t event_list;
-
-	// default theme
-	ui_theme_t default_theme;
-
-	// event bindings
-	ui_event_binding_t event_bindings[64];
-
 	u32 click_counter[3];
 	u64 last_click_time[3];
 	u32 last_click_index[3];
+	
+	// event bindings
+	ui_event_binding_t event_bindings[64];
+
+	// default theme
+	ui_theme_t default_theme;
+	
+	// icon font
+	font_handle_t icon_font;
 
 };
 
 // widget structs
-
-struct ui_slider_data_t {
-	f32 value;
-};
 
 struct ui_color_data_t {
 	f32 hue;
@@ -722,10 +771,16 @@ struct ui_color_data_t {
 	f32 val;
 };
 
-
 // globals
 
 global ui_state_t ui_state;
+
+// debug
+global b8 ui_debug_frame = false;
+global b8 ui_debug_text = false;
+global b8 ui_show_hovered = false;
+global b8 ui_show_active = false;
+global b8 ui_show_focused = false;
 
 // functions
 
@@ -733,9 +788,10 @@ global ui_state_t ui_state;
 function void ui_init();
 function void ui_release();
 function void ui_update();
+function ui_context_t* ui_active();
 
 // context
-function ui_context_t* ui_context_create(gfx_renderer_t* renderer);
+function ui_context_t* ui_context_create(os_handle_t window, gfx_handle_t renderer);
 function void ui_context_release(ui_context_t* context);
 function void ui_begin_frame(ui_context_t* context);
 function void ui_end_frame(ui_context_t* context);
@@ -762,10 +818,10 @@ function ui_size_t ui_size_em(f32 value, f32 strictness);
 function ui_size_t ui_size_text(f32 padding);
 
 // text alignment
-function vec2_t ui_text_align(font_t* font, f32 font_size, str_t text, rect_t rect, ui_text_alignment alignment);
-function vec2_t ui_text_size(font_t* font, f32 font_size, str_t text);
-function f32 ui_text_offset_from_index(font_t* font, f32 font_size, str_t text, u32 index);
-function u32 ui_text_index_from_offset(font_t* font, f32 font_size, str_t text, f32 offset);
+function vec2_t ui_text_align(font_handle_t font, f32 font_size, str_t text, rect_t rect, ui_text_alignment alignment);
+function vec2_t ui_text_size(font_handle_t font, f32 font_size, str_t text);
+function f32 ui_text_offset_from_index(font_handle_t font, f32 font_size, str_t text, u32 index);
+function u32 ui_text_index_from_offset(font_handle_t font, f32 font_size, str_t text, f32 offset);
 
 // text point
 function b8 ui_text_point_equals(ui_text_point_t a, ui_text_point_t b);
@@ -813,11 +869,14 @@ function ui_frame_t* ui_frame_from_key(ui_key_t key, ui_frame_flags flags = 0);
 function ui_frame_t* ui_frame_from_string(str_t string, ui_frame_flags flags = 0);
 function ui_frame_rec_t ui_frame_rec_depth_first(ui_frame_t* frame);
 function ui_interaction ui_frame_interaction(ui_frame_t* frame);
+
+inlnfunc b8 ui_frame_is_hovered(ui_frame_t* frame);
+inlnfunc b8 ui_frame_is_active(ui_frame_t* frame);
+inlnfunc b8 ui_frame_is_focused(ui_frame_t* frame);
+
 function void ui_frame_set_display_text(ui_frame_t* frame, str_t display_text);
 function void ui_frame_set_custom_draw(ui_frame_t* frame, ui_frame_custom_draw_func* draw_function, void* draw_data);
-
-// frame list
-function void ui_frame_list_push(arena_t* arena, ui_frame_list_t* frame_list, ui_frame_t* frame);
+function void ui_frame_set_user_data(ui_frame_t* frame, u32 size);
 
 // views
 function ui_view_t* ui_view_create(str_t label, view_ui_function* ui_function);
@@ -841,7 +900,7 @@ function ui_interaction ui_label(str_t label);
 function ui_interaction ui_labelf(char* fmt, ...);
 function ui_interaction ui_button(str_t label);
 function ui_interaction ui_buttonf(char* fmt, ...);
-function ui_interaction ui_image(str_t label, gfx_texture_t* texture);
+function ui_interaction ui_image(str_t label, gfx_handle_t texture);
 function ui_interaction ui_slider(str_t label, i32* value, i32 min, i32 max);
 function ui_interaction ui_slider(str_t label, f32* value, f32 min, f32 max);
 function ui_interaction ui_checkbox(str_t label, b8* value);
@@ -858,7 +917,6 @@ function ui_interaction ui_text_edit(str_t label, char* buffer, u32 buffer_max_s
 function ui_interaction ui_combo(str_t label, i32* current, char** items, u32 item_count);
 
 // widget draw functions
-function void ui_slider_draw_function(ui_frame_t* frame);
 
 function void ui_color_hue_bar_draw_function(ui_frame_t* frame);
 function void ui_color_sat_bar_draw_function(ui_frame_t* frame);
@@ -891,11 +949,11 @@ ui_stack_func(rounding_01, f32)
 ui_stack_func(rounding_10, f32)
 ui_stack_func(rounding_11, f32)
 ui_stack_func(color_group, ui_color_group_t)
-ui_stack_func(font, font_t*)
+ui_stack_func(font, font_handle_t)
 ui_stack_func(font_size, f32)
 ui_stack_func(focus_hot, ui_focus_type)
 ui_stack_func(focus_active, ui_focus_type)
-ui_stack_func(texture, gfx_texture_t*)
+ui_stack_func(texture, gfx_handle_t)
 
 // groups
 function void ui_push_rounding(f32 rounding);
@@ -905,6 +963,11 @@ function void ui_set_next_rounding(f32 rounding);
 function void ui_push_rect(rect_t rect);
 function void ui_pop_rect();
 function void ui_set_next_rect(rect_t rect);
+
+function void ui_push_pref_size(ui_size_t width, ui_size_t height);
+function void ui_pop_pref_size();
+function void ui_set_next_pref_size(ui_size_t width, ui_size_t height);
+
 
 // TODO: color var 
 function void ui_push_color_var(ui_color color_id, color_t color);

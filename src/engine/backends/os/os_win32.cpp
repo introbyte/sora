@@ -8,18 +8,26 @@
 #pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "dwmapi")
-#pragma comment(lib, "advapi32")
+//#pragma comment(lib, "advapi32")
 
 // implementation
 
+// state
 function void
 os_init() {
 
 	// arenas
-	os_state.window_arena = arena_create(megabytes(8));
-	os_state.event_list_arena = arena_create(megabytes(8));
-	os_state.thread_arena = arena_create(megabytes(8));
-	os_state.scratch_arena = arena_create(megabytes(8));
+	os_state.window_arena = arena_create(megabytes(64));
+	os_state.event_list_arena = arena_create(kilobytes(64));
+	os_state.entity_arena = arena_create(megabytes(128));
+
+	// init entity free list
+	os_state.entity_free = nullptr;
+
+	// init window list
+	os_state.window_first = nullptr;
+	os_state.window_last = nullptr;
+	os_state.window_free = nullptr;
 
 	// time
 	timeBeginPeriod(1);
@@ -29,7 +37,7 @@ os_init() {
 
 	// register window class
 	WNDCLASS window_class = { 0 };
-	window_class.lpfnWndProc = window_procedure;
+	window_class.lpfnWndProc = os_w32_window_procedure;
 	window_class.lpszClassName = "sora_window_class";
 	window_class.hInstance = GetModuleHandle(NULL);
 	window_class.hCursor = LoadCursorA(0, IDC_ARROW);
@@ -48,27 +56,19 @@ os_init() {
 	os_state.cursors[os_cursor_disabled] = LoadCursorA(NULL, IDC_NO);
 
 	// init locks
-	InitializeSRWLock(&os_state.thread_srw_lock);
-
-	// clear input state
-	for (i32 i = 0; i < 255; i++) {
-		os_state.keys[i] = false;
-	}
-
-	for (i32 i = 0; i < os_mouse_button_count; i++) {
-		os_state.mouse_buttons[i] = false;
-	}
+	InitializeCriticalSection(&os_state.entity_mutex);
 
 }
 
 function void
 os_release() {
 
+	// release locks
+	DeleteCriticalSection(&os_state.entity_mutex);
+
 	// release arenas
 	arena_release(os_state.window_arena);
 	arena_release(os_state.event_list_arena);
-	arena_release(os_state.thread_arena);
-	arena_release(os_state.scratch_arena);
 }
 
 function void
@@ -85,7 +85,7 @@ os_update() {
 	}
 
 	// update each window
-	for (os_window_t* window = os_state.first_window; window != 0; window = window->next) {
+	for (os_w32_window_t* window = os_state.window_first; window != 0; window = window->next) {
 
 		// window size
 		RECT w32_rect = { 0 };
@@ -117,10 +117,9 @@ os_abort(u32 exit_code) {
 }
 
 function void
-os_sleep(u32 msec) {
-	Sleep(msec);
+os_sleep(u32 ms) {
+	Sleep(ms);
 }
-
 
 function u64
 os_time_microseconds() {
@@ -133,9 +132,8 @@ os_time_microseconds() {
 
 function b8
 os_any_window_exist() {
-	return os_state.first_window != nullptr;
+	return os_state.window_first != nullptr;
 }
-
 
 function void
 os_set_cursor(os_cursor cursor) {
@@ -146,21 +144,6 @@ os_set_cursor(os_cursor cursor) {
 		HCURSOR hcursor = os_state.cursors[cursor];
 		SetCursor(hcursor);
 	}
-}
-
-function vec2_t
-os_get_cursor_pos(os_window_t* window) {
-	POINT cursor_pos;
-	GetCursorPos(&cursor_pos);
-	ScreenToClient(window->handle, &cursor_pos);
-	return vec2(cursor_pos.x, cursor_pos.y);
-}
-
-function void
-os_set_cursor_pos(os_window_t* window, vec2_t pos) {
-	POINT p = { pos.x, pos.y };
-	ClientToScreen(window->handle, &p);
-	SetCursorPos(p.x, p.y);
 }
 
 function color_t
@@ -185,34 +168,6 @@ os_get_sys_color(os_sys_color id) {
 	return result;
 }
 
-// event functions
-
-function void
-os_event_push(os_event_t* event) {
-	os_event_t* new_event = (os_event_t*)arena_alloc(os_state.event_list_arena, sizeof(os_event_t));
-	memcpy(new_event, event, sizeof(os_event_t));
-	dll_push_back(os_state.event_list.first, os_state.event_list.last, new_event);
-	os_state.event_list.count++;
-}
-
-function void
-os_event_pop(os_event_t* event) {
-	dll_remove(os_state.event_list.first, os_state.event_list.last, event);
-	os_state.event_list.count--;
-}
-
-function os_event_t* 
-os_event_get(os_event_type type) {
-	os_event_t* result = nullptr;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == type) {
-			result = e;
-			break;
-		}
-	}
-	return result;
-}
-
 function os_modifiers
 os_get_modifiers() {
 	os_modifiers modifiers = 0;
@@ -228,140 +183,40 @@ os_get_modifiers() {
 	return modifiers;
 }
 
-function b8
-os_key_press(os_window_t* window, os_key key, os_modifiers modifiers = 0) {
-	b8 result = 0;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_key_press && (window == e->window) &&
-			e->key == key &&
-			((e->modifiers & modifiers) != 0 || (e->modifiers == 0 && modifiers == 0))) {
-			os_event_pop(e);
-			result = 1;
-			break;
-		}
-	}
-	return result;
-}
-
-function b8
-os_key_release(os_window_t* window, os_key key, os_modifiers modifiers = 0) {
-	b8 result = 0;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_key_release && (window == e->window) &&
-			e->key == key &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_event_pop(e);
-			result = 1;
-			break;
-		}
-	}
-	return result;
-}
-
-function b8
-os_mouse_press(os_window_t* window, os_mouse_button button, os_modifiers modifiers = 0) {
-	b8 result = 0;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_mouse_press && (window == e->window) &&
-			e->mouse == button &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_event_pop(e);
-			result = 1;
-			break;
-		}
-	}
-	return result;
-}
-
-function b8
-os_mouse_release(os_window_t* window, os_mouse_button button, os_modifiers modifiers = 0) {
-	b8 result = 0;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_mouse_release && (window == e->window) &&
-			e->mouse == button &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
-			os_event_pop(e);
-			result = 1;
-			break;
-		}
-	}
-	return result;
-}
-
-function f32
-os_mouse_scroll(os_window_t* window) {
-	f32 result = 0.0f;
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_mouse_scroll && (window == e->window)) {
-			os_event_pop(e);
-			result = e->scroll.y;
-			break;
-		}
-	}
-	return result;
-}
-
-function vec2_t
-os_mouse_move(os_window_t* window) {
-
-	vec2_t result = vec2(0.0f, 0.0f);
-
-	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
-		if (e->type == os_event_type_mouse_move && (window == e->window)) {
-			os_event_pop(e);
-			result = e->position;
-			break;
-		}
-	}
-
-	return result;
-}
-
-function b8
-os_mouse_button_is_down(os_mouse_button mouse_button) {
-	return os_state.mouse_buttons[mouse_button];
-}
-
-function b8
+function b8 
 os_key_is_down(os_key key) {
-	return os_state.keys[key];
+
+}
+
+function b8
+os_mouse_is_down(os_mouse_button button) {
+
 }
 
 // window functions
 
-function os_window_t*
+function os_handle_t
 os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 
-	// find window
-	os_window_t* window = nullptr;
-	window = os_state.free_window;
+	// grab from free list or allocate one
+	os_w32_window_t* window = nullptr;
+	window = os_state.window_free;
 	if (window != nullptr) {
-		stack_pop(os_state.free_window);
+		stack_pop(os_state.window_free);
 	} else {
-		window = (os_window_t*)arena_alloc(os_state.window_arena, sizeof(os_window_t));
+		window = (os_w32_window_t*)arena_alloc(os_state.window_arena, sizeof(os_w32_window_t));
 	}
-	memset(window, 0, sizeof(os_window_t));
-	dll_push_back(os_state.first_window, os_state.last_window, window);
+	memset(window, 0, sizeof(os_w32_window_t));
+	dll_push_back(os_state.window_first, os_state.window_last, window);
 
-	window->title_bar_arena = arena_create(megabytes(8));
-
-	// adjust window size
-	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
-	
-	RECT rect = { 0, 0, width, height };
-	AdjustWindowRect(&rect, style, FALSE);
-	i32 adjusted_width = rect.right - rect.left;
-	i32 adjusted_height = rect.bottom - rect.top;
-
-	// open window
-	os_new_borderless_window = !!(flags & os_window_flag_borderless);
-	window->handle = CreateWindowExA(WS_EX_APPWINDOW, "sora_window_class", (char*)title.data,
-		style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
-		nullptr, nullptr, GetModuleHandle(NULL), nullptr);
-	os_new_borderless_window = false;
-	//window->hdc = GetDC(window->handle);
-	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
-	ShowWindow(window->handle, SW_SHOW);
+	// fill struct
+	window->flags = flags;
+	QueryPerformanceCounter(&window->tick_current);
+	window->tick_previous = window->tick_current;
+	window->delta_time = 0.0;
+	window->elasped_time = 0.0;
+	window->resolution = uvec2(width, height);
+	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
 
 	// borderless
 	window->borderless = flags & os_window_flag_borderless;
@@ -369,47 +224,77 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	DwmIsCompositionEnabled(&enabled);
 	window->composition_enabled = enabled;
 
-	// fill stuct
-	window->flags = flags;
-	window->title = title;
-	window->resolution = uvec2(width, height);
-	QueryPerformanceCounter(&window->tick_current);
-	window->tick_previous = window->tick_current;
-	window->delta_time = 0.0;
-	window->elasped_time = 0.0;
+	if (window->borderless) {
+		window->title_bar_arena = arena_create(megabytes(8));
+	}
 
-	// for fullscreen
-	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
+	// adjust window size
+	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
+	
+	// validate size
+	RECT rect = { 0, 0, width, height };
+	AdjustWindowRect(&rect, style, FALSE);
+	i32 adjusted_width = rect.right - rect.left;
+	i32 adjusted_height = rect.bottom - rect.top;
 
-	return window;
+	// open window
+	os_state.new_borderless_window = !!(flags & os_window_flag_borderless);
+	window->handle = CreateWindowExA(WS_EX_APPWINDOW, "sora_window_class", (char*)title.data,
+		style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
+		nullptr, nullptr, GetModuleHandle(NULL), nullptr);
+	os_state.new_borderless_window = false;
+	ShowWindow(window->handle, SW_SHOW);
+	
+	os_handle_t window_handle = os_w32_handle_from_window(window);
+	return window_handle;
 }
 
 function void
-os_window_close(os_window_t* window) {
-	dll_remove(os_state.first_window, os_state.last_window, window);
-	stack_push(os_state.free_window, window);
-	//if (window->hdc) { ReleaseDC(window->handle, window->hdc); }
-	arena_release(window->title_bar_arena);
-	if (window->handle) { DestroyWindow(window->handle); }
+os_window_close(os_handle_t handle) {
+
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+
+	// remove from list and push to free list
+	dll_remove(os_state.window_first, os_state.window_last, window);
+	stack_push(os_state.window_free, window);
+
+	// release arena if needed
+	if (window->title_bar_arena != nullptr) { arena_release(window->title_bar_arena); }
+
+	// destroy window
+	if (window->handle != nullptr) { DestroyWindow(window->handle);  }
+
+}
+
+function void 
+os_window_focus(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	SetForegroundWindow(window->handle);
+	SetFocus(window->handle);
 }
 
 function void
-os_window_minimize(os_window_t* window) {
+os_window_minimize(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	ShowWindow(window->handle, SW_MINIMIZE);
 }
 
 function void
-os_window_maximize(os_window_t* window) {
+os_window_maximize(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	ShowWindow(window->handle, SW_MAXIMIZE);
 }
 
 function void
-os_window_restore(os_window_t* window) {
+os_window_restore(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	ShowWindow(window->handle, SW_RESTORE);
 }
 
 function void
-os_window_fullscreen(os_window_t* window) {
+os_window_fullscreen(os_handle_t handle) {
+
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 
 	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
 	if (window_style & WS_OVERLAPPEDWINDOW) {
@@ -437,60 +322,100 @@ os_window_fullscreen(os_window_t* window) {
 }
 
 function void
-os_window_set_title(os_window_t* window, str_t title) {
+os_window_set_title(os_handle_t handle, str_t title) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	SetWindowTextA(window->handle, (char*)title.data);
 }
 
 function u32
-os_window_get_dpi(os_window_t* window) {
+os_window_get_dpi(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	return GetDpiForWindow(window->handle);
 }
 
-
 function b8 
-os_window_is_maximized(os_window_t* window) {
+os_window_is_maximized(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	b8 result = (IsZoomed(window->handle));
 	return result;
 }
 
 function b8 
-os_window_is_minimized(os_window_t* window) {
+os_window_is_minimized(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	b8 result = (IsIconic(window->handle));
 	return result;
 }
 
 function b8
-os_window_is_fullscreen(os_window_t* window) {
+os_window_is_fullscreen(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
 	return !(window_style & WS_OVERLAPPEDWINDOW);
 }
 
 function b8
-os_window_is_active(os_window_t* window) {
+os_window_is_active(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	HWND active_hwnd = GetActiveWindow();
 	return (active_hwnd == window->handle);
 }
 
-
 function void 
-os_window_clear_title_bar_client_area(os_window_t* window) {
+os_window_clear_title_bar_client_area(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	arena_clear(window->title_bar_arena);
 	window->title_bar_client_area_first = window->title_bar_client_area_last = nullptr;
 }
 
 function void
-os_window_add_title_bar_client_area(os_window_t* window, rect_t area) {
+os_window_add_title_bar_client_area(os_handle_t handle, rect_t area) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	os_title_bar_client_area_t* title_bar_client_area = (os_title_bar_client_area_t*)arena_alloc(window->title_bar_arena, sizeof(os_title_bar_client_area_t));
 	title_bar_client_area->area = area;
 	dll_push_back(window->title_bar_client_area_first, window->title_bar_client_area_last, title_bar_client_area);
 }
 
-
 function void
-os_window_set_frame_function(os_window_t* window, os_frame_function* func) {
+os_window_set_frame_function(os_handle_t handle, os_frame_function_t* func) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	window->frame_func = func;
 }
 
+function vec2_t
+os_window_get_cursor_pos(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	POINT cursor_pos;
+	GetCursorPos(&cursor_pos);
+	ScreenToClient(window->handle, &cursor_pos);
+	return vec2(cursor_pos.x, cursor_pos.y);
+}
+
+function void
+os_window_set_cursor_pos(os_handle_t handle, vec2_t pos) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	POINT p = { pos.x, pos.y };
+	ClientToScreen(window->handle, &p);
+	SetCursorPos(p.x, p.y);
+}
+
+function uvec2_t 
+os_window_get_size(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	return window->resolution;
+}
+
+function f32 
+os_window_get_delta_time(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	return window->delta_time;
+}
+
+function vec2_t 
+os_window_get_mouse_delta(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	return window->mouse_delta;
+}
 
 // memory functions
 
@@ -528,13 +453,14 @@ os_mem_decommit(void* ptr, u32 size) {
 	VirtualFree(ptr, size, MEM_DECOMMIT);
 }
 
-// files
 
-function os_file_t
+
+// file functions
+
+function os_handle_t
 os_file_open(str_t filepath, os_file_access_flag flags) {
-
-	os_file_t file = { 0 };
-
+	
+	os_handle_t result = { 0 };
 	DWORD access_flags = 0;
 	DWORD share_mode = 0;
 	DWORD creation_disposition = OPEN_EXISTING;
@@ -548,55 +474,34 @@ os_file_open(str_t filepath, os_file_access_flag flags) {
 	if (flags & os_file_access_flag_append) { creation_disposition = OPEN_ALWAYS; }
 	if (flags & os_file_access_flag_attribute) { access_flags = READ_CONTROL | FILE_READ_ATTRIBUTES;  share_mode = FILE_SHARE_READ; }
 
-	file.handle = CreateFileA((char*)filepath.data, access_flags, share_mode, NULL, creation_disposition, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE handle = CreateFileA((char*)filepath.data, access_flags, share_mode, NULL, creation_disposition, FILE_ATTRIBUTE_NORMAL, NULL);
 
-	if (file.handle == INVALID_HANDLE_VALUE) {
+	if (handle == INVALID_HANDLE_VALUE) {
 		printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
-		file.handle = nullptr;
 	} else {
-		os_file_attributes_t attributes = os_file_get_attributes(file);
-		file.attributes = attributes;
+		result.data[0] = (u64)handle;
 	}
 
-	return file;
+	return result;
 }
 
 function void
-os_file_close(os_file_t file) {
-	CloseHandle(file.handle);
-}
-
-function os_file_attributes_t
-os_file_get_attributes(os_file_t file) {
-	os_file_attributes_t attributes = { 0 };
-	u32 high_bits = 0;
-	u32 low_bits = GetFileSize(file.handle, (DWORD*)&high_bits);
-	FILETIME last_write_time = { 0 };
-	GetFileTime(file.handle, 0, 0, &last_write_time);
-	attributes.size = (u64)low_bits | (((u64)high_bits) << 32);
-	attributes.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
-	return attributes;
-}
-
-function os_file_attributes_t
-os_file_get_attributes(str_t filepath) {
-	WIN32_FILE_ATTRIBUTE_DATA file_info;
-	GetFileAttributesExA((char*)filepath.data, GetFileExInfoStandard, &file_info);
-	os_file_attributes_t attributes = { 0 };
-	attributes.last_modified = ((u64)file_info.ftLastWriteTime.dwLowDateTime) | (((u64)file_info.ftLastWriteTime.dwHighDateTime) << 32);
-	attributes.size = (u64)file_info.nFileSizeLow | (((u64)file_info.nFileSizeHigh) << 32);
-	return attributes;
+os_file_close(os_handle_t file) {
+	if (os_handle_equals(file, {0})) { return; }
+	HANDLE handle = (HANDLE)file.data[0];
+	CloseHandle(handle);
 }
 
 function str_t
-os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
+os_file_read_range(arena_t* arena, os_handle_t file, u32 start, u32 length) {
+	
+	HANDLE handle = (HANDLE)file.data[0];
 
 	str_t result;
-
 	LARGE_INTEGER off_li = { 0 };
 	off_li.QuadPart = start;
 
-	if (SetFilePointerEx(file.handle, off_li, 0, FILE_BEGIN)) {
+	if (SetFilePointerEx(handle, off_li, 0, FILE_BEGIN)) {
 		u32 bytes_to_read = length;
 		u32 bytes_actually_read = 0;
 		result.data = (u8*)arena_alloc(arena, sizeof(u8) * bytes_to_read);
@@ -609,7 +514,7 @@ os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
 			u32 unread = (u32)(opl - ptr);
 			DWORD to_read = (DWORD)(min(unread, u32_max));
 			DWORD did_read = 0;
-			if (!ReadFile(file.handle, ptr, to_read, &did_read, 0)) {
+			if (!ReadFile(handle, ptr, to_read, &did_read, 0)) {
 				break;
 			}
 			ptr += did_read;
@@ -625,114 +530,352 @@ os_file_read_range(arena_t* arena, os_file_t file, u32 start, u32 length) {
 
 function str_t
 os_file_read_all(arena_t* arena, str_t filepath) {
+
 	str_t data = str("");
-	os_file_t file = os_file_open(filepath);
-	if (file.handle != nullptr) {
-		os_file_attributes_t attributes = os_file_get_attributes(file);
-		data = os_file_read_range(arena, file, 0, attributes.size);
-		os_file_close(file);
-	}
+	os_handle_t file = os_file_open(filepath);
+	data = os_file_read_all(arena, file);
+	os_file_close(file);
+
 	return data;
 }
 
 function str_t
-os_file_read_all(arena_t* arena, os_file_t file) {
-	os_file_attributes_t attributes = os_file_get_attributes(file);
-	str_t data = os_file_read_range(arena, file, 0, attributes.size);
+os_file_read_all(arena_t* arena, os_handle_t file) {
+	os_file_info_t info = os_file_get_info(file);
+	str_t data = os_file_read_range(arena, file, 0, info.size);
 	return data;
 }
 
-function void
-os_file_delete(str_t filepath) {
-	DeleteFileA((char*)filepath.data);
+
+
+// file info functions
+
+function os_file_info_t
+os_file_get_info(os_handle_t file) {
+	
+	HANDLE handle = (HANDLE)file.data[0];
+
+	// get info
+	u32 high_bits = 0;
+	u32 low_bits = GetFileSize(handle, (DWORD*)&high_bits);
+	FILETIME last_write_time = { 0 };
+	GetFileTime(handle, 0, 0, &last_write_time);
+
+	// fill info
+	os_file_info_t info = { 0 };
+	info.size = (u64)low_bits | (((u64)high_bits) << 32);
+	info.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
+
+	return info;
 }
 
-function void
-os_file_move(str_t src_path, str_t dst_path) {
-	MoveFileA((char*)src_path.data, (char*)dst_path.data);
+function os_file_info_t
+os_file_get_info(str_t filepath) {
+	WIN32_FILE_ATTRIBUTE_DATA file_info;
+	GetFileAttributesExA((char*)filepath.data, GetFileExInfoStandard, &file_info);
+	os_file_info_t info = { 0 };
+	info.last_modified = ((u64)file_info.ftLastWriteTime.dwLowDateTime) | (((u64)file_info.ftLastWriteTime.dwHighDateTime) << 32);
+	info.size = (u64)file_info.nFileSizeLow | (((u64)file_info.nFileSizeHigh) << 32);
+	return info;
 }
 
-function void
-os_file_copy(str_t src_path, str_t dst_path) {
-	CopyFileA((char*)src_path.data, (char*)dst_path.data, true);
-}
+
 
 // thread functions
 
-function os_thread_t*
-os_thread_create(os_thread_function* thread_function, str_t name = str("")) {
+function os_handle_t
+os_thread_create(os_thread_function_t* thread_function, str_t name = str("")) {
 
-	os_thread_t* thread = { 0 };
+	// get entity
+	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_thread);
 
-	// find or create thread
-	AcquireSRWLockExclusive(&os_state.thread_srw_lock);
-	thread = os_state.thread_free;
-	if (thread != nullptr) {
-		stack_pop(os_state.thread_free);
+	entity->thread.func = thread_function;
+	entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.thread_id);
+	
+	os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function b8
+os_thread_join(os_handle_t thread, u64 endt_us) {
+
+	DWORD sleep_ms = os_w32_sleep_ms_from_endt_us(endt_us);
+	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
+	DWORD wait_result = WAIT_OBJECT_0;
+
+	if (entity != nullptr) {
+		wait_result = WaitForSingleObject(entity->thread.handle, sleep_ms);
+		CloseHandle(entity->thread.handle);
+		os_w32_entity_release(entity);
+	}
+
+}
+
+function void
+os_thread_detach(os_handle_t thread) {
+	
+	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
+
+	if (entity != nullptr) {
+		CloseHandle(entity->thread.handle);
+		os_w32_entity_release(entity);
+	}
+}
+
+function void
+os_thread_set_name(os_handle_t thread, str_t name) {
+
+	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
+
+	if (entity != nullptr) {
+		// TODO: get scratch arena here
+		//str16_t thread_wide = str_to_str16(os_state.scratch_arena, name);
+		//SetThreadDescription(entity->thread.handle, (WCHAR*)thread_wide.data);
+	}
+}
+
+
+
+// mutex functions
+
+function os_handle_t 
+os_mutex_create() {
+	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_mutex);
+	InitializeCriticalSection(&entity->mutex);
+	os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function void 
+os_mutex_release(os_handle_t mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(mutex.data[0]);
+	DeleteCriticalSection(&entity->mutex);
+	os_w32_entity_release(entity);
+}
+
+function void 
+os_mutex_lock(os_handle_t mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(mutex.data[0]);
+	EnterCriticalSection(&entity->mutex);
+}
+
+function void 
+os_mutex_unlock(os_handle_t mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(mutex.data[0]);
+	LeaveCriticalSection(&entity->mutex);
+}
+
+
+
+// rw_mutex functions
+
+function os_handle_t
+os_rw_mutex_create() {
+	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_rw_mutex);
+	InitializeSRWLock(&entity->rw_mutex);
+	os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function void 
+os_rw_mutex_release(os_handle_t rw_mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+	os_w32_entity_release(entity);
+}
+
+function void 
+os_rw_mutex_lock_r(os_handle_t rw_mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+	AcquireSRWLockShared(&entity->rw_mutex);
+}
+
+function void 
+os_rw_mutex_unlock_r(os_handle_t rw_mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+	ReleaseSRWLockShared(&entity->rw_mutex);
+}
+
+function void 
+os_rw_mutex_lock_w(os_handle_t rw_mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+	AcquireSRWLockExclusive(&entity->rw_mutex);
+}
+
+function void 
+os_rw_mutex_unlock_w(os_handle_t rw_mutex) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+	ReleaseSRWLockExclusive(&entity->rw_mutex);
+}
+
+
+
+// condition variables
+
+function os_handle_t 
+os_condition_variable_create() {
+	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_rw_mutex);
+	InitializeConditionVariable(&entity->cv);
+	os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function void 
+os_condition_variable_release(os_handle_t cv) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+	os_w32_entity_release(entity);
+}
+
+function b8 
+os_condition_variable_wait(os_handle_t cv, os_handle_t mutex, u64 endt_us) {
+	u32 sleep_ms = os_w32_sleep_ms_from_endt_us(endt_us);
+	BOOL result = 0;
+	if (sleep_ms > 0) {
+		os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+		os_w32_entity_t* mutex_entity = (os_w32_entity_t*)(mutex.data[0]);
+		result = SleepConditionVariableCS(&entity->cv, &mutex_entity->mutex, sleep_ms);
+	}
+	return (b8)result;
+}
+
+function b8 
+os_condition_variable_wait_rw_r(os_handle_t cv, os_handle_t rw_mutex, u64 endt_us) {
+	u32 sleep_ms = os_w32_sleep_ms_from_endt_us(endt_us);
+	BOOL result = 0;
+	if (sleep_ms > 0) {
+		os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+		os_w32_entity_t* rw_mutex_entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+		result = SleepConditionVariableSRW(&entity->cv, &rw_mutex_entity->rw_mutex, sleep_ms, CONDITION_VARIABLE_LOCKMODE_SHARED);
+	}
+	return (b8)result;
+}
+
+function b8 
+os_condition_variable_wait_rw_w(os_handle_t cv, os_handle_t rw_mutex, u64 endt_us) {
+	u32 sleep_ms = os_w32_sleep_ms_from_endt_us(endt_us);
+	BOOL result = 0;
+	if (sleep_ms > 0) {
+		os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+		os_w32_entity_t* rw_mutex_entity = (os_w32_entity_t*)(rw_mutex.data[0]);
+		result = SleepConditionVariableSRW(&entity->cv, &rw_mutex_entity->rw_mutex, sleep_ms, 0);
+	}
+	return (b8)result;
+}
+
+function void 
+os_condition_variable_signal(os_handle_t cv) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+	WakeConditionVariable(&entity->cv);
+}
+
+function void 
+os_condition_variable_broadcast(os_handle_t cv) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)(cv.data[0]);
+	WakeAllConditionVariable(&entity->cv);
+}
+
+
+// win32 specific functions
+
+// windows
+function os_handle_t 
+os_w32_handle_from_window(os_w32_window_t* window) {
+	os_handle_t handle = { (u64)window };
+	return handle;
+}
+
+function os_w32_window_t* 
+os_w32_window_from_handle(os_handle_t window) {
+	os_w32_window_t* w32_window = (os_w32_window_t*)(window.data[0]);
+	return w32_window;
+}
+
+function os_w32_window_t* 
+os_w32_window_from_hwnd(HWND window) {
+	os_w32_window_t* result = 0;
+	for (os_w32_window_t* w = os_state.window_first; w; w = w->next) {
+		if (w->handle == window) {
+			result = w;
+			break;
+		}
+	}
+	return result;
+}
+
+function HWND 
+os_w32_hwnd_from_window(os_w32_window_t* window) {
+	return window->handle;
+}
+
+
+
+// entities
+function os_w32_entity_t* 
+os_w32_entity_create(os_w32_entity_type type) {
+
+	os_w32_entity_t* entity = nullptr;
+
+	EnterCriticalSection(&os_state.entity_mutex);
+	{
+		// grab from free list or create one
+		entity = os_state.entity_free;
+		if (entity != nullptr) {
+			stack_pop(os_state.entity_free);
+		} else {
+			entity = (os_w32_entity_t*)arena_alloc(os_state.entity_arena, sizeof(os_w32_entity_t));
+		}
+		memset(entity, 0, sizeof(os_w32_entity_t));
+	}
+	LeaveCriticalSection(&os_state.entity_mutex);
+
+	// set type
+	entity->type = type;
+
+	return entity;
+}
+
+function void 
+os_w32_entity_release(os_w32_entity_t* entity) {
+
+	entity->type = os_w32_entity_type_null;
+
+	EnterCriticalSection(&os_state.entity_mutex);
+	{
+		// push to free stack
+		stack_push(os_state.entity_free, entity);
+	}
+	LeaveCriticalSection(&os_state.entity_mutex);
+}
+
+// time
+function u32 
+os_w32_sleep_ms_from_endt_us(u64 endt_us) {
+	u32 sleep_ms = 0;
+	if (endt_us == u64_max) {
+		sleep_ms = INFINITE;
 	} else {
-		thread = (os_thread_t*)arena_alloc(os_state.thread_arena, sizeof(os_thread_t));
-	}
-	memset(thread, 0, sizeof(os_thread_t));
-	ReleaseSRWLockExclusive(&os_state.thread_srw_lock);
-
-	if (thread != nullptr) {
-		thread->func = thread_function;
-		thread->handle = CreateThread(NULL, 0, os_win32_thread_entry_point, thread, 0, &thread->thread_id);
-	}
-
-	os_thread_set_name(thread, name);
-
-	return thread;
-}
-
-function void
-os_thread_release(os_thread_t* thread) {
-	AcquireSRWLockExclusive(&os_state.thread_srw_lock);
-	stack_push(os_state.thread_free, thread);
-	ReleaseSRWLockExclusive(&os_state.thread_srw_lock);
-}
-
-function void
-os_thread_set_name(os_thread_t* thread, str_t name) {
-	str16_t thread_wide = str_to_str16(os_state.scratch_arena, name);
-	SetThreadDescription(thread->handle, (WCHAR*)thread_wide.data);
-}
-
-function void
-os_thread_join(os_thread_t* thread) {
-	if (thread != nullptr) {
-		if (thread->handle != nullptr) {
-			WaitForSingleObject(thread->handle, INFINITE);
-			CloseHandle(thread->handle);
+		u64 begint = os_time_microseconds();
+		if (begint < endt_us) {
+			u64 sleep_us = endt_us - begint;
+			sleep_ms = (u32)((sleep_us + 999) / 1000);
 		}
-
-		os_thread_release(thread);
 	}
+	return sleep_ms;
 }
 
-function void
-os_thread_detach(os_thread_t* thread) {
-	if (thread != nullptr) {
-		if (thread->handle != nullptr) {
-			CloseHandle(thread->handle);
-		}
-		os_thread_release(thread);
-	}
-}
-
+// thread entry point
 function DWORD
-os_win32_thread_entry_point(void* params) {
-	os_thread_t* thread = (os_thread_t*)params;
-	thread->func();
+os_w32_thread_entry_point(void* ptr) {
+	os_w32_entity_t* entity = (os_w32_entity_t*)ptr;
+	entity->thread.func();
 	return 0;
 }
 
 // window procedure
-
 LRESULT CALLBACK
-window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
+os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
-	os_window_t* window = (os_window_t*)GetWindowLongPtr(handle, GWLP_USERDATA);
+	os_w32_window_t* window = os_w32_window_from_hwnd(handle);
+	os_handle_t window_handle = os_w32_handle_from_window(window);
 	os_event_t* event = nullptr;
 	LRESULT result = 0;
 
@@ -740,7 +883,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_CLOSE: {
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_window_close;
 			break;
 		}
@@ -762,7 +905,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_NCACTIVATE: {
-			if (!os_new_borderless_window && (window == nullptr || window->borderless == 0)) {
+			if (!os_state.new_borderless_window && (window == nullptr || window->borderless == 0)) {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
 			} else {
 				result = DefWindowProcA(handle, msg, wparam, -1);
@@ -771,7 +914,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		}
 
 		case WM_NCCALCSIZE: {
-			if (os_new_borderless_window || (window != nullptr && window->borderless)) {
+			if (os_state.new_borderless_window || (window != nullptr && window->borderless)) {
 				f32 dpi = (f32)GetDpiForWindow(handle);
 				i32 frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
 				i32 frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
@@ -868,7 +1011,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 
 		case WM_NCPAINT: {
-			if (os_new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
+			if (os_state.new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
 				result = 0;
 			} else {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -900,7 +1043,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_NCUAHDRAWCAPTION:
 		case WM_NCUAHDRAWFRAME: {
-			if (os_new_borderless_window || (window != nullptr && window->borderless)) {
+			if (os_state.new_borderless_window || (window != nullptr && window->borderless)) {
 				result = 0;
 			} else {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -910,7 +1053,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_SETICON:
 		case WM_SETTEXT: {
-			if (os_new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
+			if (os_state.new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
 				LONG_PTR old_style = GetWindowLongPtrW(handle, GWL_STYLE);
 				SetWindowLongPtrW(handle, GWL_STYLE, old_style & ~WS_VISIBLE);
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -925,10 +1068,9 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_key_press;
 			event->key = (os_key)key;
-			os_state.keys[key] = true;
 			break;
 		}
 
@@ -936,10 +1078,9 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_KEYUP: {
 			u32 key = (u32)wparam;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_key_release;
 			event->key = (os_key)key;
-			os_state.keys[key] = false;
 			break;
 		}
 
@@ -952,7 +1093,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 			if ((key >= 32 && key != 127) || key == '\t' || key == '\n') {
 				event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-				event->window = window;
+				event->window = window_handle;
 				event->type = os_event_type_text;
 				event->character = key;
 			}
@@ -967,7 +1108,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			f32 mouse_x = (f32)(i16)LOWORD(lparam);
 			f32 mouse_y = (f32)(i16)HIWORD(lparam);
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_mouse_move;
 			event->position = { mouse_x, mouse_y };
 			break;
@@ -976,7 +1117,7 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_MOUSEWHEEL: {
 			f32 delta = (f32)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_mouse_scroll;
 			event->scroll = { 0.0f, delta };
 			break;
@@ -987,14 +1128,13 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_MBUTTONDOWN: {
 			SetCapture(handle);
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_mouse_press;
 			event->mouse = os_mouse_button_left;
 			switch (msg) {
 				case WM_RBUTTONDOWN: event->mouse = os_mouse_button_right; break;
 				case WM_MBUTTONDOWN: event->mouse = os_mouse_button_middle; break;
 			}
-			os_state.mouse_buttons[event->mouse] = true;
 			break;
 		}
 
@@ -1003,14 +1143,13 @@ window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		case WM_MBUTTONUP: {
 			ReleaseCapture();
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
-			event->window = window;
+			event->window = window_handle;
 			event->type = os_event_type_mouse_release;
 			event->mouse = os_mouse_button_left;
 			switch (msg) {
 				case WM_RBUTTONUP: event->mouse = os_mouse_button_right; break;
 				case WM_MBUTTONUP: event->mouse = os_mouse_button_middle; break;
 			}
-			os_state.mouse_buttons[event->mouse] = false;
 			break;
 		}
 		

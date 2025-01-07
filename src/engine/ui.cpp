@@ -19,8 +19,8 @@ function void
 ui_init() {
 
 	// create arenas
-	ui_state.arena = arena_create(gigabytes(1));
-	ui_state.event_arena = arena_create(megabytes(2));
+	ui_state.context_arena = arena_create(gigabytes(1));
+	ui_state.event_arena = arena_create(kilobytes(4));
 
 	// set event bindings
 	// no clue if this is a decent way of doing this, but don't care because it works.
@@ -72,6 +72,9 @@ ui_init() {
 	ui_state.default_theme.rounding = 2.0f;
 	ui_state.default_theme.padding = 2.0f;
 
+	// load icon font
+	ui_state.icon_font = font_open(str("res/fonts/icons.ttf"));
+
 	// default
 	ui_color_group_t* default = &ui_state.default_theme.default;
 	default->background = color(0x3d3d3dff);
@@ -79,7 +82,7 @@ ui_init() {
 	default->hover = color(0x151515ff);
 	default->active = color(0x151515ff);
 	default->text = color(0xe2e2e2ff);
-	default->shadow = color(0xe00000015);
+	default->shadow = color(0xe00000025);
 	default->accent = color(0x5bd9ffff);
 
 	// label
@@ -136,32 +139,22 @@ ui_init() {
 	tooltip->background = color(0x1d1d1dff);
 	tooltip->border = color(0x242424ff);
 
-	// context
+	// popup context
 	ui_color_group_t* popup = &ui_state.default_theme.popup;
 	*popup = *default;
 	popup->background = color(0x1d1d1dff);
 	popup->border = color(0x242424ff);
-
-	//// default resources
-	//ui_state.default_palette.background = color(0x282828ff);
-	//ui_state.default_palette.border = color(0x3d3d3dff);
-	//ui_state.default_palette.hover = color(0x151515ff);
-	//ui_state.default_palette.active = color(0x151515ff);
-	//ui_state.default_palette.text = color(0xe2e2e2ff);
-	//ui_state.default_palette.accent = color(0x5bd9ffff); // blue
-	//
-	//ui_state.default_font = draw_state.font;
-	//ui_state.default_icon_font = font_open(str("res/fonts/icons.ttf"));
 
 }
 
 function void
 ui_release() {
 
-	// release arenas
-	arena_release(ui_state.arena);
-	arena_release(ui_state.event_arena);
+	font_close(ui_state.icon_font);
 
+	// release arenas
+	arena_release(ui_state.context_arena);
+	arena_release(ui_state.event_arena);
 }
 
 function void
@@ -244,16 +237,21 @@ ui_update() {
 
 }
 
+function ui_context_t*
+ui_active() {
+	return ui_state.ui_active;
+}
+
 // context
 
 function ui_context_t*
-ui_context_create(gfx_renderer_t* renderer) {
+ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 
 	ui_context_t* context = ui_state.ui_free;
 	if (context != nullptr) {
 		stack_pop(ui_state.ui_free);
 	} else {
-		context = (ui_context_t*)arena_alloc(ui_state.arena, sizeof(ui_context_t));
+		context = (ui_context_t*)arena_alloc(ui_state.context_arena, sizeof(ui_context_t));
 	}
 	memset(context, 0, sizeof(ui_context_t));
 
@@ -264,10 +262,9 @@ ui_context_create(gfx_renderer_t* renderer) {
 	context->arena = arena_create(gigabytes(1));
 	context->per_frame_arena = arena_create(gigabytes(1));
 	context->drag_state_arena = arena_create(megabytes(8));
-	context->scratch_arena = arena_create(megabytes(64));
 
 	// set context to nullptr
-	context->window = renderer->window;
+	context->window = window;
 	context->renderer = renderer;
 
 	// text point
@@ -281,7 +278,7 @@ ui_context_create(gfx_renderer_t* renderer) {
 
 	// default font
 	context->font = draw_state.font;
-	context->icon_font = font_open(str("res/fonts/icons.ttf"));
+	context->icon_font = ui_state.icon_font;
 
 	// default theme
 	context->theme = ui_state.default_theme;
@@ -309,7 +306,7 @@ ui_context_create(gfx_renderer_t* renderer) {
 	ui_default_init(font_size, 9.0f);
 	ui_default_init(focus_hot, ui_focus_type_null);
 	ui_default_init(focus_active, ui_focus_type_null);
-	ui_default_init(texture, nullptr);
+	ui_default_init(texture, { 0 });
 
 	// set keys to zero
 	context->hovered_frame_key = { 0 };
@@ -342,7 +339,6 @@ ui_context_release(ui_context_t* context) {
 	arena_release(context->arena);
 	arena_release(context->per_frame_arena);
 	arena_release(context->drag_state_arena);
-	arena_release(context->scratch_arena);
 }
 
 function void
@@ -353,12 +349,11 @@ ui_begin_frame(ui_context_t* context) {
 
 	// clear arenas
 	arena_clear(context->per_frame_arena);
-	arena_clear(context->scratch_arena);
 	
 	// get mouse input
 	for (ui_event_t* ui_event = ui_state.event_list.first, *next = 0; ui_event != 0; ui_event = next) {
 		next = ui_event->next;
-		if (ui_event->window == context->window) {
+		if (os_handle_equals(ui_event->window, context->window)) {
 			if (ui_event->type == ui_event_type_mouse_move) {
 				context->mouse_pos = ui_event->position;
 			}
@@ -406,15 +401,16 @@ ui_begin_frame(ui_context_t* context) {
 	}
 
 	// add root frame
-	str_t root_string = str_format(context->scratch_arena, "###%p_root_frame", context->window);
-	ui_set_next_fixed_width((f32)context->window->resolution.x);
-	ui_set_next_fixed_height((f32)context->window->resolution.y);
+	str_t root_string = str_format(context->per_frame_arena, "###%p_root_frame", context->window);
+	uvec2_t renderer_size = gfx_renderer_get_size(context->renderer);
+	ui_set_next_fixed_width((f32)renderer_size.x);
+	ui_set_next_fixed_height((f32)renderer_size.y);
 	ui_set_next_layout_axis(ui_axis_y);
 	context->root = ui_frame_from_string(root_string, 0);
 	ui_push_parent(context->root);
 
 	// add root tooltip frame
-	str_t tooltip_root_string = str_format(context->scratch_arena, "###%p_tooltip_frame", context->window);
+	str_t tooltip_root_string = str_format(context->per_frame_arena, "###%p_tooltip_frame", context->window);
 	ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
 	ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
 	ui_set_next_pref_width(ui_size_by_child(1.0f));
@@ -447,12 +443,12 @@ ui_begin_frame(ui_context_t* context) {
 	context->build_index++;
 
 	// add panels
-	rect_t client_rect = rect(0.0f, 0.0f, (f32)context->window->resolution.x, (f32)context->window->resolution.y);
+	rect_t client_rect = rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y);
 
 	// build non leaf panel ui
 	for (ui_panel_t* panel = context->panel_root; panel != 0; panel = ui_panel_rec_depth_first(panel).next) {
 		
-		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
+		rect_t panel_rect = ui_rect_from_panel(context->per_frame_arena, panel, client_rect);
 		ui_axis split_axis = panel->split_axis;
 
 		// build drag boundaries
@@ -474,8 +470,8 @@ ui_begin_frame(ui_context_t* context) {
 			// build frame
 			ui_set_next_rect(boundary_rect);
 			ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
-			ui_frame_flags flags = ui_frame_flag_clickable |ui_frame_flag_floating;
-			ui_frame_t* frame = ui_frame_from_string(str_format(context->scratch_arena, "###panel_boundary_%p", panel), flags);
+			ui_frame_flags flags = ui_frame_flag_clickable |ui_frame_flag_floating | ui_frame_flag_custom_hover_cursor;
+			ui_frame_t* frame = ui_frame_from_string(str_format(context->per_frame_arena, "###panel_boundary_%p", panel), flags);
 			ui_interaction interaction = ui_frame_interaction(frame);
 
 			if (interaction & ui_interaction_left_dragging) {
@@ -519,7 +515,7 @@ ui_begin_frame(ui_context_t* context) {
 
 	// build leaf panel ui
 	for (ui_panel_t* panel = context->panel_root; panel != 0; panel = ui_panel_rec_depth_first(panel).next) {
-		rect_t panel_rect = ui_rect_from_panel(context->scratch_arena, panel, client_rect);
+		rect_t panel_rect = ui_rect_from_panel(context->per_frame_arena, panel, client_rect);
 		
 		if (panel->child_first == nullptr && panel != context->panel_root) {
 
@@ -532,7 +528,7 @@ ui_begin_frame(ui_context_t* context) {
 			ui_set_next_color_group(ui_state.ui_active->theme.panel);
 			ui_set_next_rounding_11(0.0f);
 			ui_set_next_rect(rect_shrink(adjusted_rect, 2.0f));
-			str_t panel_string = str_format(context->scratch_arena, "##panel_frame_%p", panel);
+			str_t panel_string = str_format(context->per_frame_arena, "##panel_frame_%p", panel);
 			ui_frame_t* panel_frame = ui_frame_from_string(panel_string, flags);
 
 			panel->frame = panel_frame;
@@ -546,6 +542,9 @@ ui_begin_frame(ui_context_t* context) {
 
 function void
 ui_end_frame(ui_context_t* context) {
+
+	// get delta time
+	f32 dt = os_window_get_delta_time(context->window);
 
 	// remove untouched frames
 	ui_frame_t* next = nullptr;
@@ -580,8 +579,8 @@ ui_end_frame(ui_context_t* context) {
 	// animate
 	{
 		// animate frames
-		f32 fast_rate = 1.0f - powf(2.0f, -50.0f * context->window->delta_time);
-		f32 slow_rate = 1.0f - powf(2.0f, -30.0f * context->window->delta_time);
+		f32 fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
+		f32 slow_rate = 1.0f - powf(2.0f, -30.0f * dt);
 		for (ui_frame_t* frame = context->frame_first; frame != 0; frame = frame->hash_next) {
 			b8 is_hovered = ui_key_equals(frame->key, context->hovered_frame_key);
 			b8 is_active = ui_key_equals(frame->key, context->active_frame_key[os_mouse_button_left]);
@@ -612,7 +611,7 @@ ui_end_frame(ui_context_t* context) {
 		ui_frame_t* hovered_frame = ui_frame_find(context->hovered_frame_key);
 		ui_frame_t* active_frame = ui_frame_find(context->active_frame_key[os_mouse_button_left]);
 
-		if (hovered_frame != nullptr && !(hovered_frame->flags & ui_frame_flag_custom_hover_cursor)) {
+		if (hovered_frame != nullptr && (hovered_frame->flags & ui_frame_flag_custom_hover_cursor)) {
 			os_cursor cursor = hovered_frame->hover_cursor;
 			os_set_cursor(cursor);
 		}
@@ -620,13 +619,11 @@ ui_end_frame(ui_context_t* context) {
 	}
 	
 	// draw
-	gfx_renderer_t* renderer = context->renderer;
+	gfx_handle_t renderer = context->renderer;
 	u32 depth = 0;
 	for (ui_frame_t* frame = context->root; frame != nullptr;) {
 
 		// do recursive depth first search
-		u32 sibling_member_offset = (u32)(&(((ui_frame_t*)0)->tree_prev));
-		u32 child_member_offset = (u32)(&(((ui_frame_t*)0)->tree_child_last));
 		ui_frame_rec_t recursion = ui_frame_rec_depth_first(frame);
 
 		// grab frame info
@@ -659,7 +656,7 @@ ui_end_frame(ui_context_t* context) {
 			}
 
 			// background
-			if (frame->texture != nullptr) {
+			if (!gfx_handle_equals(frame->texture, { 0 })) {
 				draw_set_next_texture(frame->texture);
 				draw_image(frame->rect);
 			} else {
@@ -688,36 +685,59 @@ ui_end_frame(ui_context_t* context) {
 			draw_push_clip_mask(new_clip);
 		}
 
-#if 0 // debug frame position
-		draw_set_next_color(color(0xffff00ff));
-		draw_set_next_thickness(1.0f);
-		draw_rect(frame->rect);
-#endif 
+		// debug
+		if (ui_show_hovered && ui_frame_is_hovered(frame)) {
+			draw_set_next_color(color(0x00ff0050));
+			draw_set_next_thickness(1.0f);
+			draw_rect(frame->rect);
+		}
+
+		if (ui_show_active && ui_frame_is_active(frame)) {
+			draw_set_next_color(color(0xff00ff50));
+			draw_set_next_thickness(1.0f);
+			draw_rect(frame->rect);
+		}
+
+		if (ui_show_focused && ui_frame_is_focused(frame)) {
+			draw_set_next_color(color(0x00ffff50));
+			draw_set_next_thickness(1.0f);
+			draw_rect(frame->rect);
+		}
+
+		if (ui_debug_frame) {
+			draw_set_next_color(color(0xffff0050));
+			draw_set_next_thickness(1.0f);
+			draw_rect(frame->rect);
+		}
+
 
 		// text
 		if (frame->flags & ui_frame_flag_draw_text) {
 
 			// truncate text if needed
 			f32 frame_width = rect_width(frame->rect);
-			//str_t text = font_text_truncate(context->scratch_arena, frame->font, frame->font_size, frame->string, frame_width, str("..."));
+			//str_t text = font_text_truncate(context->per_frame_arena, frame->font, frame->font_size, frame->string, frame_width, str("..."));
 
 			// calculate text pos
 			vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->string, frame->rect, frame->text_alignment);
 			
-#if 0 // debug text position
-			draw_set_next_color(color(0xff0000ff));
-			draw_set_next_thickness(1.0f);
-			f32 font_width = font_text_get_width(frame->font, frame->font_size, frame->string);
-			f32 font_height = font_text_get_height(frame->font, frame->font_size, frame->string);
-			draw_rect(rect(text_pos.x, text_pos.y, text_pos.x + font_width, text_pos.y + font_height));
-#endif
+			if (ui_debug_text) {
+				draw_set_next_color(color(0xff0000ff));
+				draw_set_next_thickness(1.0f);
+				f32 font_width = font_text_get_width(frame->font, frame->font_size, frame->string);
+				f32 font_height = font_text_get_height(frame->font, frame->font_size, frame->string);
+				draw_rect(rect(text_pos.x, text_pos.y, text_pos.x + font_width, text_pos.y + font_height));
+			}
+
 
 			draw_push_font(frame->font);
 			draw_push_font_size(frame->font_size);
 
 			{
 				// text shadow
-				draw_set_next_color(color_group->shadow);
+				color_t text_shadow = color_group->shadow;
+				text_shadow.a = 0.8f;
+				draw_set_next_color(text_shadow);
 				draw_text(frame->string, vec2_add(text_pos, 1.0f));
 
 				// text
@@ -735,7 +755,7 @@ ui_end_frame(ui_context_t* context) {
 				frame->custom_draw_func(frame);
 			}
 		}
-		
+
 		// pop
 		i32 pop_index = 0;
 		for (ui_frame_t* f = frame; f != nullptr && pop_index <= recursion.pop_count; f = f->tree_parent) {
@@ -750,6 +770,7 @@ ui_end_frame(ui_context_t* context) {
 			}
 		}
 
+		depth += recursion.push_count - recursion.pop_count;
 		frame = recursion.next;
 	}
 	
@@ -868,7 +889,7 @@ ui_key_from_stringf(ui_key_t seed, char* fmt, ...) {
 
 	va_list args;
 	va_start(args, fmt);
-	str_t string = str_formatv(ui_state.ui_active->scratch_arena, fmt, args);
+	str_t string = str_formatv(ui_state.ui_active->per_frame_arena, fmt, args);
 	va_end(args);
 
 	ui_key_t result = ui_key_from_string(seed, string);
@@ -917,7 +938,7 @@ ui_size_text(f32 padding) {
 // alignment functions
 
 function vec2_t
-ui_text_align(font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment alignment) {
+ui_text_align(font_handle_t font, f32 size, str_t text, rect_t rect, ui_text_alignment alignment) {
 
 	vec2_t result = { 0 };
 
@@ -953,12 +974,12 @@ ui_text_align(font_t* font, f32 size, str_t text, rect_t rect, ui_text_alignment
 }
 
 function vec2_t
-ui_text_size(font_t* font, f32 font_size, str_t text) {
+ui_text_size(font_handle_t font, f32 font_size, str_t text) {
 	return vec2(font_text_get_width(font, font_size, text), font_text_get_height(font, font_size, text));
 }
 
 function f32
-ui_text_offset_from_index(font_t* font, f32 font_size, str_t string, u32 index) {
+ui_text_offset_from_index(font_handle_t font, f32 font_size, str_t string, u32 index) {
 	f32 width = 0.0f;
 	for (u32 offset = 0; offset < index; offset++) {
 		char c = *(string.data + offset);
@@ -969,7 +990,7 @@ ui_text_offset_from_index(font_t* font, f32 font_size, str_t string, u32 index) 
 }
 
 function u32 
-ui_text_index_from_offset(font_t* font, f32 font_size, str_t string, f32 offset) {
+ui_text_index_from_offset(font_handle_t font, f32 font_size, str_t string, f32 offset) {
 	u32 result = 0;
 	f32 advance = 0.0f;
 
@@ -1382,7 +1403,7 @@ ui_layout_solve_violations(ui_frame_t* root, ui_axis axis) {
 			
 			// find child fixup size
 			f32 child_fixup_sum = 0.0f;
-			f32* child_fixups = (f32*)arena_alloc(ui_state.ui_active->scratch_arena, sizeof(f32) * root->child_count);
+			f32* child_fixups = (f32*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(f32) * root->child_count);
 			
 			u32 child_index = 0;
 			for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next, child_index++) {
@@ -1423,9 +1444,8 @@ ui_layout_solve_violations(ui_frame_t* root, ui_axis axis) {
 
 function void 
 ui_layout_solve_set_positions(ui_frame_t* root, ui_axis axis) {
-
+	
 	// x axis
-
 	f32 layout_position = 0.0f;
 	f32 bounds = 0.0f;
 
@@ -1449,18 +1469,19 @@ ui_layout_solve_set_positions(ui_frame_t* root, ui_axis axis) {
 		}
 
 		// determine final rect for child
-		child->rect.v0[axis] = root_pos + child->fixed_position[axis] - floorf(root->view_offset[axis]);
+		child->rect.v0[axis] = root_pos + child->fixed_position[axis]; -floorf(root->view_offset[axis]);
 		child->rect.v1[axis] = child->rect.v0[axis] + child->fixed_size[axis];
 
 	}
 
 	// store view bounds
 	root->view_bounds[axis] = bounds + 1.0f;
-
+	
 	// recurse through children
 	for (ui_frame_t* child = root->tree_child_first; child != 0; child = child->tree_next) {
 		ui_layout_solve_set_positions(child, axis);
 	}
+
 }
 
 
@@ -1550,6 +1571,7 @@ ui_frame_from_key(ui_key_t key, ui_frame_flags flags) {
 	frame->tree_child_first = frame->tree_child_last = frame->tree_next = frame->tree_prev = frame->tree_parent = nullptr;
 	frame->child_count = 0;
 	frame->flags = 0;
+	frame->user_data = nullptr;
 
 	// add to ui_state list
 	if (frame_is_new && !frame_is_transient) {
@@ -1662,7 +1684,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 	b8 view_scrolled = false;
 
 	for (ui_event_t* event = ui_state.event_list.first; event != 0; event = event->next) {
-		if (event->window == context->window) {
+		if (os_handle_equals(event->window, context->window)) {
 			b8 taken = false;
 			vec2_t mouse_pos = event->position;
 			b8 mouse_in_bounds = rect_contains(rect, mouse_pos);
@@ -1691,18 +1713,18 @@ ui_frame_interaction(ui_frame_t* frame) {
 				}
 
 				// we mouse release on the frame
-				if (event->type == ui_event_type_mouse_release && ui_key_equals(context->active_frame_key[event->mouse], frame->key)) {
+				if (event->type == ui_event_type_mouse_release) {
 
 					if (mouse_in_bounds) {
-						result |= ui_interaction_left_clicked << event->mouse;
+						result |= ui_interaction_left_released << event->mouse;
 					}
-					context->active_frame_key[event->mouse] = { 0 };
-					result |= ui_interaction_left_released << event->mouse;
 
-					context->active_frame_key[event->mouse] = { 0 };
-					result |= ui_interaction_left_released << event->mouse;
-
-					taken = true;
+					if (ui_key_equals(context->active_frame_key[event->mouse], frame->key)) {
+						result |= ui_interaction_left_clicked << event->mouse;
+						context->active_frame_key[event->mouse] = { 0 };
+						taken = true;
+					}
+					
 				}
 
 			}
@@ -1805,6 +1827,33 @@ ui_frame_interaction(ui_frame_t* frame) {
 	return result;
 }
 
+inlnfunc b8 
+ui_frame_is_hovered(ui_frame_t* frame) {
+	ui_key_t hovered_key = ui_active()->hovered_frame_key;
+	return ((!ui_key_equals(hovered_key, {0})) && (ui_key_equals(frame->key, hovered_key)));
+}
+
+inlnfunc b8
+ui_frame_is_active(ui_frame_t* frame) {
+	b8 result = false;
+	for (i32 i = 0; i < os_mouse_button_count; i++) {
+
+		ui_key_t active_key = ui_active()->active_frame_key[i];
+
+		if ((!ui_key_equals(active_key, { 0 })) && (ui_key_equals(frame->key, active_key))) {
+			result = true;
+			break;
+		}
+	}
+	return result;
+}
+
+inlnfunc b8 
+ui_frame_is_focused(ui_frame_t* frame) {
+	ui_key_t focused_key = ui_active()->focused_frame_key;
+	return ((!ui_key_equals(focused_key, { 0 })) && (ui_key_equals(frame->key, focused_key)));
+}
+
 function void
 ui_frame_set_display_text(ui_frame_t* frame, str_t text) {
 	frame->string = text;
@@ -1817,15 +1866,14 @@ ui_frame_set_custom_draw(ui_frame_t* frame, ui_frame_custom_draw_func* func, voi
 	frame->flags |= ui_frame_flag_draw_custom;
 }
 
-// frame list
-
 function void 
-ui_frame_list_push(arena_t* arena, ui_frame_list_t* frame_list, ui_frame_t* frame) {
-	ui_frame_node_t* frame_node = (ui_frame_node_t*)arena_alloc(arena, sizeof(ui_frame_node_t));
-	frame_node->frame = frame;
-	dll_push_back(frame_list->first, frame_list->last, frame_node);
-	frame_list->count++;
+ui_frame_set_user_data(ui_frame_t* frame, u32 size) {
+	if (frame->user_data == nullptr) {
+		// if user data hasn't been created yet, then allocate some memory.
+		frame->user_data = arena_alloc(ui_state.ui_active->arena, size);
+	}
 }
+
 
 
 // panels
@@ -2048,7 +2096,7 @@ function ui_interaction
 ui_labelf(char* fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-	str_t display_string = str_formatv(ui_state.ui_active->scratch_arena, fmt, args);
+	str_t display_string = str_formatv(ui_state.ui_active->per_frame_arena, fmt, args);
 	va_end(args);
 
 	ui_interaction interaction = ui_label(display_string);
@@ -2061,6 +2109,7 @@ ui_button(str_t label) {
 
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
+		ui_frame_flag_custom_hover_cursor | 
 		ui_frame_flag_draw;
 
 	ui_set_next_hover_cursor(os_cursor_hand_point);
@@ -2075,7 +2124,7 @@ function ui_interaction
 ui_buttonf(char* fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-	str_t display_string = str_formatv(ui_state.ui_active->scratch_arena, fmt, args);
+	str_t display_string = str_formatv(ui_state.ui_active->per_frame_arena, fmt, args);
 	va_end(args);
 
 	ui_interaction interaction = ui_button(display_string);
@@ -2083,8 +2132,57 @@ ui_buttonf(char* fmt, ...) {
 	return interaction;
 }
 
+function ui_interaction
+ui_icon_button(u32 icon, str_t label) {
+
+	// build parent frame
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_layout_axis(ui_axis_x);
+	ui_push_color_group(ui_state.ui_active->theme.expander);
+
+	u32 flags =
+		ui_frame_flag_clickable | ui_frame_flag_draw_background |
+		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
+		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border |
+		ui_frame_flag_custom_hover_cursor;
+	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
+
+	ui_push_parent(parent_frame);
+	{
+		// build icon
+		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
+		ui_set_next_font(ui_state.ui_active->icon_font);
+		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
+		str_t icon_text = str_format(ui_state.ui_active->per_frame_arena, "%c", icon);
+		ui_frame_set_display_text(icon_frame, icon_text);
+
+		// build label
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(label);
+	}
+	ui_pop_parent();
+	ui_pop_color_group();
+
+	ui_interaction interaction = ui_frame_interaction(parent_frame);
+
+	return interaction;
+}
+
+function ui_interaction
+ui_icon_buttonf(u32 icon, char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	str_t display_string = str_formatv(ui_state.ui_active->per_frame_arena, fmt, args);
+	va_end(args);
+
+	ui_interaction interaction = ui_icon_button(icon, display_string);
+
+	return interaction;
+}
+
 function ui_interaction 
-ui_image(str_t label, gfx_texture_t* texture) {
+ui_image(str_t label, gfx_handle_t texture) {
 
 	ui_frame_flags flags = ui_frame_flag_draw_background;
 	ui_set_next_texture(texture);
@@ -2098,6 +2196,7 @@ function ui_interaction
 ui_slider(str_t label, i32* value, i32 min, i32 max) {
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
+		ui_frame_flag_custom_hover_cursor | 
 		ui_frame_flag_draw;
 
 	ui_set_next_hover_cursor(os_cursor_resize_EW);
@@ -2107,9 +2206,7 @@ ui_slider(str_t label, i32* value, i32 min, i32 max) {
 	str_t text = str_format(ui_state.ui_active->per_frame_arena, "%i", *value);
 	ui_frame_set_display_text(frame, text);
 	ui_interaction interaction = ui_frame_interaction(frame);
-	ui_slider_data_t* data = (ui_slider_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_slider_data_t));
-	ui_frame_set_custom_draw(frame, ui_slider_draw_function, data);
-
+	
 	// interaction
 	if (interaction & ui_interaction_left_dragging) {
 		vec2_t mouse_pos = ui_state.ui_active->mouse_pos;
@@ -2118,7 +2215,16 @@ ui_slider(str_t label, i32* value, i32 min, i32 max) {
 	}
 
 	f32 percent = remap(*value, min, max, 0.0f, 1.0f);
-	data->value = percent;
+
+	// fill rect
+	ui_color_group_t group = ui_state.default_theme.button;
+	group.background = group.accent;
+	group.background.a = 0.3f;
+	ui_set_next_color_group(group);
+	ui_set_next_parent(frame);
+	ui_set_next_pref_width(ui_size_percent(percent));
+	ui_set_next_pref_height(ui_size_percent(1.0f));
+	ui_frame_t* fill_frame = ui_frame_from_key({ 0 }, ui_frame_flag_draw_background);
 
 	return interaction;
 }
@@ -2128,6 +2234,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 
 	ui_frame_flags flags =
 		ui_frame_flag_clickable |
+		ui_frame_flag_custom_hover_cursor | 
 		ui_frame_flag_draw;
 
 	ui_set_next_hover_cursor(os_cursor_resize_EW);
@@ -2137,9 +2244,7 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 	str_t text = str_format(ui_state.ui_active->per_frame_arena, "%.2f", *value);
 	ui_frame_set_display_text(frame, text);
 	ui_interaction interaction = ui_frame_interaction(frame);
-	ui_slider_data_t* data = (ui_slider_data_t*)arena_alloc(ui_state.ui_active->per_frame_arena, sizeof(ui_slider_data_t));
-	ui_frame_set_custom_draw(frame, ui_slider_draw_function, data);
-
+	
 	// interaction
 	if (interaction & ui_interaction_left_dragging) {
 		vec2_t mouse_pos = ui_state.ui_active->mouse_pos;
@@ -2148,7 +2253,16 @@ ui_slider(str_t label, f32* value, f32 min, f32 max) {
 	}
 
 	f32 percent = remap(*value, min, max, 0.0f, 1.0f);
-	data->value = percent;
+
+	// fill rect
+	ui_color_group_t group = ui_state.default_theme.button;
+	group.background = group.accent;
+	group.background.a = 0.3f;
+	ui_set_next_color_group(group);
+	ui_set_next_parent(frame);
+	ui_set_next_pref_width(ui_size_percent(percent));
+	ui_set_next_pref_height(ui_size_percent(1.0f));
+	ui_frame_t* fill_frame = ui_frame_from_key({0}, ui_frame_flag_draw_background);
 
 	return interaction;
 }
@@ -2161,7 +2275,7 @@ ui_checkbox(str_t label, b8* value) {
 	ui_set_next_layout_axis(ui_axis_x);
 	ui_push_color_group(ui_state.ui_active->theme.checkbox);
 
-	u32 flags = ui_frame_flag_clickable;
+	u32 flags = ui_frame_flag_clickable | ui_frame_flag_custom_hover_cursor;
 	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
 
 	ui_push_parent(parent_frame);
@@ -2174,15 +2288,12 @@ ui_checkbox(str_t label, b8* value) {
 			ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
 			ui_frame_flag_draw_shadow | ui_frame_flag_draw_border;
 		
-		if (*value) {
-			
-		}
 
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), flag_frame_flags);
 		icon_frame->active_t = parent_frame->active_t;
 		icon_frame->hover_t = parent_frame->hover_t;
 		if (*value) {
-			ui_frame_set_display_text(icon_frame, str("X"));
+			ui_frame_set_display_text(icon_frame, str("!"));
 		}
 
 		ui_set_next_pref_width(ui_size_percent(1.0f));
@@ -2214,7 +2325,8 @@ ui_expander(str_t label, b8* is_expanded) {
 	u32 flags =
 		ui_frame_flag_clickable | ui_frame_flag_draw_background |
 		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
-		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border;
+		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border | 
+		ui_frame_flag_custom_hover_cursor;
 	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
 
 	ui_push_parent(parent_frame);
@@ -2223,10 +2335,10 @@ ui_expander(str_t label, b8* is_expanded) {
 		ui_set_next_font(ui_state.ui_active->icon_font);
 		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
 		if (*is_expanded) {
-			ui_frame_set_display_text(icon_frame, str("v"));
+			ui_frame_set_display_text(icon_frame, str("L"));
 		}
 		else {
-			ui_frame_set_display_text(icon_frame, str(">"));
+			ui_frame_set_display_text(icon_frame, str("O"));
 		}
 
 		ui_set_next_pref_width(ui_size_percent(1.0f));
@@ -2245,6 +2357,62 @@ ui_expander(str_t label, b8* is_expanded) {
 	return interaction;
 }
 
+function ui_interaction
+ui_expander_begin(str_t label, b8* is_expanded) {
+	
+	ui_key_t parent_key = ui_key_from_stringf({0}, "%s_parent", label.data);
+	ui_set_next_pref_height(ui_size_by_child(1.0f));
+	ui_frame_flags flags = ui_frame_flag_draw_background | ui_frame_flag_draw_border | ui_frame_flag_draw_shadow;
+	ui_frame_t* parent_frame = ui_frame_from_key(parent_key, flags);
+	ui_push_parent(parent_frame);
+
+	// expander button
+	ui_set_next_pref_width(ui_size_percent(1.0f));
+	ui_set_next_pref_height(ui_top_pref_height());
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_layout_axis(ui_axis_x);
+	ui_push_color_group(ui_state.ui_active->theme.expander);
+
+	u32 expander_flags =
+		ui_frame_flag_clickable | ui_frame_flag_draw_background |
+		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
+		ui_frame_flag_custom_hover_cursor;
+	ui_frame_t* expander_parent_frame = ui_frame_from_string(label, expander_flags);
+
+	ui_push_parent(expander_parent_frame);
+	{
+		// build icon
+		ui_set_next_pref_width(ui_size_pixel(rect_height(expander_parent_frame->rect), 1.0f));
+		ui_set_next_font(ui_state.ui_active->icon_font);
+		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
+		str_t icon_text = str_format(ui_state.ui_active->per_frame_arena, "%c", *is_expanded ? icon_down : icon_right);
+		ui_frame_set_display_text(icon_frame, icon_text);
+
+		// build label
+		ui_set_next_pref_width(ui_size_percent(1.0f));
+		ui_set_next_pref_height(ui_size_percent(1.0f));
+		ui_label(label);
+	}
+	ui_pop_parent();
+	ui_pop_color_group();
+
+	ui_interaction interaction = ui_frame_interaction(expander_parent_frame);
+
+	if (interaction & ui_interaction_left_clicked) {
+		*is_expanded = !*is_expanded;
+	}
+
+	return interaction;
+
+}
+
+function void
+ui_expander_end() {
+
+	ui_pop_parent();
+
+}
+
 function ui_interaction 
 ui_float_edit(str_t label, f32* value) {
 
@@ -2252,28 +2420,32 @@ ui_float_edit(str_t label, f32* value) {
 	ui_set_next_layout_axis(ui_axis_x);
 	ui_push_color_group(ui_state.ui_active->theme.number_edit);
 
-	ui_frame_t* parent_frame = ui_frame_from_string(label, 0);
+	ui_frame_t* parent_frame = ui_frame_from_string(label, ui_frame_flag_draw_background);
 	ui_interaction interaction = ui_frame_interaction(parent_frame);
 
 	ui_push_parent(parent_frame);
 	{
 
-		u32 flag_frame_flags = ui_frame_flag_draw | ui_frame_flag_clickable;
-		ui_set_next_text_alignment(ui_text_alignment_center);
+		u32 flag_frame_flags = 
+			ui_frame_flag_draw_background |
+			ui_frame_flag_draw_hover_effects | 
+			ui_frame_flag_draw_active_effects | 
+			ui_frame_flag_draw_text | 
+			ui_frame_flag_clickable;
 		ui_set_next_font(ui_state.ui_active->icon_font);
+		ui_set_next_text_alignment(ui_text_alignment_center);
 		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_frame_t* decrement_frame = ui_frame_from_string(str("<"), flag_frame_flags);
+		ui_frame_t* decrement_frame = ui_frame_from_string(str("N"), flag_frame_flags);
 		ui_interaction decrement_interaction = ui_frame_interaction(decrement_frame);
 
 		ui_set_next_pref_width(ui_size_percent(1.0f));
 		ui_set_next_pref_height(ui_size_percent(1.0f));
 		ui_label(label);
-
-
+		
 		ui_set_next_text_alignment(ui_text_alignment_center);
 		ui_set_next_font(ui_state.ui_active->icon_font);
 		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_frame_t* increment_frame = ui_frame_from_string(str(">"), flag_frame_flags);
+		ui_frame_t* increment_frame = ui_frame_from_string(str("O"), flag_frame_flags);
 		ui_interaction increment_interaction = ui_frame_interaction(increment_frame);
 
 	}
@@ -2675,7 +2847,7 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 			}
 
 			// get text op
-			ui_text_op_t text_op = ui_event_to_text_op(ui_state.ui_active->scratch_arena, event, edit_string, ui_state.ui_active->cursor, ui_state.ui_active->mark);
+			ui_text_op_t text_op = ui_event_to_text_op(ui_state.ui_active->per_frame_arena, event, edit_string, ui_state.ui_active->cursor, ui_state.ui_active->mark);
 
 			// skip if invalid
 			if (text_op.flags & ui_text_op_flag_invalid) {
@@ -2684,7 +2856,7 @@ ui_text_edit(str_t label, char* buffer, u32 buffer_size, u32* out_size) {
 
 			// replace range
 			if (!ui_text_point_equals(text_op.range.min, text_op.range.max) || text_op.replace.size != 0) {
-				str_t new_string = ui_string_replace_range(ui_state.ui_active->scratch_arena, edit_string, text_op.range, text_op.replace);
+				str_t new_string = ui_string_replace_range(ui_state.ui_active->per_frame_arena, edit_string, text_op.range, text_op.replace);
 				new_string.size = min(buffer_size, new_string.size);
 				memcpy(buffer, new_string.data, new_string.size);
 				*out_size = new_string.size;
@@ -2763,7 +2935,7 @@ ui_combo(str_t label, i32* current, char** items, u32 item_count) {
 		ui_set_next_fixed_x(parent_frame->rect.x0);
 		ui_set_next_fixed_y(parent_frame->rect.y1);
 		ui_set_next_pref_width(ui_top_pref_width());
-		ui_set_next_pref_width(ui_size_by_child(1.0f));
+		ui_set_next_pref_height(ui_size_by_child(1.0f));
 		ui_frame_t* popup_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_background | ui_frame_flag_floating | ui_frame_flag_fixed_size);
 
 		ui_push_parent(popup_frame);
@@ -2793,21 +2965,6 @@ ui_combo(str_t label, i32* current, char** items, u32 item_count) {
 }
 
 // widget draw functions
-
-function void
-ui_slider_draw_function(ui_frame_t* frame) {
-
-	// get data
-	ui_slider_data_t* data = (ui_slider_data_t*)frame->custom_draw_data;
-
-	rect_t bar_rect = frame->rect;
-	bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, data->value);
-
-	color_t color = frame->color_group.accent;
-	draw_set_next_color(color);
-	draw_set_next_radii(frame->rounding);
-	draw_rect(bar_rect);
-}
 
 function void
 ui_color_hue_bar_draw_function(ui_frame_t* frame) {
@@ -2870,8 +3027,8 @@ ui_color_hue_bar_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->hue * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		f32 indicator_size = 6.0f;
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->active_t);
 		
 		// borders
 		draw_set_next_color(color(0x151515ff));
@@ -2916,8 +3073,8 @@ ui_color_sat_bar_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->sat * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		f32 indicator_size = 6.0f;
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->active_t);
 
 		// borders
 		draw_set_next_color(color(0x151515ff));
@@ -2961,8 +3118,8 @@ ui_color_val_bar_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2(frame->rect.x0 + (data->val * frame_width), (frame->rect.y0 + frame->rect.y1) * 0.5f);
 
 		f32 indicator_size = 6.0f;
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->active_t);
 
 		// borders
 		draw_set_next_color(color(0x151515ff));
@@ -3009,8 +3166,8 @@ ui_color_quad_draw_function(ui_frame_t* frame) {
 		);
 
 		f32 indicator_size = 6.0f;
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->active_t);
 
 		// borders
 		draw_set_next_color(color(0x151515ff));
@@ -3187,8 +3344,8 @@ ui_color_wheel_draw_function(ui_frame_t* frame) {
 		vec2_t indicator_pos = vec2_add(frame_center, vec2_from_angle(data->hue * 2.0f * f32_pi, wheel_radius * data->sat));
 
 		f32 indicator_size = 6.0f;
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->hover_t);
-		indicator_size = lerp(indicator_size, indicator_size + 1.0f, frame->active_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->hover_t);
+		indicator_size = lerp(indicator_size, indicator_size + 2.0f, frame->active_t);
 
 		// borders
 		draw_set_next_color(color(0x151515ff));
@@ -3431,11 +3588,11 @@ ui_stack_impl(rounding_01, f32)
 ui_stack_impl(rounding_10, f32)
 ui_stack_impl(rounding_11, f32)
 ui_stack_impl(color_group, ui_color_group_t)
-ui_stack_impl(font, font_t*)
+ui_stack_impl(font, font_handle_t)
 ui_stack_impl(font_size, f32)
 ui_stack_impl(focus_hot, ui_focus_type)
 ui_stack_impl(focus_active, ui_focus_type)
-ui_stack_impl(texture, gfx_texture_t*)
+ui_stack_impl(texture, gfx_handle_t)
 
 // groups
 function void
@@ -3485,6 +3642,25 @@ ui_set_next_rect(rect_t rect) {
 	ui_set_next_fixed_y(rect.y0);
 	ui_set_next_fixed_width(rect.x1 - rect.x0);
 	ui_set_next_fixed_height(rect.y1 - rect.y0);
+}
+
+
+function void 
+ui_push_pref_size(ui_size_t width, ui_size_t height) {
+	ui_push_pref_width(width);
+	ui_push_pref_height(height);
+}
+
+function void 
+ui_pop_pref_size() {
+	ui_pop_pref_width();
+	ui_pop_pref_height();
+}
+
+function void 
+ui_set_next_pref_size(ui_size_t width, ui_size_t height) {
+	ui_set_next_pref_width(width);
+	ui_set_next_pref_height(height);
 }
 
 

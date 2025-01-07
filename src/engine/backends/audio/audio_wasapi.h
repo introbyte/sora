@@ -20,7 +20,7 @@ struct audio_state_t {
 
 	audio_params_t params;
 
-	os_thread_t* audio_thread;
+	os_handle_t audio_thread;
 	b8 thread_running;
 };
 

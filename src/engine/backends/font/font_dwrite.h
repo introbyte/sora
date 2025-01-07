@@ -9,42 +9,38 @@
 
 // structs
 
-struct font_t {
-	font_t* next;
-	font_t* prev;
+struct font_dwrite_font_t {
+	font_dwrite_font_t* next;
+	font_dwrite_font_t* prev;
 
 	IDWriteFontFile* file;
 	IDWriteFontFace* face;
 };
 
-struct font_state_t {
+struct font_dwrite_state_t {
 
 	// arena
 	arena_t* font_arena;
-	arena_t* scratch_arena;
-
+	
 	// dwrite
 	IDWriteFactory* dwrite_factory;
 	IDWriteRenderingParams* rendering_params;
 	IDWriteGdiInterop* gdi_interop;
 
 	// font pool
-	font_t* font_first;
-	font_t* font_last;
-	font_t* font_free;
-
-	font_glyph_t* glyph_first;
-	font_glyph_t* glyph_last;
-
-	vec2_t root_size;
-	font_atlas_node_t* root;
-	gfx_texture_t* atlas_texture;
+	font_dwrite_font_t* font_first;
+	font_dwrite_font_t* font_last;
+	font_dwrite_font_t* font_free;
 	
 };
 
 // globals
 
-global font_state_t font_state;
+global font_dwrite_state_t font_dwrite_state;
 
+// dwrite specific functions
+
+function void font_dwrite_init();
+function void font_dwrite_release();
 
 #endif // FONT_DWRITE

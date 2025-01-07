@@ -3,8 +3,9 @@
 #ifndef BASE_H
 #define BASE_H
 
-// todo:
+// base layer todos:
 // 
+// [x] - add context cracking for backends.
 // [~] - add simd support.
 //   [x] - vectors.
 //   [x] - matrices.
@@ -13,34 +14,55 @@
 // [ ] - add more math structs
 //   [ ] - mat2.
 //   [ ] - mat3.
-//
+// 
 
-// this project includes modified code from HandmadeMath.
-// HandmadeMath was released under the CC0 1.0 universal 
-// license, allowing unrestricted use.
-// original source: https://github.com/HandmadeMath/HandmadeMath
+// includes
+
+// context
+#if defined(_WIN32)
+	#define OS_BACKEND_WIN32
+	#define GFX_BACKEND_D3D11
+	#define AUD_BACKEND_WASAPI
+	#define FNT_BACKEND_DWRITE
+#elif defined(__APPLE__) && defined(__MACH__)
+	#define OS_BACKEND_MACOS
+	#define GFX_BACKEND_METAL
+	#define AUD_BACKEND_CORE_AUDIO
+	#define FNT_BACKEND_CORE_TEXT
+#elif defined(__linux__)
+	#define OS_BACKEND_LINUX
+	#define GFX_BACKEND_OPENGL
+	#define AUD_BACKEND_ALSA
+	#define FNT_BACKEND_FREETYPE
+
+#endif
+
+#define BASE_USE_SIMD 1
 
 // includes
 
 #include <cstdio> // printf
 #include <cmath> // math functions
-#include <pmmintrin.h> // simd functions
+
+#if defined(BASE_USE_SIMD)
+	#include <pmmintrin.h> // simd functions
+#endif 
 
 // defines
-
-#define BASE_USE_SIMD 1
 
 #define function static
 #define global static
 #define persist static
 #define inlnfunc inline static
 
+// sizes
 #define bytes(n)      (n)
 #define kilobytes(n)  (n << 10)
 #define megabytes(n)  (n << 20)
 #define gigabytes(n)  (((u64)n) << 30)
 #define terabytes(n)  (((u64)n) << 40)
 
+// type constants
 #define u8_max  (0xFF)
 #define u8_min  (0)
 #define u16_max (0xFFFF)
@@ -69,6 +91,7 @@
 #define f32_pi (3.141592653597f)
 #define f64_pi (3.141592653597)
 
+// math
 #define min(a, b) (((a)<(b)) ? (a) : (b))
 #define max(a, b) (((a)>(b)) ? (a) : (b))
 #define clamp(x, a, b) (((a)>(x))?(a):((b)<(x))?(b):(x))
@@ -76,6 +99,7 @@
 
 #define array_count(a) (sizeof(a) / sizeof((a)[0]))
 
+// arenas
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
 
@@ -113,7 +137,7 @@
 
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 
-// typedefs and enums
+// typedefs
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -131,6 +155,8 @@ typedef double f64;
 typedef const char* cstr;
 
 typedef bool b8;
+
+// enums
 
 typedef u32 str_match_flags;
 enum : u32 {
@@ -150,6 +176,11 @@ struct arena_t {
 	u32 commit_pos;
 	u32 align;
 	u32 size;
+};
+
+struct temp_t {
+	arena_t* arena;
+	u32 pos;
 };
 
 // strings
@@ -430,78 +461,88 @@ union color_t {
 // globals
 
 global u32 random_state = 0;
+global u8 utf8_class[32] = {
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
+};
+
+global arena_t* global_scratch_arena;
 
 // functions
 
 // arenas
-function arena_t* arena_create(u32);
-function void arena_release(arena_t*);
-function void* arena_alloc(arena_t*, u32);
-function void* arena_calloc(arena_t*, u32);
-function void arena_clear(arena_t*);
+function arena_t* arena_create(u32 size);
+function void arena_release(arena_t* arena);
+function void* arena_alloc(arena_t* arena, u32 size);
+function void* arena_calloc(arena_t* arena, u32 size);
+function void arena_pop_to(arena_t* arena, u32 pos);
+function void arena_clear(arena_t* arena);
+
+function temp_t temp_begin(arena_t* arena);
+function void temp_end(temp_t temp);
+
+function temp_t scratch_begin();
+function void scratch_end(temp_t temp);
 
 // cstr
 function u32 cstr_length(cstr cstr);
 function b8 cstr_equals(cstr cstr1, cstr cstr2);
-function b8 char_is_whitespace(char);
-function b8 char_is_alpha(char);
-function b8 char_is_alpha_upper(char);
-function b8 char_is_alpha_lower(char);
-function b8 char_is_digit(char);
-function b8 char_is_symbol(char);
-function b8 char_is_space(char);
-function char char_to_upper(char);
-function char char_to_lower(char);
-function char char_to_forward_slash(char);
+function b8 char_is_whitespace(char c);
+function b8 char_is_alpha(char c);
+function b8 char_is_alpha_upper(char c);
+function b8 char_is_alpha_lower(char c);
+function b8 char_is_digit(char c);
+function b8 char_is_symbol(char c);
+function b8 char_is_space(char c);
+function char char_to_upper(char c);
+function char char_to_lower(char c);
+function char char_to_forward_slash(char c);
 
 // unicode
-function codepoint_t utf8_decode(u8*, u32);
-function codepoint_t utf16_decode(u16*, u32);
-function u8 utf8_encode(codepoint_t);
-function u16 utf16_encode(codepoint_t);
+function codepoint_t utf8_decode(u8* data, u32 max);
+function codepoint_t utf16_decode(u16* data, u32 max);
+function u32 utf8_encode(u8* out, codepoint_t codepoint);
+function u32 utf16_encode(u16* out, codepoint_t codepoint);
 
 // str
-function str_t str(char*);
-function str_t str(char*, u32);
-function str_t str_copy(arena_t*, str_t);
-function str_t str_substr(str_t, u32, u32);
-function str_t str_range(u8*, u8*);
-function str_t str_skip(str_t, u32);
-function str_t str_chop(str_t, u32);
-function str_t str_prefix(str_t, u32);
-function str_t str_suffix(str_t, u32);
-function b8 str_match(str_t, str_t, str_match_flags);
-function u32 str_find_substr(str_t, str_t, u32, str_match_flags);
-function str_t str_get_file_name(str_t);
-function str_t str_get_file_extension(str_t);
-function str_t str_formatv(arena_t*, char*, va_list);
-function str_t str_format(arena_t*, char*, ...);
-function void str_scan(str_t, char*, ...);
+function str_t str(char* cstr);
+function str_t str(char* cstr, u32 size);
+function str_t str_copy(arena_t* arena, str_t string);
+function str_t str_substr(str_t string, u32 min_pos, u32 max_pos);
+function str_t str_range(u8* first, u8* last);
+function str_t str_skip(str_t string, u32 min);
+function str_t str_chop(str_t string, u32 max);
+function str_t str_prefix(str_t string, u32 size);
+function str_t str_suffix(str_t string, u32 size);
+function b8 str_match(str_t a, str_t b, str_match_flags flags);
+function u32 str_find_substr(str_t haystack, str_t needle, u32 start_pos, str_match_flags flags);
+function str_t str_get_file_name(str_t string);
+function str_t str_get_file_extension(str_t string);
+function str_t str_formatv(arena_t* arena, char* fmt, va_list args);
+function str_t str_format(arena_t* arena, char* fmt, ...);
 
 // str list
-function void str_list_push_node(str_list_t*, str_node_t*);
-function void str_list_push(arena_t*, str_list_t*, str_t);
-function str_list_t str_split(arena_t*, str_t, u8*, u32);
+function void str_list_push_node(str_list_t* list, str_node_t* node);
+function void str_list_push(arena_t* arena, str_list_t* list, str_t string);
+function str_list_t str_split(arena_t* arena, str_t string, u8* splits, u32 split_count);
 
 // str16
-function str16_t str16(u16*);
-function str16_t str16(u16*, u32);
-function str16_t str_to_st16(str_t);
+function str16_t str16(u16* data);
+function str16_t str16(u16* data, u32 size);
+function str16_t str_to_str16(arena_t* arena, str_t string);
 
 // random
 
-function void random_seed(u32);
+function void random_seed(u32 seed);
 function u32 random_u32();
-function u32 random_u32_range(u32, u32);
+function u32 random_u32_range(u32 min_value, u32 max_value);
 function f32 random_f32();
-function f32 random_f32_range(f32, f32);
+function f32 random_f32_range(f32 min_value, f32 max_value);
 
 // math
-inlnfunc f32 radians(f32);
-inlnfunc f32 degrees(f32);
-inlnfunc f32 remap(f32, f32, f32, f32, f32);
-inlnfunc f32 lerp(f32, f32, f32);
-inlnfunc f32 s_sqrt(f32);
+inlnfunc f32 radians(f32 deg);
+inlnfunc f32 degrees(f32 rad);
+inlnfunc f32 remap(f32 value, f32 from_min, f32 from_max, f32 to_min, f32 to_max);
+inlnfunc f32 lerp(f32 a, f32 b, f32 t);
 
 // vec2 
 inlnfunc vec2_t vec2(f32);
@@ -515,6 +556,8 @@ inlnfunc vec2_t vec2_mul(vec2_t, vec2_t);
 inlnfunc vec2_t vec2_div(vec2_t, f32);
 inlnfunc vec2_t vec2_div(vec2_t, vec2_t);
 inlnfunc b8     vec2_equals(vec2_t, vec2_t);
+inlnfunc vec2_t vec2_min(vec2_t, vec2_t);
+inlnfunc vec2_t vec2_max(vec2_t, vec2_t);
 inlnfunc f32    vec2_dot(vec2_t, vec2_t);
 inlnfunc f32    vec2_cross(vec2_t, vec2_t);
 inlnfunc f32    vec2_length(vec2_t);
@@ -660,7 +703,7 @@ inlnfunc color_t color_rgb_to_hsv(color_t rgb);
 inlnfunc color_t color_hsv_to_rgb(color_t hsv);
 
 // misc
-function vec3_t barycentric(vec2_t, vec2_t, vec2_t, vec2_t);
-function b8 tri_contains(vec2_t, vec2_t, vec2_t, vec2_t);
+function vec3_t barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c);
+function b8 tri_contains(vec2_t a, vec2_t b, vec2_t c, vec2_t p);
 
 #endif // BASE_H

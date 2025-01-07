@@ -57,7 +57,7 @@ audio_release() {
 
     // stop audio thread
     audio_state.thread_running = false;
-    os_thread_release(audio_state.audio_thread);
+    os_thread_join(audio_state.audio_thread, u64_max);
 
     // release 
     if (audio_state.audio_render_client) { audio_state.audio_render_client->Release(); }

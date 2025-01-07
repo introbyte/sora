@@ -3,12 +3,6 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
-// includes
-#include <mmdeviceapi.h>
-#include <audioclient.h>
-
-// defines
-
 // typedefs
 
 typedef void (*audio_callback_function)(f32*, i32);
@@ -33,18 +27,17 @@ struct audio_state_t; // implement in backends
 
 // functions
 
+// state (implementate per backend)
 function void audio_init(audio_params_t);
 function void audio_release();
 function void audio_thread_function();
 
-#define AUDIO_BACKEND_WASAPI
-
 // per backend includes
-#ifdef AUDIO_BACKEND_WASAPI
+#ifdef AUD_BACKEND_WASAPI
 #include "backends/audio/audio_wasapi.h"
-#elif defined(AUDIO_BACKEND_COREAUDIO)
+#elif defined(AUD_BACKEND_CORE_AUDIO)
 // not implemented
-#elif defined(AUDIO_BACKEND_ALSA)
+#elif defined(AUD_BACKEND_ALSA)
 // not implemented
 #endif 
 

@@ -18,42 +18,69 @@
 #define gfx_check_error(hr, msg, ...)
 #endif
 
+// enums
+
+enum gfx_d3d11_resource_type {
+	gfx_d3d11_resource_type_null,
+	gfx_d3d11_resource_type_buffer,
+	gfx_d3d11_resource_type_texture,
+	gfx_d3d11_resource_type_shader,
+	gfx_d3d11_resource_type_compute_shader,
+	gfx_d3d11_resource_type_render_target,
+	gfx_d3d11_resource_type_count,
+};
+
 // structs
 
-// buffer
-
-struct gfx_buffer_t {
-	gfx_buffer_t* next;
-	gfx_buffer_t* prev;
-
-	gfx_buffer_desc_t desc;
+struct gfx_d3d11_buffer_t {
 	ID3D11Buffer* id;
 };
 
-// texture
-
-struct gfx_texture_t {
-	gfx_texture_t* next;
-	gfx_texture_t* prev;
-
-	gfx_texture_desc_t desc;
+struct gfx_d3d11_texture_t {
 	ID3D11Texture2D* id;
 	ID3D11ShaderResourceView* srv;
 	ID3D11UnorderedAccessView* uav;
 };
 
-// shader 
-
-struct gfx_shader_t {
-	gfx_shader_t* next;
-	gfx_shader_t* prev;
-
-	gfx_shader_desc_t desc;
-	u32 last_modified;
+struct gfx_d3d11_shader_t {
 	ID3D11VertexShader* vertex_shader;
 	ID3D11PixelShader* pixel_shader;
 	ID3D11InputLayout* input_layout;
 };
+
+struct gfx_d3d11_resource_t {
+	gfx_d3d11_resource_t* next;
+	gfx_d3d11_resource_t* prev;
+
+	gfx_d3d11_resource_type type;
+
+	// resource descriptions
+	union {
+		gfx_buffer_desc_t buffer_desc;
+		gfx_texture_desc_t texture_desc;
+		gfx_shader_desc_t shader_desc;
+	};
+
+	// resource members
+	union {
+		gfx_d3d11_buffer_t buffer;
+		gfx_d3d11_texture_t texture;
+		gfx_d3d11_shader_t shader;
+	};
+};
+
+// texture 3d
+
+struct gfx_texture_3d_t {
+	gfx_texture_3d_t* next;
+	gfx_texture_3d_t* prev;
+
+	gfx_texture_3d_desc_t desc;
+	ID3D11Texture3D* id;
+	ID3D11ShaderResourceView* srv;
+	ID3D11UnorderedAccessView* uav;
+};
+
 
 // compute shader
 struct gfx_compute_shader_t {
@@ -75,8 +102,8 @@ struct gfx_render_target_t {
 	uvec2_t size;
 	u32 sample_count;
 	gfx_render_target_flags flags;
-	gfx_texture_t* color_texture;
-	gfx_texture_t* depth_texture;
+	gfx_handle_t color_texture;
+	gfx_handle_t depth_texture;
 	gfx_texture_format format;
 	ID3D11RenderTargetView* rtv;
 	ID3D11DepthStencilView* dsv;
@@ -84,12 +111,12 @@ struct gfx_render_target_t {
 
 // renderer
 
-struct gfx_renderer_t {
-	gfx_renderer_t* next;
-	gfx_renderer_t* prev;
+struct gfx_d3d11_renderer_t {
+	gfx_d3d11_renderer_t* next;
+	gfx_d3d11_renderer_t* prev;
 
 	// context
-	os_window_t* window;
+	os_handle_t window;
 	color_t clear_color;
 	uvec2_t resolution;
 
@@ -101,11 +128,11 @@ struct gfx_renderer_t {
 
 // state
 
-struct gfx_state_t {
+struct gfx_d3d11_state_t {
 
 	// arenas
+	arena_t* renderer_arena;
 	arena_t* resource_arena;
-	arena_t* scratch_arena;
 
 	// d3d11
 	ID3D11Device* device;
@@ -113,33 +140,17 @@ struct gfx_state_t {
 	IDXGIDevice1* dxgi_device;
 	IDXGIAdapter* dxgi_adapter;
 	IDXGIFactory2* dxgi_factory;
-
+	
 	// resources
-	gfx_buffer_t* buffer_first;
-	gfx_buffer_t* buffer_last;
-	gfx_buffer_t* buffer_free;
-
-	gfx_texture_t* texture_first;
-	gfx_texture_t* texture_last;
-	gfx_texture_t* texture_free;
-
-	gfx_shader_t* shader_first;
-	gfx_shader_t* shader_last;
-	gfx_shader_t* shader_free;
-
-	gfx_compute_shader_t* compute_shader_first;
-	gfx_compute_shader_t* compute_shader_last;
-	gfx_compute_shader_t* compute_shader_free;
-
-	gfx_render_target_t* render_target_first;
-	gfx_render_target_t* render_target_last;
-	gfx_render_target_t* render_target_free;
-
+	gfx_d3d11_resource_t* resource_first;
+	gfx_d3d11_resource_t* resource_last;
+	gfx_d3d11_resource_t* resource_free;
+	
 	// renderer
-	gfx_renderer_t* renderer_first;
-	gfx_renderer_t* renderer_last;
-	gfx_renderer_t* renderer_free;
-	gfx_renderer_t* renderer_active;
+	gfx_d3d11_renderer_t* renderer_first;
+	gfx_d3d11_renderer_t* renderer_last;
+	gfx_d3d11_renderer_t* renderer_free;
+	gfx_d3d11_renderer_t* renderer_active;
 
 	// pipeline assets
 	ID3D11SamplerState* linear_wrap_sampler;
@@ -158,26 +169,34 @@ struct gfx_state_t {
 	ID3D11RasterizerState* wireframe_cull_back_rasterizer;
 
 	ID3D11BlendState* blend_state;
-
 };
 
 // global
 
-global gfx_state_t gfx_state;
+global gfx_d3d11_state_t gfx_state;
 
+// d3d11 specific functions
 
-// d3d11 enum functions
-function D3D11_USAGE _usage_to_d3d11_usage(gfx_usage);
-function UINT _usage_to_access_flags(gfx_usage);
-function D3D11_BIND_FLAG _buffer_type_to_bind_flag(gfx_buffer_type);
-function DXGI_FORMAT _texture_format_to_dxgi_format(gfx_texture_format);
-function DXGI_FORMAT _texture_format_to_srv_dxgi_format(gfx_texture_format);
-function DXGI_FORMAT _texture_format_to_dsv_dxgi_format(gfx_texture_format);
-function u32 _texture_format_to_bytes(gfx_texture_format);
-function D3D11_PRIMITIVE_TOPOLOGY _topology_type_to_d3d11_topology(gfx_topology_type);
-function DXGI_FORMAT _vertex_format_to_dxgi_format(gfx_vertex_format);
-function DXGI_FORMAT _uniform_type_to_dxgi_format(gfx_uniform_type);
-function D3D11_INPUT_CLASSIFICATION _vertex_class_to_input_class(gfx_vertex_class);
+// renderer
+function gfx_d3d11_renderer_t* gfx_d3d11_renderer_from_handle(gfx_handle_t handle);
+function gfx_handle_t gfx_d3d11_handle_from_renderer(gfx_d3d11_renderer_t* renderer);
+
+// resource functions
+function gfx_d3d11_resource_t* gfx_d3d11_resource_create(gfx_d3d11_resource_type type);
+function void gfx_d3d11_resource_release(gfx_d3d11_resource_t* resource);
+
+// enum conversion functions
+function D3D11_USAGE gfx_d3d11_d3d11_usage_from_gfx_usage(gfx_usage);
+function UINT gfx_d3d11_access_flags_from_gfx_usage(gfx_usage);
+function D3D11_BIND_FLAG gfx_d3d11_bind_flags_from_buffer_type(gfx_buffer_type);
+function DXGI_FORMAT gfx_d3d11_dxgi_format_from_texture_format(gfx_texture_format);
+function DXGI_FORMAT gfx_d3d11_srv_format_from_texture_format(gfx_texture_format);
+function DXGI_FORMAT gfx_d3d11_dsv_format_from_texture_format(gfx_texture_format);
+function u32 gfx_d3d11_byte_size_from_texture_format(gfx_texture_format);
+function D3D11_PRIMITIVE_TOPOLOGY gfx_d3d11_prim_top_from_top_type(gfx_topology_type);
+function DXGI_FORMAT gfx_d3d11_dxgi_format_from_vertex_format(gfx_vertex_format);
+function DXGI_FORMAT gfx_d3d11_dxgi_format_from_uniform_type(gfx_uniform_type);
+function D3D11_INPUT_CLASSIFICATION gfx_d3d11_input_class_from_vertex_class(gfx_vertex_class);
 
 
 #endif // GFX_D3D11_H

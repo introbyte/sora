@@ -16,6 +16,7 @@ typedef void render_pass_release_func(render_pass_t*);
 
 struct render_pass_desc_t {
 	str_t label;
+	u32 data_size;
 	render_pass_setup_func* setup_func;
 	render_pass_execute_func* execute_func;
 	render_pass_release_func* release_func;

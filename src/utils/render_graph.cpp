@@ -110,6 +110,9 @@ render_graph_add_pass(render_graph_t* graph, render_pass_desc_t desc) {
 	pass->execute = desc.execute_func;
 	pass->release = desc.release_func;
 
+	// allocate data
+	pass->data = arena_alloc(pass->arena, desc.data_size);
+
 	// add to graph's pass list
 	dll_push_back_np(graph->pass_first, graph->pass_last, pass, list_next, list_prev);
 	graph->pass_count++;

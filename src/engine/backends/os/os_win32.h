@@ -13,30 +13,56 @@
 #define WM_NCUAHDRAWCAPTION (0x00AE)
 #define WM_NCUAHDRAWFRAME (0x00AF)
 
+// enums
+
+enum os_w32_entity_type {
+	os_w32_entity_type_null,
+	os_w32_entity_type_thread,
+	os_w32_entity_type_mutex,
+	os_w32_entity_type_rw_mutex,
+	os_w32_entity_type_condition_variable,
+};
+
 // structs
 
-struct os_window_t {
+struct os_w32_entity_t {
+	os_w32_entity_t* next;
+
+	os_w32_entity_type type;
+	union {
+		struct {
+			HANDLE handle;
+			DWORD thread_id;
+			void* ptr;
+			os_thread_function_t* func;
+		} thread;
+		CRITICAL_SECTION mutex;
+		SRWLOCK rw_mutex;
+		CONDITION_VARIABLE cv;
+	};
+};
+
+struct os_w32_window_t {
 
 	// window list 
-	os_window_t* next;
-	os_window_t* prev;
+	os_w32_window_t* next;
+	os_w32_window_t* prev;
 
 	// flags
 	os_window_flags flags;
 
 	// win32
 	HWND handle;
-
+	
 	// info
-	str_t title;
+	uvec2_t resolution;
 	b8 borderless;
 	b8 composition_enabled;
 	b8 maximized;
 
-	os_frame_function* frame_func;
+	os_frame_function_t* frame_func;
 
 	// sizing
-	uvec2_t resolution;
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
 
 	// custom title bar client area
@@ -56,31 +82,21 @@ struct os_window_t {
 	vec2_t mouse_delta;
 };
 
-struct os_file_t {
-	HANDLE handle;
-	os_file_attributes_t attributes;
-};
-
-struct os_thread_t {
-	os_thread_t* next;
-	HANDLE handle;
-	DWORD thread_id;
-	void* params;
-	os_thread_function* func;
-};
-
-struct os_state_t {
+struct os_w32_state_t {
 
 	// arenas
 	arena_t* window_arena;
+	arena_t* entity_arena;
 	arena_t* event_list_arena;
-	arena_t* thread_arena;
-	arena_t* scratch_arena;
+	
+	// entities
+	os_w32_entity_t* entity_free;
+	CRITICAL_SECTION entity_mutex;
 
 	// window list
-	os_window_t* first_window;
-	os_window_t* last_window;
-	os_window_t* free_window;
+	os_w32_window_t* window_first;
+	os_w32_window_t* window_last;
+	os_w32_window_t* window_free;
 
 	// event list
 	os_event_list_t event_list;
@@ -93,27 +109,33 @@ struct os_state_t {
 	// cursor
 	HCURSOR cursors[os_cursor_count];
 
-	// thread
-	SRWLOCK thread_srw_lock;
-	os_thread_t* thread_free;
-
-	// log
-	os_file_t log_file;
-
-	// input state
-	b8 keys[255];
-	b8 mouse_buttons[os_mouse_button_count];
+	b8 new_borderless_window = false; // TODO: not sure if needed
 
 };
 
-// global
+// globals
 
-global os_state_t os_state;
-global b8 os_new_borderless_window = false; // TODO: not sure if needed
+global os_w32_state_t os_state;
 
-// functions
+// win32 specific functions
 
-function DWORD os_win32_thread_entry_point(void*);
-LRESULT CALLBACK window_procedure(HWND, UINT, WPARAM, LPARAM);
+// windows
+function os_handle_t      os_w32_handle_from_window(os_w32_window_t* window);
+function os_w32_window_t* os_w32_window_from_handle(os_handle_t window);
+function os_w32_window_t* os_w32_window_from_hwnd(HWND window);
+function HWND             os_w32_hwnd_from_window(os_w32_window_t* window);
+
+// entities
+function os_w32_entity_t* os_w32_entity_create(os_w32_entity_type type);
+function void os_w32_entity_release(os_w32_entity_t* entity);
+
+// time
+function u32 os_w32_sleep_ms_from_endt_us(u64 endt_us);
+
+// thread entry point
+function DWORD os_w32_thread_entry_point(void*);
+
+// window procedure
+LRESULT CALLBACK os_w32_window_procedure(HWND, UINT, WPARAM, LPARAM);
 
 #endif // OS_WIN32_H

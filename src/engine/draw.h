@@ -90,26 +90,25 @@ draw_stack_node_decl(radius3, f32);
 draw_stack_node_decl(thickness, f32);
 draw_stack_node_decl(softness, f32);
 
-draw_stack_node_decl(font, font_t*);
+draw_stack_node_decl(font, font_handle_t);
 draw_stack_node_decl(font_size, f32);
 draw_stack_node_decl(clip_mask, rect_t);
 
-draw_stack_node_decl(texture, gfx_texture_t*);
+draw_stack_node_decl(texture, gfx_handle_t);
 
 struct draw_state_t {
 
 	// assets
-	gfx_buffer_t* instance_buffer;
-	gfx_buffer_t* constant_buffer;
+	gfx_handle_t instance_buffer;
+	gfx_handle_t constant_buffer;
 	draw_constants_t constants;
 	i32 clip_mask_count;
 	gfx_pipeline_t pipeline;
-	gfx_shader_t* shader;
-	gfx_texture_t* texture;
-	font_t* font;	
-
-
-	gfx_texture_t* texture_list[draw_max_textures];
+	gfx_handle_t shader;
+	gfx_handle_t texture;
+	font_handle_t font;	
+	
+	gfx_handle_t texture_list[draw_max_textures];
 	u32 texture_count;
 
 	// batches
@@ -168,12 +167,12 @@ global draw_state_t draw_state;
 
 function void draw_init();
 function void draw_release();
-function void draw_begin(gfx_renderer_t*);
-function void draw_end(gfx_renderer_t*);
+function void draw_begin(gfx_handle_t);
+function void draw_end(gfx_handle_t);
 
 function draw_instance_t* draw_get_instance();
 
-function i32 draw_get_texture_index(gfx_texture_t* texture);
+function i32 draw_get_texture_index(gfx_handle_t texture);
 function i32 draw_get_clip_mask_index(rect_t rect);
 
 function void draw_rect(rect_t);
@@ -185,7 +184,6 @@ function void draw_tri(vec2_t, vec2_t, vec2_t);
 function void draw_text(str_t, vec2_t);
 
 function void draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1);
-
 
 // stacks
 function void draw_auto_pop_stacks();
@@ -203,12 +201,12 @@ draw_stack_func_decl(radius3, f32);
 draw_stack_func_decl(thickness, f32);
 draw_stack_func_decl(softness, f32);
 
-draw_stack_func_decl(font, font_t*);
+draw_stack_func_decl(font, font_handle_t);
 draw_stack_func_decl(font_size, f32);
 
 draw_stack_func_decl(clip_mask, rect_t);
 
-draw_stack_func_decl(texture, gfx_texture_t*);
+draw_stack_func_decl(texture, gfx_handle_t);
 
 // group stacks
 function void draw_push_color(color_t);

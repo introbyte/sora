@@ -5,15 +5,17 @@
 
 // implementation
 
-// entry point
+// entry point (defined by user)
 i32 app_entry_point(i32 argc, char** argv);
 
 #if defined(BUILD_DEBUG)
 int main(int argc, char** argv) {
+	global_scratch_arena = arena_create(megabytes(64));
 	return app_entry_point(argc, argv);
 }
 #elif defined(BUILD_RELEASE)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+	global_scratch_arena = arena_create(megabytes(64));
 	return app_entry_point(__argc, __argv);
 }
 #endif
@@ -90,24 +92,53 @@ arena_calloc(arena_t* arena, u32 size) {
 }
 
 function void
-arena_clear(arena_t* arena) {
+arena_pop_to(arena_t* arena, u32 pos) {
 
-	// set pos to min
-	u32 min_pos = sizeof(arena_t);
-	arena->pos = min_pos;
+	// find pos
+	u32 min_pos = sizeof(arena);
+	u32 new_pos = max(min_pos, pos);
+	arena->pos = new_pos;
 
-	// align pos
-	u32 pos_aligned = arena->pos + arena_commit_size - 1;
-	pos_aligned -= pos_aligned % arena_commit_size;
+	// align
+	u32 pos_aligned_to_commit_chunks = arena->pos + arena_commit_size - 1;
+	pos_aligned_to_commit_chunks -= pos_aligned_to_commit_chunks % arena_commit_size;
 
 	// decommit
-	if (pos_aligned + arena_decommit_size <= arena->commit_pos) {
+	if (pos_aligned_to_commit_chunks + arena_decommit_size <= arena->commit_pos) {
 		u8* base = (u8*)arena;
-		u32 size_to_decommit = arena->commit_pos - pos_aligned;
-		os_mem_decommit(base + pos_aligned, size_to_decommit);
+		u64 size_to_decommit = arena->commit_pos - pos_aligned_to_commit_chunks;
+		os_mem_decommit(base + pos_aligned_to_commit_chunks, size_to_decommit);
 		arena->commit_pos -= size_to_decommit;
 	}
 
+}
+
+function void
+arena_clear(arena_t* arena) {
+	arena_pop_to(arena, sizeof(arena_t));
+}
+
+function temp_t 
+temp_begin(arena_t* arena) {
+	u32 pos = arena->pos;
+	temp_t temp = { arena, pos };
+	return temp;
+}
+
+function void 
+temp_end(temp_t temp) {
+	arena_pop_to(temp.arena, temp.pos);
+}
+
+function temp_t
+scratch_begin() {
+	temp_t temp = temp_begin(global_scratch_arena);
+	return temp;
+}
+
+function void 
+scratch_end(temp_t temp) {
+	temp_end(temp);
 }
 
 // cstr functions
@@ -184,10 +215,6 @@ char_to_forward_slash(char c) {
 }
 
 // unicode
-
-global u8 utf8_class[32] = {
-	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
-};
 
 function codepoint_t 
 utf8_decode(u8* data, u32 max) {
@@ -372,8 +399,8 @@ str_skip(str_t string, u32 min) {
 }
 
 function str_t
-str_chop(str_t string, u32 nmax) {
-	return str_substr(string, 0, string.size - nmax);
+str_chop(str_t string, u32 max) {
+	return str_substr(string, 0, string.size - max);
 }
 
 function str_t
@@ -482,13 +509,6 @@ str_format(arena_t* arena, char* fmt, ...) {
 	return result;
 }
 
-function void
-str_scan(str_t string, char* fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
-	vsscanf((char*)string.data, fmt, args);
-	va_end(args);
-}
 
 // str list
 
@@ -643,7 +663,6 @@ lerp(f32 a, f32 b, f32 t) {
 	return (a * (1.0f - t)) + (b * t);
 }
 
-
 // vec2 
 
 inlnfunc vec2_t
@@ -729,6 +748,16 @@ vec2_div(vec2_t a, f32 b) {
 inlnfunc b8 
 vec2_equals(vec2_t a, vec2_t b) {
 	return (a.x == b.x && a.y == b.y);
+}
+
+inlnfunc vec2_t 
+vec2_min(vec2_t a, vec2_t b) {
+	return { min(a.x, b.x), min(a.y, b.y) };
+}
+
+inlnfunc vec2_t 
+vec2_max(vec2_t a, vec2_t b) {
+	return { max(a.x, b.x), max(a.y, b.y) };
 }
 
 inlnfunc f32

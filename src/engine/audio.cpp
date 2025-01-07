@@ -4,11 +4,11 @@
 #define AUDIO_CPP
 
 // per backend includes
-#ifdef AUDIO_BACKEND_WASAPI
+#ifdef AUD_BACKEND_WASAPI
 #include "backends/audio/audio_wasapi.cpp"
-#elif defined(AUDIO_BACKEND_COREAUDIO)
+#elif defined(AUD_BACKEND_CORE_AUDIO)
 // not implemented
-#elif defined(AUDIO_BACKEND_ALSA)
+#elif defined(AUD_BACKEND_ALSA)
 // not implemented
 #endif 
 

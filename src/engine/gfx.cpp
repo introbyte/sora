@@ -3,6 +3,14 @@
 #ifndef GFX_CPP
 #define GFX_CPP
 
+// implementation
+
+// handle
+function b8 
+gfx_handle_equals(gfx_handle_t a, gfx_handle_t b) {
+	return (a.data[0] == b.data[0]);
+}
+
 // pipeline
 
 function gfx_pipeline_t 
@@ -22,7 +30,7 @@ gfx_pipeline_create() {
 
 // helper functions
 function b8
-_texture_format_is_depth(gfx_texture_format format) {
+gfx_texture_format_is_depth(gfx_texture_format format) {
 	b8 result = false;
 	switch (format) {
 		case gfx_texture_format_d24s8:

@@ -1,5 +1,11 @@
 // render_graph_test.cpp
 
+// the api i want:
+// 
+// render_graph_t* graph = render_graph_create();
+//  
+//
+
 // includes
 
 // engine
@@ -10,7 +16,6 @@
 #include "engine/font.h"
 #include "engine/draw.h"
 #include "engine/ui.h"
-#include "engine/draw_3d.h"
 
 #include "engine/base.cpp"
 #include "engine/log.cpp"
@@ -19,7 +24,6 @@
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
 #include "engine/ui.cpp"
-#include "engine/draw_3d.cpp"
 
 // utils
 #include "utils/render_graph.h"
@@ -31,7 +35,6 @@ struct main_render_pass_data_t {
 	gfx_render_target_t* render_target;
 };
 
-
 // globals
 global os_window_t* window;
 global gfx_renderer_t* renderer;
@@ -39,16 +42,11 @@ global ui_context_t* ui_context;
 global render_graph_t* graph;
 global b8 quit = false;
 
-global gfx_texture_t* screen_texture;
 global gfx_texture_3d_t* cloud_texture;
 
 global gfx_compute_shader_t* compute_shader;
 
 // functions
-
-function void app_init();
-function void app_release();
-function void app_frame();
 
 // main pass
 function void app_main_pass_setup(render_pass_t* pass);
@@ -60,74 +58,24 @@ function void app_ui_pass_setup(render_pass_t* pass);
 function void app_ui_pass_execute(void* in, void* out);
 function void app_ui_pass_release(render_pass_t* pass);
 
+// app
+function void app_init();
+function void app_release();
+function void app_frame();
+function i32 app_entry_point(i32 argc, char** argv);
+
 // implementation
-
-function void
-app_init() {
-
-	// open window and create renderer
-	window = os_window_open(str("render graph"), 960, 720);
-	renderer = gfx_renderer_create(window, color(0x000000ff));
-	ui_context = ui_context_create(renderer);
-
-	// set frame function
-	os_window_set_frame_function(window, app_frame);
-
-	// create render graph
-	graph = render_graph_create(renderer);
-
-	// main pass
-	render_pass_desc_t desc = { 0 };
-	desc.label = str("main");
-	desc.setup_func = app_main_pass_setup;
-	desc.execute_func = app_main_pass_execute;
-	desc.release_func = app_main_pass_release;
-	render_pass_t* main_pass = render_graph_add_pass(graph, desc);
-
-	// ui pass
-	desc.label = str("ui");
-	desc.setup_func = app_ui_pass_setup;
-	desc.execute_func = app_ui_pass_execute;
-	desc.release_func = app_ui_pass_release;
-	render_pass_t* ui_pass = render_graph_add_pass(graph, desc);
-
-	// build render graph
-	render_graph_pass_connect(main_pass, ui_pass);
-	render_graph_pass_connect(ui_pass, graph->output_pass);
-	render_graph_build(graph);
-
-	// load compute shader
-	screen_texture = gfx_texture_create(uvec2(512, 512));
-	compute_shader = gfx_compute_shader_load(str("res/shaders/compute/gen_clouds.hlsl"));
-
-	// run compute shader
-	gfx_set_compute_shader(compute_shader);
-	gfx_set_texture(screen_texture, 0, gfx_texture_usage_cs);
-	gfx_dispatch(32, 32, 32);
-	gfx_set_compute_shader();
-	gfx_set_texture(nullptr, 0);
-
-}
-
-function void
-app_release() {
-	
-	// release renderer and window
-	gfx_renderer_release(renderer);
-	os_window_close(window);
-
-}
-
 
 // main pass
 
 function void 
 app_main_pass_setup(render_pass_t* pass) {
 
+	main_render_pass_data_t* data = (main_render_pass_data_t*)pass->data;
+
 	// allocate resources for main pass
-	main_render_pass_data_t* data = (main_render_pass_data_t*)arena_alloc(pass->arena, sizeof(main_render_pass_data_t));
 	data->render_target = gfx_render_target_create(gfx_texture_format_rgba8, renderer->resolution, 0);
-	pass->data = data;
+	
 }
 
 function void
@@ -144,6 +92,7 @@ app_main_pass_execute(void* in, void* out) {
 	gfx_set_render_target(data->render_target);
 	gfx_render_target_clear(data->render_target, color(0x000000ff));
 
+	gfx_set_texture_3d(cloud_texture, 0);
 
 
 
@@ -156,17 +105,16 @@ app_main_pass_release(render_pass_t* pass) {
 	gfx_render_target_release(data->render_target);
 }
 
-
 // ui pass
 
 function void
 app_ui_pass_setup(render_pass_t* pass) {
 
+	output_render_pass_data_t* data = (output_render_pass_data_t*)pass->data;
+
 	// allocate resources for ui pass
-	output_render_pass_data_t* data = (output_render_pass_data_t*)arena_alloc(pass->arena, sizeof(output_render_pass_data_t));
 	data->renderer = renderer;
 	data->render_target = gfx_render_target_create(gfx_texture_format_rgba8, renderer->resolution, 0);
-	pass->data = data;
 }
 
 function void
@@ -209,6 +157,68 @@ app_ui_pass_release(render_pass_t* pass) {
 	gfx_render_target_release(data->render_target);
 }
 
+// entry point
+
+function void
+app_init() {
+
+	// open window and create renderer
+	window = os_window_open(str("render graph"), 960, 720);
+	renderer = gfx_renderer_create(window, color(0x000000ff));
+	ui_context = ui_context_create(renderer);
+
+	// set frame function
+	os_window_set_frame_function(window, app_frame);
+
+	// create render graph
+	graph = render_graph_create(renderer);
+
+	// main pass
+	render_pass_desc_t desc = { 0 };
+	desc.label = str("main");
+	desc.data_size = sizeof(main_render_pass_data_t);
+	desc.setup_func = app_main_pass_setup;
+	desc.execute_func = app_main_pass_execute;
+	desc.release_func = app_main_pass_release;
+	render_pass_t* main_pass = render_graph_add_pass(graph, desc);
+
+	// ui pass
+	desc.label = str("ui");
+	desc.data_size = sizeof(output_render_pass_data_t);
+	desc.setup_func = app_ui_pass_setup;
+	desc.execute_func = app_ui_pass_execute;
+	desc.release_func = app_ui_pass_release;
+	render_pass_t* ui_pass = render_graph_add_pass(graph, desc);
+
+	// build render graph
+	render_graph_pass_connect(main_pass, ui_pass);
+	render_graph_pass_connect(ui_pass, graph->output_pass);
+	render_graph_build(graph);
+
+	// load compute shader
+	compute_shader = gfx_compute_shader_load(str("res/shaders/compute/gen_clouds.hlsl"));
+
+	// create 3d cloud texture
+	cloud_texture = gfx_texture_3d_create(str("clouds"), uvec3(64, 64, 64), gfx_texture_format_rgba8);
+	
+	// run compute shader
+	gfx_set_compute_shader(compute_shader);
+	gfx_set_texture_3d(cloud_texture, 0, gfx_texture_usage_cs);
+	gfx_dispatch(8, 8, 8);
+	gfx_set_compute_shader();
+	gfx_set_texture_3d(nullptr, 0);
+
+}
+
+function void
+app_release() {
+	
+	// release renderer and window
+	gfx_renderer_release(renderer);
+	os_window_close(window);
+
+}
+
 function void
 app_frame() {
 
@@ -239,8 +249,6 @@ app_frame() {
 	}
 }
 
-// entry point
-
 function i32
 app_entry_point(i32 argc, char** argv) {
 
@@ -250,7 +258,6 @@ app_entry_point(i32 argc, char** argv) {
 	gfx_init();
 	font_init();
 	draw_init();
-	draw_3d_init();
 	ui_init();
 	render_init();
 
@@ -268,7 +275,6 @@ app_entry_point(i32 argc, char** argv) {
 	// release layers
 	render_release();
 	ui_release();
-	draw_3d_release();
 	draw_release();
 	font_release();
 	gfx_release();
