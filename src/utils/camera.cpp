@@ -6,12 +6,12 @@
 // implementation
 
 function camera_t*
-camera_create(arena_t* arena, gfx_renderer_t* renderer, f32 fov, f32 z_near, f32 z_far) {
+camera_create(arena_t* arena, os_handle_t window, gfx_handle_t renderer, f32 fov, f32 z_near, f32 z_far) {
 
 	camera_t* camera = (camera_t*)arena_alloc(arena, sizeof(camera_t));
 
 	// fill struct
-	camera->window = renderer->window;
+	camera->window = window;
 	camera->renderer = renderer;
 	camera->mode = camera_mode_free;
 	camera->target_fov = fov;
@@ -45,8 +45,9 @@ function void
 camera_update(camera_t* camera) {
 
 	// get delta time
-	f32 dt = camera->window->delta_time;
-	f32 fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
+	uvec2_t window_size = os_window_get_size(camera->window);
+	f32 et = os_window_get_elapsed_time(camera->window);
+	f32 dt = os_window_get_delta_time(camera->window);
 
 	// toggle fps lock
 	if (os_key_press(camera->window, os_key_tab)) {
@@ -74,14 +75,14 @@ camera_update(camera_t* camera) {
 	speed = os_key_is_down(os_key_shift) ? 5.0f : 1.2f;
 
 	// mouse delta
-	vec2_t mouse_pos = os_get_cursor_pos(camera->window);
+	vec2_t mouse_pos = os_window_get_cursor_pos(camera->window);
 	vec2_t delta = vec2_sub(camera->last_mouse_pos, mouse_pos);
 	if (camera->fps_lock) {
-		os_set_cursor_pos(camera->window, vec2(camera->window->resolution.x * 0.5f, camera->window->resolution.y * 0.5f));
+		os_window_set_cursor_pos(camera->window, vec2(window_size.x * 0.5f, window_size.y * 0.5f));
 		pitch_input = delta.y;
 		yaw_input = delta.x;
 	}
-	camera->last_mouse_pos = os_get_cursor_pos(camera->window);
+	camera->last_mouse_pos = os_window_get_cursor_pos(camera->window);
 
 	// clamp input
 	vec3_t euler_angle = quat_to_euler_angle(camera->target_orientation);
@@ -101,8 +102,8 @@ camera_update(camera_t* camera) {
 		roll_input = min(degrees(camera->max_roll - euler_angle.z), roll_input);
 	}
 
-	const f32 sensitivity = 0.6f;
-	f32 zoom_adjustment = (camera->fov / 130.0f);
+	const f32 sensitivity = 0.01f;
+	f32 zoom_adjustment = (camera->fov / 160.0f);
 	quat_t pitch = quat_from_axis_angle({ 1.0f, 0.0f, 0.0f }, zoom_adjustment * sensitivity * pitch_input * dt);
 	quat_t yaw = quat_from_axis_angle({ 0.0f, 1.0f, 0.0f }, zoom_adjustment * sensitivity * yaw_input * dt);
 	quat_t roll = quat_from_axis_angle({ 0.0f, 0.0f, 1.0f }, 2.5f * sensitivity * roll_input * dt);
@@ -129,18 +130,18 @@ camera_update(camera_t* camera) {
 	// update fov
 	f32 scroll_delta = os_mouse_scroll(camera->window);
 	camera->target_fov -= scroll_delta * 1.5f;
-	camera->target_fov = clamp(camera->target_fov, 1.0f, 130.0f);
+	camera->target_fov = clamp(camera->target_fov, 1.0f, 160.0f);
 	camera->fov = lerp(camera->fov, camera->target_fov, 30.0f * dt);
 
 	// update constants
 	camera->constants.view = mat4_mul(mat4_from_quat(camera->orientation), mat4_translate(vec3_negate(camera->position)));
 	camera->constants.inv_view = mat4_inverse(camera->constants.view);
-	camera->constants.projection = mat4_perspective(camera->fov, (f32)camera->window->resolution.x / (f32)camera->window->resolution.y, camera->z_near, camera->z_far);
-	camera->constants.inv_projection = mat4_inv_perspective(camera->constants.projection);
+	camera->constants.projection = mat4_perspective(camera->fov, (f32)window_size.x / (f32)window_size.y, camera->z_near, camera->z_far);
+	camera->constants.inv_projection = mat4_inverse(camera->constants.projection);
 	camera->constants.view_projection = mat4_mul(camera->constants.projection, camera->constants.view);
 	camera->constants.camera_pos = camera->position;
-	camera->constants.window_size = { (f32)camera->window->resolution.x, (f32)camera->window->resolution.y };
-	camera->constants.time = vec2(camera->window->elasped_time, camera->window->delta_time);
+	camera->constants.window_size = { (f32)window_size.x, (f32)window_size.y };
+	camera->constants.time = vec2(et, dt);
 }
 
 

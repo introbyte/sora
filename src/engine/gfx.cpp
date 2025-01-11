@@ -27,6 +27,21 @@ gfx_pipeline_create() {
 	return result;
 }
 
+function b8
+gfx_pipeline_equals(gfx_pipeline_t a, gfx_pipeline_t b) {
+	b8 result = (
+		a.fill_mode == b.fill_mode &&
+		a.cull_mode == b.cull_mode &&
+		a.topology == b.topology &&
+		a.filter_mode == b.filter_mode &&
+		a.wrap_mode == b.wrap_mode &&
+		a.depth_mode == b.depth_mode &&
+		rect_equals(a.viewport, b.viewport) &&
+		rect_equals(a.scissor, b.scissor)
+	);
+
+	return result;
+}
 
 // helper functions
 function b8

@@ -125,10 +125,10 @@
 #define queue_pop(f, l) queue_pop_n(f, l, next)
 
 // doubly linked list
-#define dll_insert_np(f,l,p,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((p) == 0 || (p) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((p) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((p) == 0 || (p) == 0) && (((p)->next) == 0 || ((p)->next) == 0)) ? (0) : ((p)->next->prev = (n))), ((n)->next = (p)->next), ((p)->next = (n)), ((n)->prev = (p))))
-#define dll_push_back_np(f,l,n,next,prev) (((f) == 0 || (f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((l) == 0 || (l) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((l) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((l) == 0 || (l) == 0) && (((l)->next) == 0 || ((l)->next) == 0)) ? (0) : ((l)->next->prev = (n))), ((n)->next = (l)->next), ((l)->next = (n)), ((n)->prev = (l))))
-#define dll_push_front_np(f,l,n,next,prev) (((l) == 0 || (l) == 0) ? ((l) = (f) = (n), (((n)->prev) = 0), (((n)->next) = 0)) : ((f) == 0 || (f) == 0) ? ((n)->prev = (l), (l)->next = (n), (l) = (n), (((n)->next) = 0)) : ((f) == (f)) ? ((f)->prev = (n), (n)->next = (f), (f) = (n), (((n)->prev) = 0)) : (((!((f) == 0 || (f) == 0) && (((f)->prev) == 0 || ((f)->prev) == 0)) ? (0) : ((f)->prev->next = (n))), ((n)->prev = (f)->prev), ((f)->prev = (n)), ((n)->next = (f))))
-#define dll_remove_np(f,l,n,next,prev) (((n) == (f) ? (f) = (n)->next : (0)), ((n) == (l) ? (l) = (l)->prev : (0)), ((((n)->prev) == 0 || ((n)->prev) == 0) ? (0) : ((n)->prev->next = (n)->next)), ((((n)->next) == 0 || ((n)->next) == 0) ? (0) : ((n)->next->prev = (n)->prev)))
+#define dll_insert_np(f,l,p,n,next,prev) (((f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((p) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((p) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((p) == 0) && (((p)->next) == 0)) ? (0) : ((p)->next->prev = (n))), ((n)->next = (p)->next), ((p)->next = (n)), ((n)->prev = (p))))
+#define dll_push_back_np(f,l,n,next,prev) (((f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((l) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((l) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((l) == 0) && (((l)->next) == 0)) ? (0) : ((l)->next->prev = (n))), ((n)->next = (l)->next), ((l)->next = (n)), ((n)->prev = (l))))
+#define dll_push_front_np(f,l,n,next,prev) (((l) == 0) ? ((l) = (f) = (n), (((n)->prev) = 0), (((n)->next) = 0)) : ((f) == 0) ? ((n)->prev = (l), (l)->next = (n), (l) = (n), (((n)->next) = 0)) : ((f) == (f)) ? ((f)->prev = (n), (n)->next = (f), (f) = (n), (((n)->prev) = 0)) : (((!((f) == 0) && (((f)->prev) == 0)) ? (0) : ((f)->prev->next = (n))), ((n)->prev = (f)->prev), ((f)->prev = (n)), ((n)->next = (f))))
+#define dll_remove_np(f,l,n,next,prev) (((n) == (f) ? (f) = (n)->next : (0)), ((n) == (l) ? (l) = (l)->prev : (0)), ((((n)->prev) == 0) ? (0) : ((n)->prev->next = (n)->next)), ((((n)->next) == 0) ? (0) : ((n)->next->prev = (n)->prev)))
 
 #define dll_insert(f,l,p,n) dll_insert_np(f,l,p,n,next,prev)
 #define dll_push_back(f,l,n) dll_push_back_np(f,l,n,next,prev)
@@ -136,6 +136,7 @@
 #define dll_remove(f,l,n) dll_remove_np(f,l,n,next,prev)
 
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
+
 
 // typedefs
 
@@ -167,20 +168,27 @@ enum : u32 {
 	str_match_flag_keep_empties = (1 << 4),
 };
 
+enum color_blend_mode {
+	color_blend_mode_normal,
+	color_blend_mode_mul,
+	color_blend_mode_add,
+	color_blend_mode_overlay,
+};
+
 // structs
 
 // memory arena
 
 struct arena_t {
-	u32 pos;
-	u32 commit_pos;
-	u32 align;
-	u32 size;
+	u64 pos;
+	u64 commit_pos;
+	u64 align;
+	u64 size;
 };
 
 struct temp_t {
 	arena_t* arena;
-	u32 pos;
+	u64 pos;
 };
 
 // strings
@@ -470,11 +478,11 @@ global arena_t* global_scratch_arena;
 // functions
 
 // arenas
-function arena_t* arena_create(u32 size);
+function arena_t* arena_create(u64 size);
 function void arena_release(arena_t* arena);
-function void* arena_alloc(arena_t* arena, u32 size);
-function void* arena_calloc(arena_t* arena, u32 size);
-function void arena_pop_to(arena_t* arena, u32 pos);
+function void* arena_alloc(arena_t* arena, u64 size);
+function void* arena_calloc(arena_t* arena, u64 size);
+function void arena_pop_to(arena_t* arena, u64 pos);
 function void arena_clear(arena_t* arena);
 
 function temp_t temp_begin(arena_t* arena);
@@ -701,6 +709,8 @@ inlnfunc color_t color_add(color_t a, color_t b);
 inlnfunc color_t color_lerp(color_t a, color_t b, f32 t);
 inlnfunc color_t color_rgb_to_hsv(color_t rgb);
 inlnfunc color_t color_hsv_to_rgb(color_t hsv);
+function color_t color_blend(color_t a, color_t b, color_blend_mode mode = color_blend_mode_normal);
+inlnfunc u32     color_to_hex(color_t color);
 
 // misc
 function vec3_t barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c);

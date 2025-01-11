@@ -9,17 +9,11 @@
 // its going to be set, like for a pixel shader, or compute shader.
 // 
 // 
-// 
 // gfx layer todos:
 //
-// [ ] - make resources into entities to have one entity resource list.
-//     [ ] - create union gfx_entity.
-// 
-// [ ] - use handles for resources instead of raw ptrs.
-//     [ ] - create resource keys.
-//     [ ] - hash name into keys.
-//     [ ] - retrieve resource from keys.
-// [~] - resources
+// [ ] - combine 2d and 3d textures
+// [x] - make resources into entities to have one entity resource list.
+// [x] - use handles for resources instead of raw ptrs.
 //     [x] - buffers.
 //         [x] - vertex, index, and constant
 //     [x] - textures.
@@ -27,8 +21,8 @@
 //         [ ] - 3d.
 //     [x] - shaders.
 //         [x] - vertex and pixel.
-//         [~] - compute.
-//     [x] - render targets.
+//         [ ] - compute.
+//     [ ] - render targets.
 // 
 
 
@@ -210,6 +204,11 @@ struct gfx_shader_desc_t {
 	u32 attribute_count;
 };
 
+struct gfx_compute_shader_desc_t {
+	str_t name;
+	str_t filepath;
+};
+
 struct gfx_render_target_desc_t {
 	uvec2_t size;
 	u32 sample_count;
@@ -290,7 +289,6 @@ function gfx_handle_t gfx_texture_3d_create_ex(gfx_texture_3d_desc_t desc, void*
 function gfx_handle_t gfx_texture_3d_create(str_t name, uvec3_t size, gfx_texture_format format = gfx_texture_format_rgba8, void* data = nullptr);
 function void gfx_texture_3d_release(gfx_handle_t texture);
 
-
 // shaders (implemented per backend)
 function gfx_handle_t gfx_shader_create_ex(str_t, gfx_shader_desc_t);
 function gfx_handle_t gfx_shader_create(str_t, str_t, gfx_shader_attribute_t*, u32);
@@ -299,21 +297,23 @@ function void gfx_shader_release(gfx_handle_t);
 function void gfx_shader_compile(gfx_handle_t, str_t);
 
 // compute shaders (implemented per backend)
+function gfx_handle_t gfx_compute_shader_create_ex(str_t src, gfx_compute_shader_desc_t desc);
 function gfx_handle_t gfx_compute_shader_create(str_t src, str_t name);
 function gfx_handle_t gfx_compute_shader_load(str_t filepath);
 function void gfx_compute_shader_release(gfx_handle_t shader);
 function void gfx_compute_shader_compile(gfx_handle_t shader, str_t src);
 
 // render target (implemented per backend)
-function gfx_handle_t gfx_render_target_create_ex(gfx_render_target_desc_t);
-function gfx_handle_t gfx_render_target_create(gfx_texture_format, uvec2_t, u32, gfx_render_target_flags);
-function void gfx_render_target_release(gfx_handle_t);
-function void gfx_render_target_resize(gfx_handle_t, uvec2_t);
-function void gfx_render_target_clear(gfx_handle_t, color_t = color(0x000000ff), f32 = 1.0f);
-function void gfx_render_target_create_resources(gfx_handle_t);
+function gfx_handle_t gfx_render_target_create_ex(gfx_render_target_desc_t desc);
+function gfx_handle_t gfx_render_target_create(gfx_texture_format format, uvec2_t size, gfx_render_target_flags flags = 0);
+function void gfx_render_target_release(gfx_handle_t render_target);
+function void gfx_render_target_resize(gfx_handle_t render_target, uvec2_t size);
+function void gfx_render_target_clear(gfx_handle_t render_target, color_t clear_color = color(0x000000ff), f32 clear_depth = 1.0f);
+function void gfx_render_target_create_resources(gfx_handle_t render_target);
+function uvec2_t gfx_render_target_get_size(gfx_handle_t render_target);
 
 // helper functions
-function b8 gfx_texture_format_is_depth(gfx_texture_format);
+function b8 gfx_texture_format_is_depth(gfx_texture_format format);
 
 // per backend includes
 

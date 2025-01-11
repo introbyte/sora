@@ -35,8 +35,8 @@ struct camera_constants_t {
 struct camera_t {
 
 	// context
-	os_window_t* window;
-	gfx_renderer_t* renderer;
+	os_handle_t window;
+	gfx_handle_t renderer;
 
 	camera_mode mode;
 	camera_constants_t constants;
@@ -67,7 +67,7 @@ struct camera_t {
 
 // functions
 
-function camera_t* camera_create(arena_t*, gfx_renderer_t*, f32, f32, f32);
+function camera_t* camera_create(arena_t*, os_handle_t, gfx_handle_t, f32, f32, f32);
 function void camera_release(camera_t*);
 function void camera_update(camera_t*);
 

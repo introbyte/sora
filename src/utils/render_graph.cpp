@@ -33,11 +33,10 @@ render_release() {
 	
 }
 
-
 // graph
 
 function render_graph_t* 
-render_graph_create(gfx_renderer_t* renderer) {
+render_graph_create(gfx_handle_t renderer) {
 
 	// find from free stack or create one
 	render_graph_t* graph = render_state.render_graph_free;
@@ -247,17 +246,10 @@ _render_pass_output_setup(render_pass_t* pass) {
 function void
 _render_pass_output_execute(void* input_data, void* output_data) {
 	if (input_data != nullptr) {
-
+		// blit to screen
 		output_render_pass_data_t* data = (output_render_pass_data_t*)input_data;
-
-		gfx_renderer_blit(data->renderer, data->render_target->color_texture);
-
-
-
-		//if (input_data->render_target != nullptr) {
-		//	// blit in data to screen
-		//	gfx_renderer_blit(out->graph->renderer, in->render_target->color_texture);
-		//}
+		gfx_handle_t render_target_texture = gfx_render_target_get_texture(data->render_target);
+		gfx_renderer_blit(data->renderer, render_target_texture);
 	}
 }
 

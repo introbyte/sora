@@ -6,7 +6,7 @@
 // os layer todos:
 // 
 // [x] - reduce memory arenas used if possible.
-// [ ] - switch to handles for windows, threads, files, etcs.
+// [x] - switch to handles for windows, threads, files, etcs.
 // [x] - group os objects into entities.
 // [ ] - redo window update system.
 //
@@ -285,14 +285,15 @@ function void         os_window_set_cursor_pos(os_handle_t window, vec2_t pos);
 
 function uvec2_t      os_window_get_size(os_handle_t window);
 function f32          os_window_get_delta_time(os_handle_t window);
-function vec2_t os_window_get_mouse_delta(os_handle_t window);
+function f32          os_window_get_elapsed_time(os_handle_t window);
+function vec2_t       os_window_get_mouse_delta(os_handle_t window);
 
 // memory (implemented per backend)
-function u32          os_page_size();
-function void*        os_mem_reserve(u32 size);
-function void         os_mem_release(void* ptr, u32 size);
-function void         os_mem_commit(void* ptr, u32 size);
-function void         os_mem_decommit(void* ptr, u32 size);
+function u64          os_page_size();
+function void*        os_mem_reserve(u64 size);
+function void         os_mem_release(void* ptr, u64 size);
+function void         os_mem_commit(void* ptr, u64 size);
+function void         os_mem_decommit(void* ptr, u64 size);
 
 // file (implemented per backend)
 function os_handle_t  os_file_open(str_t filepath, os_file_access_flag access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);

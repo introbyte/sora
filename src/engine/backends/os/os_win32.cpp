@@ -185,7 +185,11 @@ os_get_modifiers() {
 
 function b8 
 os_key_is_down(os_key key) {
-
+	b8 down = false;
+	if (GetKeyState(key) & 0x8000) {
+		down = true;
+	}
+	return down;
 }
 
 function b8
@@ -411,6 +415,12 @@ os_window_get_delta_time(os_handle_t handle) {
 	return window->delta_time;
 }
 
+function f32
+os_window_get_elapsed_time(os_handle_t handle) {
+	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	return window->elasped_time;
+}
+
 function vec2_t 
 os_window_get_mouse_delta(os_handle_t handle) {
 	os_w32_window_t* window = os_w32_window_from_handle(handle);
@@ -419,7 +429,7 @@ os_window_get_mouse_delta(os_handle_t handle) {
 
 // memory functions
 
-function u32
+function u64
 os_page_size() {
 	SYSTEM_INFO info;
 	GetSystemInfo(&info);
@@ -427,8 +437,8 @@ os_page_size() {
 }
 
 function void*
-os_mem_reserve(u32 size) {
-	u32 size_snapped = size;
+os_mem_reserve(u64 size) {
+	u64 size_snapped = size;
 	size_snapped += gigabytes(1) - 1;
 	size_snapped -= size_snapped % gigabytes(1);
 	void* ptr = VirtualAlloc(0, size_snapped, MEM_RESERVE, PAGE_NOACCESS);
@@ -436,20 +446,20 @@ os_mem_reserve(u32 size) {
 }
 
 function void
-os_mem_release(void* ptr, u32 size) {
+os_mem_release(void* ptr, u64 size) {
 	VirtualFree(ptr, 0, MEM_RELEASE);
 }
 
 function void
-os_mem_commit(void* ptr, u32 size) {
-	u32 page_snapped = size;
+os_mem_commit(void* ptr, u64 size) {
+	u64 page_snapped = size;
 	page_snapped += os_page_size() - 1;
 	page_snapped -= page_snapped % os_page_size();
 	VirtualAlloc(ptr, page_snapped, MEM_COMMIT, PAGE_READWRITE);
 }
 
 function void
-os_mem_decommit(void* ptr, u32 size) {
+os_mem_decommit(void* ptr, u64 size) {
 	VirtualFree(ptr, size, MEM_DECOMMIT);
 }
 

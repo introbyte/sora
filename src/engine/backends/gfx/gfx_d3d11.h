@@ -48,6 +48,17 @@ struct gfx_d3d11_shader_t {
 	ID3D11InputLayout* input_layout;
 };
 
+struct gfx_d3d11_render_target_t {
+	gfx_handle_t color_texture;
+	gfx_handle_t depth_texture;
+	ID3D11RenderTargetView* rtv;
+	ID3D11DepthStencilView* dsv;
+};
+
+struct gfx_d3d11_compute_shader_t {
+	ID3D11ComputeShader* compute_shader;
+};
+
 struct gfx_d3d11_resource_t {
 	gfx_d3d11_resource_t* next;
 	gfx_d3d11_resource_t* prev;
@@ -59,6 +70,8 @@ struct gfx_d3d11_resource_t {
 		gfx_buffer_desc_t buffer_desc;
 		gfx_texture_desc_t texture_desc;
 		gfx_shader_desc_t shader_desc;
+		gfx_compute_shader_desc_t compute_shader_desc;
+		gfx_render_target_desc_t render_target_desc;
 	};
 
 	// resource members
@@ -66,6 +79,8 @@ struct gfx_d3d11_resource_t {
 		gfx_d3d11_buffer_t buffer;
 		gfx_d3d11_texture_t texture;
 		gfx_d3d11_shader_t shader;
+		gfx_d3d11_compute_shader_t compute_shader;
+		gfx_d3d11_render_target_t render_target;
 	};
 };
 
@@ -79,34 +94,6 @@ struct gfx_texture_3d_t {
 	ID3D11Texture3D* id;
 	ID3D11ShaderResourceView* srv;
 	ID3D11UnorderedAccessView* uav;
-};
-
-
-// compute shader
-struct gfx_compute_shader_t {
-	gfx_compute_shader_t* next;
-	gfx_compute_shader_t* prev;
-
-	str_t name;
-	str_t filepath;
-	u32 last_modified;
-	ID3D11ComputeShader* compute_shader;
-};
-
-// render target
-
-struct gfx_render_target_t {
-	gfx_render_target_t* next;
-	gfx_render_target_t* prev;
-
-	uvec2_t size;
-	u32 sample_count;
-	gfx_render_target_flags flags;
-	gfx_handle_t color_texture;
-	gfx_handle_t depth_texture;
-	gfx_texture_format format;
-	ID3D11RenderTargetView* rtv;
-	ID3D11DepthStencilView* dsv;
 };
 
 // renderer

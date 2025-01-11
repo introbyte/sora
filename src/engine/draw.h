@@ -3,13 +3,11 @@
 #ifndef DRAW_H
 #define DRAW_H
 
-// todo:
+// draw layer todos:
 //
 // [x] - combine all textures to an array and package index in instance data.
 //       this keeps our one draw call feature.
-// [ ] - 
-//
-//
+// [ ] - add fancy text.
 //
 //
 

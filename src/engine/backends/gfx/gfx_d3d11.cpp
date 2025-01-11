@@ -549,23 +549,61 @@ gfx_set_shader(gfx_handle_t shader) {
 
 function void 
 gfx_set_compute_shader(gfx_handle_t shader) {
-	/*if (shader != nullptr) {
-		gfx_state.device_context->CSSetShader(shader->compute_shader, 0, 0);
+
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(shader.data[0]);
+
+	if (!gfx_handle_equals(shader, { 0 })) {
+		gfx_state.device_context->CSSetShader(resource->compute_shader.compute_shader, 0, 0);
 	} else {
 		gfx_state.device_context->CSSetShader(nullptr, 0, 0);
-	}*/
+	}
 }
 
 function void
 gfx_set_render_target(gfx_handle_t render_target) {
-	/*if (render_target == nullptr) {
+
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+
+	if (gfx_handle_equals(render_target, { 0 })) {
 		gfx_state.device_context->OMSetRenderTargets(0, nullptr, nullptr);
 	} else {
-		if (render_target->rtv != nullptr) {
-			gfx_state.device_context->OMSetRenderTargets(1, &render_target->rtv, render_target->dsv);
+		if (resource->render_target.rtv != nullptr) {
+			gfx_state.device_context->OMSetRenderTargets(1, &resource->render_target.rtv, resource->render_target.dsv);
 		}
-	}*/
+	}
 }
+
+
+function void 
+gfx_blit(gfx_handle_t dst, gfx_handle_t src) {
+
+	gfx_handle_t texture_dst = { 0 };
+	gfx_handle_t texture_src = { 0 };
+
+	// figure out dst resource
+	gfx_d3d11_resource_t* resource_dst = (gfx_d3d11_resource_t*)(dst.data[0]);
+	switch (resource_dst->type) {
+		case gfx_d3d11_resource_type_texture: { texture_dst = dst; break; }
+		case gfx_d3d11_resource_type_render_target: {
+			texture_dst = resource_dst->render_target.color_texture;
+			break;
+		}
+	}
+	
+	// figure out src resource
+	gfx_d3d11_resource_t* resource_src = (gfx_d3d11_resource_t*)(src.data[0]);
+	switch (resource_src->type) {
+		case gfx_d3d11_resource_type_texture: { texture_src = src; break; }
+		case gfx_d3d11_resource_type_render_target: {
+			texture_src = resource_src->render_target.color_texture;
+			break;
+		}
+	}
+
+	gfx_texture_blit(texture_dst, texture_src);
+
+}
+
 
 // renderer
 
@@ -987,6 +1025,8 @@ gfx_texture_blit(gfx_handle_t texture_dst, gfx_handle_t texture_src) {
 }
 
 
+
+
 // 3d texture
 
 //function gfx_texture_3d_t* 
@@ -1273,273 +1313,314 @@ shader_build_cleanup:
 
 // compute shader
 
-//function gfx_compute_shader_t*
-//gfx_compute_shader_create(str_t src, str_t name) {
-//
-//	// get from resource pool or create
-//	gfx_compute_shader_t* shader = gfx_state.compute_shader_free;
-//	if (shader != nullptr) {
-//		stack_pop(gfx_state.compute_shader_free);
-//	} else {
-//		shader = (gfx_compute_shader_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_compute_shader_t));
-//	}
-//	memset(shader, 0, sizeof(gfx_compute_shader_t));
-//	dll_push_back(gfx_state.compute_shader_first, gfx_state.compute_shader_last, shader);
-//
-//	shader->name = name;
-//
-//	// compile shader
-//	gfx_compute_shader_compile(shader, src);
-//
-//	return shader;
-//}
-//
-//function gfx_compute_shader_t*
-//gfx_compute_shader_load(str_t filepath) {
-//
-//	// load src from file
-//	str_t src = os_file_read_all(gfx_state.scratch_arena, filepath);
-//
-//	// get name
-//	str_t name = str_get_file_name(filepath);
-//
-//	// create and return shader
-//	gfx_compute_shader_t* shader = gfx_compute_shader_create(src, name);
-//	shader->filepath = filepath;
-//
-//	// get last modified time
-//	os_file_info_t file_info = os_file_get_info(filepath);
-//	shader->last_modified = file_info.last_modified;
-//
-//	return shader;
-//}
-//
-//function void
-//gfx_compute_shader_release(gfx_compute_shader_t* shader) {
-//
-//	// release d3d11
-//	if (shader->compute_shader != nullptr) { shader->compute_shader->Release(); shader->compute_shader = nullptr; }
-//
-//	// push to free stack
-//	dll_remove(gfx_state.compute_shader_first, gfx_state.compute_shader_last, shader);
-//	stack_push(gfx_state.compute_shader_free, shader);
-//
-//	shader = nullptr;
-//}
-//
-//function void
-//gfx_compute_shader_compile(gfx_compute_shader_t* shader, str_t src) {
-//
-//	HRESULT hr;
-//	b8 success = false;
-//	ID3DBlob* cs_blob = nullptr;
-//	ID3DBlob* cs_error_blob = nullptr;
-//	ID3D11ComputeShader* compute_shader = nullptr;
-//
-//	u32 compile_flags = 0;
-//
-//#if defined(BUILD_DEBUG)
-//	compile_flags |= D3DCOMPILE_DEBUG;
-//#endif 
-//
-//	if (src.size == 0) {
-//		goto shader_build_cleanup;
-//	}
-//
-//	// compile vertex shader
-//	hr = D3DCompile(src.data, src.size, (char*)shader->name.data, 0, 0, "cs_main", "cs_5_0", compile_flags, 0, &cs_blob, &cs_error_blob);
-//
-//	if (cs_error_blob) {
-//		cstr error_msg = (cstr)cs_error_blob->GetBufferPointer();
-//		printf("[error] failed to compile compute shader:\n\n%s\n", error_msg);
-//		goto shader_build_cleanup;
-//	}
-//	hr = gfx_state.device->CreateComputeShader(cs_blob->GetBufferPointer(), cs_blob->GetBufferSize(), nullptr, &compute_shader);
-//
-//	if (hr == S_OK) {
-//
-//		// release old shader if needed
-//		if (shader->compute_shader != nullptr) { shader->compute_shader->Release(); }
-//
-//		// set new shaders
-//		shader->compute_shader = compute_shader;
-//
-//		success = true;
-//
-//		printf("[info] successfully created compute shader: '%.*s'\n", shader->name.size, shader->name.data);
-//	}
-//
-//shader_build_cleanup:
-//
-//	if (cs_blob != nullptr) { cs_blob->Release(); }
-//	if (cs_error_blob != nullptr) { cs_error_blob->Release(); }
-//
-//	if (!success) {
-//		if (compute_shader != nullptr) { compute_shader->Release(); }
-//	}
-//
-//}
+function gfx_handle_t
+gfx_compute_shader_create_ex(str_t src, gfx_compute_shader_desc_t desc) {
+
+	// get from resource pool or create
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_compute_shader);
+
+	// fill description
+	resource->compute_shader_desc = desc;
+
+	// create handle
+	gfx_handle_t handle = { (u64)resource };
+
+	// compile shader
+	gfx_compute_shader_compile(handle, src);
+
+	return handle;
+}
+
+function gfx_handle_t
+gfx_compute_shader_create(str_t src, str_t name) {
+
+	// fill description
+	gfx_compute_shader_desc_t desc = { 0 };
+	desc.name = name;
+	desc.filepath = str("");
+
+	// create and return shader
+	gfx_handle_t shader = gfx_compute_shader_create_ex(src, desc);
+
+	return shader;
+}
+
+
+function gfx_handle_t
+gfx_compute_shader_load(str_t filepath) {
+
+	temp_t scratch = scratch_begin();
+
+	// load src from file
+	str_t src = os_file_read_all(scratch.arena, filepath);
+
+	// get name
+	str_t name = str_get_file_name(filepath);
+
+	// fill description
+	gfx_compute_shader_desc_t desc = { 0 };
+	desc.name = name;
+	desc.filepath = filepath;
+
+	// create and return shader
+	gfx_handle_t shader = gfx_compute_shader_create_ex(src, desc);
+
+	scratch_end(scratch);
+
+	return shader;
+}
+
+function void
+gfx_compute_shader_release(gfx_handle_t shader) {
+
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(shader.data[0]);
+
+	// release d3d11
+	if (resource->compute_shader.compute_shader != nullptr) { resource->compute_shader.compute_shader->Release(); resource->compute_shader.compute_shader = nullptr; }
+
+	// release resource
+	gfx_d3d11_resource_release(resource);
+
+}
+
+function void
+gfx_compute_shader_compile(gfx_handle_t shader, str_t src) {
+
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(shader.data[0]);
+
+	HRESULT hr;
+	b8 success = false;
+	ID3DBlob* cs_blob = nullptr;
+	ID3DBlob* cs_error_blob = nullptr;
+	ID3D11ComputeShader* compute_shader = nullptr;
+
+	u32 compile_flags = 0;
+
+#if defined(BUILD_DEBUG)
+	compile_flags |= D3DCOMPILE_DEBUG;
+#endif 
+
+	if (src.size == 0) {
+		goto shader_build_cleanup;
+	}
+
+	// compile vertex shader
+	hr = D3DCompile(src.data, src.size, (char*)resource->compute_shader_desc.name.data, 0, 0, "cs_main", "cs_5_0", compile_flags, 0, &cs_blob, &cs_error_blob);
+
+	if (cs_error_blob) {
+		cstr error_msg = (cstr)cs_error_blob->GetBufferPointer();
+		printf("[error] failed to compile compute shader:\n\n%s\n", error_msg);
+		goto shader_build_cleanup;
+	}
+	hr = gfx_state.device->CreateComputeShader(cs_blob->GetBufferPointer(), cs_blob->GetBufferSize(), nullptr, &compute_shader);
+
+	if (hr == S_OK) {
+
+		// release old shader if needed
+		if (resource->compute_shader.compute_shader != nullptr) { resource->compute_shader.compute_shader->Release(); }
+
+		// set new shaders
+		resource->compute_shader.compute_shader = compute_shader;
+
+		success = true;
+
+		printf("[info] successfully created compute shader: '%.*s'\n", resource->compute_shader_desc.name.size, resource->compute_shader_desc.name.data);
+	}
+
+shader_build_cleanup:
+
+	if (cs_blob != nullptr) { cs_blob->Release(); }
+	if (cs_error_blob != nullptr) { cs_error_blob->Release(); }
+
+	if (!success) {
+		if (compute_shader != nullptr) { compute_shader->Release(); }
+	}
+
+}
 
 
 
 
 // render target
 
-//function gfx_render_target_t* 
-//gfx_render_target_create_ex(gfx_render_target_desc_t desc) {
-//
-//	// get from resource pool or create one
-//	gfx_render_target_t* render_target = gfx_state.render_target_free;
-//	if (render_target != nullptr) {
-//		stack_pop(gfx_state.render_target_free);
-//	} else {
-//		render_target = (gfx_render_target_t*)arena_alloc(gfx_state.resource_arena, sizeof(gfx_render_target_t));
-//	}
-//	memset(render_target, 0, sizeof(gfx_render_target_t));
-//	dll_push_back(gfx_state.render_target_first, gfx_state.render_target_last, render_target);
-//
-//	render_target->format = desc.format;
-//	render_target->size = desc.size;
-//	render_target->sample_count = desc.sample_count;
-//	render_target->flags = desc.flags;
-//
-//	gfx_render_target_create_resources(render_target);
-//
-//	return render_target;
-//
-//}
-//
-//function gfx_render_target_t* 
-//gfx_render_target_create(gfx_texture_format format, uvec2_t size, gfx_render_target_flags flags = 0 ) {
-//
-//	gfx_render_target_desc_t desc = { 0 };
-//	desc.format = format;
-//	desc.size = size;
-//	desc.sample_count = 1;
-//	desc.flags = flags;
-//
-//	gfx_render_target_t* render_target = gfx_render_target_create_ex(desc);
-//
-//	return render_target;
-//}
-//
-//function void
-//gfx_render_target_release(gfx_render_target_t* render_target) {
-//
-//	//  release assets
-//	if (render_target->color_texture != nullptr) { gfx_texture_release(render_target->color_texture); render_target->color_texture = nullptr; }
-//	if (render_target->depth_texture != nullptr) { gfx_texture_release(render_target->depth_texture); render_target->depth_texture = nullptr; }
-//	if (render_target->rtv != nullptr) { render_target->dsv->Release(); render_target->rtv = nullptr; }
-//	if (render_target->dsv != nullptr) { render_target->dsv->Release(); render_target->dsv = nullptr; }
-//
-//	// push to free stack
-//	dll_remove(gfx_state.render_target_first, gfx_state.render_target_last , render_target);
-//	stack_push(gfx_state.render_target_free, render_target);
-//
-//	render_target = nullptr;
-//}
-//
-//function void 
-//gfx_render_target_resize(gfx_render_target_t* render_target, uvec2_t size) {
-//	if (size.x > 0 && size.y > 0) {
-//		render_target->size = size;
-//		gfx_render_target_create_resources(render_target);
-//	}
-//}
-//
-//function void
-//gfx_render_target_clear(gfx_render_target_t* render_target, color_t clear_color, f32 depth) {
-//	FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
-//	gfx_state.device_context->ClearRenderTargetView(render_target->rtv, clear_color_array);
-//
-//	if (render_target->dsv != nullptr) {
-//		gfx_state.device_context->ClearDepthStencilView(render_target->dsv, D3D11_CLEAR_DEPTH, depth, 0);
-//	}
-//}
-//
-//function void 
-//gfx_render_target_create_resources(gfx_render_target_t* render_target) {
-//
-//	// release current if exist
-//	if (render_target->color_texture != nullptr) {
-//		gfx_texture_release(render_target->color_texture);
-//	}
-//
-//	// create new texture
-//	gfx_texture_desc_t texture_desc = { 0 };
-//	texture_desc.name = str("");
-//	texture_desc.size = render_target->size;
-//	texture_desc.format = render_target->format;
-//	texture_desc.type = gfx_texture_type_2d;
-//	texture_desc.sample_count = render_target->sample_count;
-//	texture_desc.usage = gfx_usage_dynamic;
-//	texture_desc.render_target = true;
-//
-//	render_target->color_texture = gfx_texture_create_ex(texture_desc);
-//	
-//	// create rtv
-//	HRESULT hr = 0;
-//
-//	// release old rtv if needed
-//	if (render_target->rtv != nullptr) {
-//		render_target->rtv->Release();
-//	}
-//
-//	// create new rtv
-//	D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = { 0 };
-//	rtv_desc.Format = gfx_d3d11_dxgi_format_from_texture_format(render_target->format);
-//	if (render_target->sample_count > 1) {
-//		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
-//	} else {
-//		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-//		rtv_desc.Texture2D.MipSlice = 0;
-//	}
-//
-//	hr = gfx_state.device->CreateRenderTargetView(render_target->color_texture->id, &rtv_desc, &render_target->rtv);
-//	gfx_check_error(hr, "failed to create the color rtv for render target.");
-//
-//	// if has depth target
-//	if (render_target->flags & gfx_render_target_flag_depth) {
-//
-//		// release current if exist
-//		if (render_target->depth_texture != nullptr) {
-//			gfx_texture_release(render_target->depth_texture);
-//		}
-//
-//		// create new texture
-//		gfx_texture_desc_t texture_desc = { 0 };
-//		texture_desc.name = str("");
-//		texture_desc.size = render_target->size;
-//		texture_desc.format = gfx_texture_format_d32;
-//		texture_desc.type = gfx_texture_type_2d;
-//		texture_desc.sample_count = render_target->sample_count;
-//		texture_desc.usage = gfx_usage_dynamic;
-//		texture_desc.render_target = true;
-//
-//		render_target->depth_texture = gfx_texture_create_ex(texture_desc);
-//
-//
-//		// release old dsv if needed
-//		if (render_target->dsv != nullptr) {
-//			render_target->dsv->Release();
-//		}
-//
-//		// create new dsv
-//		D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = { 0 };
-//		dsv_desc.Format = gfx_d3d11_dsv_format_from_texture_format(render_target->format);
-//		if (render_target->sample_count > 1) {
-//			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
-//		} else {
-//			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-//			dsv_desc.Texture2D.MipSlice = 0;
-//		}
-//		hr = gfx_state.device->CreateDepthStencilView(render_target->depth_texture->id, &dsv_desc, &render_target->dsv);
-//		gfx_check_error(hr, "failed to create the depth dsv for render target.");
-//
-//	} 
-//
-//}
+function gfx_handle_t 
+gfx_render_target_create_ex(gfx_render_target_desc_t desc) {
 
+	// get a resource and fill desc
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_render_target);
+	resource->render_target_desc = desc;
+	
+	// create handle
+	gfx_handle_t handle = { (u64)resource };
+
+	// internal allocate resources
+	gfx_render_target_create_resources(handle);
+
+	return handle;
+
+}
+
+function gfx_handle_t 
+gfx_render_target_create(gfx_texture_format format, uvec2_t size, gfx_render_target_flags flags) {
+
+	gfx_render_target_desc_t desc = { 0 };
+	desc.format = format;
+	desc.size = size;
+	desc.sample_count = 1;
+	desc.flags = flags;
+
+	gfx_handle_t handle = gfx_render_target_create_ex(desc);
+
+	return handle;
+}
+
+function void
+gfx_render_target_release(gfx_handle_t render_target) {
+
+	// get resource
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+
+	//  release d3d11 assets
+	if (!gfx_handle_equals(resource->render_target.color_texture, { 0 })) { gfx_texture_release(resource->render_target.color_texture); resource->render_target.color_texture = { 0 }; }
+	if (gfx_handle_equals(resource->render_target.depth_texture, {0})) { gfx_texture_release(resource->render_target.depth_texture); resource->render_target.depth_texture = { 0 }; }
+	if (resource->render_target.rtv != nullptr) { resource->render_target.dsv->Release(); resource->render_target.rtv = nullptr; }
+	if (resource->render_target.dsv != nullptr) { resource->render_target.dsv->Release(); resource->render_target.dsv = nullptr; }
+
+	// release resource
+	gfx_d3d11_resource_release(resource);
+	
+}
+
+function void 
+gfx_render_target_resize(gfx_handle_t render_target, uvec2_t size) {
+
+	// resize if needed
+	if (size.x > 0 && size.y > 0) {
+		gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+		resource->render_target_desc.size = size;
+		gfx_render_target_create_resources(render_target);
+	}
+}
+
+function void
+gfx_render_target_clear(gfx_handle_t render_target, color_t clear_color, f32 depth) {
+
+	// get resource
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+
+	// clear colorbuffer
+	if (resource->render_target.rtv != nullptr) {
+		FLOAT clear_color_array[] = { clear_color.r, clear_color.g, clear_color.b, clear_color.a };
+		gfx_state.device_context->ClearRenderTargetView(resource->render_target.rtv, clear_color_array);
+	}
+
+	// clear depthbuffer
+	if (resource->render_target.dsv != nullptr) {
+		gfx_state.device_context->ClearDepthStencilView(resource->render_target.dsv, D3D11_CLEAR_DEPTH, depth, 0);
+	}
+
+}
+
+function void 
+gfx_render_target_create_resources(gfx_handle_t render_target) {
+
+	// get resource
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+
+	// release current if exist
+	if (!gfx_handle_equals(resource->render_target.color_texture, {0})) {
+		gfx_texture_release(resource->render_target.color_texture);
+	}
+
+	// create new texture
+	gfx_texture_desc_t texture_desc = { 0 };
+	texture_desc.name = str("");
+	texture_desc.size = resource->render_target_desc.size;
+	texture_desc.format = resource->render_target_desc.format;
+	texture_desc.type = gfx_texture_type_2d;
+	texture_desc.sample_count = resource->render_target_desc.sample_count;
+	texture_desc.usage = gfx_usage_dynamic;
+	texture_desc.render_target = true;
+
+	resource->render_target.color_texture = gfx_texture_create_ex(texture_desc);
+	
+	// create rtv
+	HRESULT hr = 0;
+
+	// release old rtv if needed
+	if (resource->render_target.rtv != nullptr) {
+		resource->render_target.rtv->Release();
+	}
+
+	// create new rtv
+	D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = { 0 };
+	rtv_desc.Format = gfx_d3d11_dxgi_format_from_texture_format(resource->render_target_desc.format);
+	if (resource->render_target_desc.sample_count > 1) {
+		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
+	} else {
+		rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+		rtv_desc.Texture2D.MipSlice = 0;
+	}
+
+	// get texture resource
+	gfx_d3d11_resource_t* texture_resource = (gfx_d3d11_resource_t*)(resource->render_target.color_texture.data[0]);
+	hr = gfx_state.device->CreateRenderTargetView(texture_resource->texture.id, &rtv_desc, &resource->render_target.rtv);
+	gfx_check_error(hr, "failed to create the color rtv for render target.");
+
+	// if has depth target
+	if (resource->render_target_desc.flags & gfx_render_target_flag_depth) {
+
+		// release current if exist
+		if (!gfx_handle_equals(resource->render_target.depth_texture, {0})) {
+			gfx_texture_release(resource->render_target.depth_texture);
+		}
+
+		// create new texture
+		gfx_texture_desc_t texture_desc = { 0 };
+		texture_desc.name = str("");
+		texture_desc.size = resource->render_target_desc.size;
+		texture_desc.format = gfx_texture_format_d32;
+		texture_desc.type = gfx_texture_type_2d;
+		texture_desc.sample_count = resource->render_target_desc.sample_count;
+		texture_desc.usage = gfx_usage_dynamic;
+		texture_desc.render_target = true;
+
+		resource->render_target.depth_texture = gfx_texture_create_ex(texture_desc);
+
+		// release old dsv if needed
+		if (resource->render_target.dsv != nullptr) {
+			resource->render_target.dsv->Release();
+		}
+
+		// create new dsv
+		D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = { 0 };
+		dsv_desc.Format = gfx_d3d11_dsv_format_from_texture_format(resource->render_target_desc.format);
+		if (resource->render_target_desc.sample_count > 1) {
+			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+		} else {
+			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+			dsv_desc.Texture2D.MipSlice = 0;
+		}
+
+		gfx_d3d11_resource_t* texture_resource = (gfx_d3d11_resource_t*)(resource->render_target.depth_texture.data[0]);
+		hr = gfx_state.device->CreateDepthStencilView(texture_resource->texture.id, &dsv_desc, &resource->render_target.dsv);
+		gfx_check_error(hr, "failed to create the depth dsv for render target.");
+
+	} 
+
+}
+
+function uvec2_t 
+gfx_render_target_get_size(gfx_handle_t render_target) {
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+	return resource->render_target_desc.size;
+}
+
+function gfx_handle_t
+gfx_render_target_get_texture(gfx_handle_t render_target) {
+	gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(render_target.data[0]);
+	return resource->render_target.color_texture;
+}
 
 // d3d11 specific function
 

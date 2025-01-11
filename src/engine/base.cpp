@@ -10,12 +10,12 @@ i32 app_entry_point(i32 argc, char** argv);
 
 #if defined(BUILD_DEBUG)
 int main(int argc, char** argv) {
-	global_scratch_arena = arena_create(megabytes(64));
+	global_scratch_arena = arena_create(gigabytes(2));
 	return app_entry_point(argc, argv);
 }
 #elif defined(BUILD_RELEASE)
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
-	global_scratch_arena = arena_create(megabytes(64));
+	global_scratch_arena = arena_create(gigabytes(2));
 	return app_entry_point(__argc, __argv);
 }
 #endif
@@ -23,10 +23,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 // arenas
 
 function arena_t*
-arena_create(u32 size) {
+arena_create(u64 size) {
 
 	// roundup
-	u32 size_roundup = megabytes(64);
+	u64 size_roundup = megabytes(64);
 	size += size_roundup - 1;
 	size -= size % size_roundup;
 
@@ -53,7 +53,12 @@ arena_release(arena_t* arena) {
 }
 
 function void*
-arena_alloc(arena_t* arena, u32 size) {
+arena_alloc(arena_t* arena, u64 size) {
+
+	if (arena == nullptr) {
+		printf("[error] arena was not initialized!\n");
+		os_abort(1);
+	}
 
 	void* result = nullptr;
 
@@ -62,15 +67,15 @@ arena_alloc(arena_t* arena, u32 size) {
 		u8* base = (u8*)arena;
 
 		// align
-		u32 post_align_pos = (arena->pos + (arena->align - 1));
+		u64 post_align_pos = (arena->pos + (arena->align - 1));
 		post_align_pos -= post_align_pos % arena->align;
-		u32 align = post_align_pos - arena->pos;
+		u64 align = post_align_pos - arena->pos;
 		result = base + arena->pos + align;
 		arena->pos += size + align;
 
 		// commit
 		if (arena->commit_pos < arena->pos) {
-			u32 size_to_commit = arena->pos - arena->commit_pos;
+			u64 size_to_commit = arena->pos - arena->commit_pos;
 			size_to_commit += arena_commit_size - 1;
 			size_to_commit -= size_to_commit % arena_commit_size;
 			os_mem_commit(base + arena->commit_pos, size_to_commit);
@@ -85,22 +90,22 @@ arena_alloc(arena_t* arena, u32 size) {
 }
 
 function void*
-arena_calloc(arena_t* arena, u32 size) {
+arena_calloc(arena_t* arena, u64 size) {
 	void* result = arena_alloc(arena, size);
 	memset(result, 0, size);
 	return result;
 }
 
 function void
-arena_pop_to(arena_t* arena, u32 pos) {
+arena_pop_to(arena_t* arena, u64 pos) {
 
 	// find pos
-	u32 min_pos = sizeof(arena);
-	u32 new_pos = max(min_pos, pos);
+	u64 min_pos = sizeof(arena);
+	u64 new_pos = max(min_pos, pos);
 	arena->pos = new_pos;
 
 	// align
-	u32 pos_aligned_to_commit_chunks = arena->pos + arena_commit_size - 1;
+	u64 pos_aligned_to_commit_chunks = arena->pos + arena_commit_size - 1;
 	pos_aligned_to_commit_chunks -= pos_aligned_to_commit_chunks % arena_commit_size;
 
 	// decommit
@@ -120,7 +125,7 @@ arena_clear(arena_t* arena) {
 
 function temp_t 
 temp_begin(arena_t* arena) {
-	u32 pos = arena->pos;
+	u64 pos = arena->pos;
 	temp_t temp = { arena, pos };
 	return temp;
 }
@@ -509,6 +514,13 @@ str_format(arena_t* arena, char* fmt, ...) {
 	return result;
 }
 
+function void
+str_scan(str_t string, char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	vsscanf((char*)string.data, fmt, args);
+	va_end(args);
+}
 
 // str list
 
@@ -1956,6 +1968,24 @@ rect_center(rect_t r) {
 }
 
 inlnfunc rect_t
+rect_center(rect_t a, rect_t b) {
+	f32 a_width = a.x1 - a.x0;
+	f32 a_height = a.y1 - a.y0;
+	f32 b_width = b.x1 - b.x0;
+	f32 b_height = b.y1 - b.y0;
+
+	f32 a_center_x = a.x0 + a_width / 2.0f;
+	f32 a_center_y = a.y0 + a_height / 2.0f;
+
+	b.x0 = a_center_x - b_width / 2.0f;
+	b.y0 = a_center_y - b_height / 2.0f;
+	b.x1 = b.x0 + b_width;
+	b.y1 = b.y0 + b_height;
+
+	return b;
+}
+
+inlnfunc rect_t
 rect_grow(rect_t r, f32 a) {
 	return { r.x0 - a, r.y0 - a, r.x1 + a, r.y1 + a };
 }
@@ -2123,6 +2153,65 @@ color_hsv_to_rgb(color_t hsv) {
 	rgb_color.a = hsv.a;
 
 	return rgb_color;
+}
+
+function color_t 
+color_blend(color_t src, color_t dst, color_blend_mode mode) {
+	color_t result;
+
+	switch (mode) {
+		case color_blend_mode_normal: {
+			
+			if (src.a == 0.0f) {
+				result = dst;
+			} else {
+				result.r = src.r * (1.0f - dst.a) + dst.r * dst.a;
+				result.g = src.g * (1.0f - dst.a) + dst.g * dst.a;
+				result.b = src.b * (1.0f - dst.a) + dst.b * dst.a;
+				result.a = src.a * (1.0f - dst.a) + dst.a;
+			}
+			break;
+		}
+
+		case color_blend_mode_mul: {
+		/*	result.r = b.r * f.r;
+			result.g = b.g * f.g;
+			result.b = b.b * f.b;
+			result.a = b.a * f.a;*/
+			break;
+		}
+
+		case color_blend_mode_add: {
+			/*result.r = b.r + f.r;
+			result.g = b.g + f.g;
+			result.b = b.b + f.b;
+			result.a = b.a + f.a;*/
+			break;
+		}
+
+		case color_blend_mode_overlay: {
+			/*result.r = (b.r < 0.5f) ? (2.0f * b.r * f.r) : (1.0f - 2.0f * (1.0f - b.r) * (1.0f - f.r));
+			result.g = (b.g < 0.5f) ? (2.0f * b.g * f.g) : (1.0f - 2.0f * (1.0f - b.g) * (1.0f - f.g));
+			result.b = (b.b < 0.5f) ? (2.0f * b.b * f.b) : (1.0f - 2.0f * (1.0f - b.b) * (1.0f - f.b));
+			result.a = b.a * (1.0f - f.a) + f.a;*/
+			break;
+		}
+
+
+	}
+
+	return result;
+
+}
+
+inlnfunc u32 
+color_to_hex(color_t color) {
+	u32 hex = 0;
+	hex |= ((u32)(color.r * 255.0f) & 0xFF) << 24;
+	hex |= ((u32)(color.g * 255.0f) & 0xFF) << 16;
+	hex |= ((u32)(color.b * 255.0f) & 0xFF) << 8;
+	hex |= ((u32)(color.a * 255.0f) & 0xFF);
+	return hex;
 }
 
 // misc functions

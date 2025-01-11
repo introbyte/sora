@@ -77,7 +77,7 @@ struct render_graph_t {
 	arena_t* pass_arena;
 	arena_t* list_arena;
 
-	gfx_renderer_t* renderer;
+	gfx_handle_t renderer;
 	
 	// pass list (containes all passes)
 	render_pass_t* pass_first;
@@ -111,11 +111,9 @@ struct render_state_t {
 // output render pass data
 
 struct output_render_pass_data_t {
-	gfx_renderer_t* renderer;
-	gfx_render_target_t* render_target;
+	gfx_handle_t renderer;
+	gfx_handle_t render_target;
 };
-
-
 
 // global
 
@@ -128,7 +126,7 @@ function void render_init();
 function void render_release();
 
 // graph
-function render_graph_t* render_graph_create(gfx_renderer_t* renderer);
+function render_graph_t* render_graph_create(gfx_handle_t renderer);
 function void render_graph_release(render_graph_t* graph);
 
 function render_pass_t* render_graph_add_pass(render_graph_t* graph, render_pass_desc_t desc);

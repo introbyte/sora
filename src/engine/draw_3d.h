@@ -4,54 +4,35 @@
 #define DRAW_3D_H
 
 #define draw_3d_max_buffer_size (2<<15)
-
+#define draw_3d_max_constant_buffers 8
 // structs
 
-struct draw_3d_constants_t {
-
-
-};
-
-struct vertex_t {
-	vec3_t pos;
-	vec3_t normal;
-	vec3_t tangent;
-	vec3_t bitangent;
-	vec2_t uv;
-	vec4_t color;
-};
-
-struct mesh_t {
-	vertex_t* vertices;
-	u32 vertex_count;
+struct draw_3d_batch_state_t {
+	gfx_pipeline_t pipeline;
+	gfx_handle_t shader;
+	gfx_handle_t texture;
 };
 
 struct draw_3d_batch_t {
 	draw_3d_batch_t* next;
 	draw_3d_batch_t* prev;
 
-	gfx_pipeline_t pipeline;
-	gfx_shader_t* shader;
-	gfx_texture_t* textures;
-	u32 texture_count;
+	draw_3d_batch_state_t state;
 
-	vertex_t* vertices;
+	void* vertices;
 	u32 vertex_count;
+	u32 vertex_size;
 };
 
 struct draw_3d_state_t {
 
-	arena_t* scratch_arena;
+	arena_t* arena;
 
-	gfx_buffer_t* vertex_buffer;
-	gfx_buffer_t* constant_buffer;
-	draw_3d_constants_t constants;
-
-	// mesh
-	arena_t* mesh_arena;
+	// buffers
+	gfx_handle_t vertex_buffer;
+	gfx_handle_t constant_buffers[draw_3d_max_constant_buffers];
 
 	// batches
-	arena_t* batch_arena;
 	draw_3d_batch_t* batch_first;
 	draw_3d_batch_t* batch_last;
 
@@ -68,14 +49,12 @@ function void draw_3d_release();
 function void draw_3d_begin();
 function void draw_3d_end();
 
-function void draw_push_mesh(mesh_t* mesh, mat4_t transform);
+function draw_3d_batch_t* draw_3d_find_batch(draw_3d_batch_state_t state, u32 vertex_size, u32 vertex_count);
 
-// mesh
-function mesh_t mesh_create(str_t name, u32 vertex_count);
-function mesh_t* mesh_load(str_t filepath);
-function void mesh_release(mesh_t* mesh);
-function void mesh_calculate_normals(mesh_t* mesh);
-function void mesh_calculate_binormals(mesh_t* mesh);
+function void draw_3d_set_constants(void* data, u32 size, u32 slot = 0);
+
+function void draw_push_mesh(void* data, u32 vertex_size, u32 vertex_count);
+
 
 
 #endif // DRAW_3D_H
