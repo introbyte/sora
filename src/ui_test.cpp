@@ -89,11 +89,6 @@ function void node_bring_to_front(node_t* node);
 function connection_t* connection_create(node_t* from, node_t* to);
 function void connection_release(connection_t* connection);
 
-// ui 
-function void ui_widget_showcase_panel();
-function void ui_debug_panel();
-function void ui_node_graph_panel();
-
 // ui custom draw
 function void node_background_draw_function(ui_frame_t* frame);
 function void connection_draw_function(ui_frame_t* frame);
@@ -203,8 +198,10 @@ connection_release(connection_t* connection) {
 
 // ui
 
-function void 
-ui_widget_showcase_panel() {
+function void
+widget_view(ui_view_t* view) {
+
+	ui_padding_begin(8.0f);
 
 	ui_push_pref_width(ui_size_percent(1.0f));
 	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
@@ -230,7 +227,7 @@ ui_widget_showcase_panel() {
 
 	// buttons
 	persist b8 buttons_expanded = false;
-	ui_expander(str("Buttons"), &buttons_expanded);	
+	ui_expander(str("Buttons"), &buttons_expanded);
 	if (buttons_expanded) {
 		ui_spacer();
 		ui_set_next_text_alignment(ui_text_alignment_left);
@@ -342,7 +339,7 @@ ui_widget_showcase_panel() {
 
 	}
 	ui_spacer();
-	
+
 	// expander
 	persist b8 color_pickers_expanded = false;
 	ui_expander(str("Color Pickers"), &color_pickers_expanded);
@@ -378,10 +375,13 @@ ui_widget_showcase_panel() {
 	ui_pop_pref_width();
 	ui_pop_pref_height();
 
+	ui_padding_end();
 }
 
 function void
-ui_debug_panel() {
+debug_view(ui_view_t* view) {
+
+	ui_padding_begin(8.0f);
 
 	ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
 
@@ -423,10 +423,12 @@ ui_debug_panel() {
 	}
 
 	ui_pop_pref_size();
+
+	ui_padding_end();
 }
 
 function void
-ui_node_graph_panel() {
+node_graph_view(ui_view_t* view) {
 
 	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
 	ui_frame_t* background_frame = ui_frame_from_string(str("node_background_frame"), ui_frame_flag_clickable | ui_frame_flag_draw_custom | ui_frame_flag_clip);
@@ -587,6 +589,15 @@ ui_node_graph_panel() {
 
 }
 
+function void
+properties_view(ui_view_t* view) {
+
+	ui_padding_begin(8.0f);
+
+	
+
+	ui_padding_end();
+}
 
 // ui custom draw
 
@@ -694,22 +705,27 @@ app_init() {
 	widgets_panel = ui_panel_create(ui, 0.2f);
 	ui_panel_t* center = ui_panel_create(ui, 0.6f, ui_axis_y);
 	properties_panel = ui_panel_create(ui, 0.2f);
-
 	node_graph_panel = ui_panel_create(ui, 0.7f);
 	console_panel = ui_panel_create(ui, 0.3f);
 
-	// views
-	//ui_view_t* view1 = ui_view_create(ui, str("Test View"));
-	//ui_view_t* view2 = ui_view_create(ui, str("Another View"));
-	//ui_panel_insert_view(properties_panel, view1);
-	//ui_panel_insert_view(properties_panel, view2);
-
+	// insert into tree
 	ui_panel_insert(center, console_panel);
 	ui_panel_insert(center, node_graph_panel);
 	ui_panel_insert(ui->panel_root, properties_panel);
 	ui_panel_insert(ui->panel_root, center);
 	ui_panel_insert(ui->panel_root, widgets_panel);
 
+	// create views
+	ui_view_t* view1 = ui_view_create(ui, str("Properties"), properties_view);
+	ui_view_t* view2 = ui_view_create(ui, str("Widgets"), widget_view);
+	ui_view_t* view3 = ui_view_create(ui, str("Debug"), debug_view);
+	ui_view_t* view4 = ui_view_create(ui, str("Node Graph"), node_graph_view);
+
+	// insert views into panels
+	ui_panel_insert_view(properties_panel, view1);
+	ui_panel_insert_view(widgets_panel, view2);
+	ui_panel_insert_view(console_panel, view3);
+	ui_panel_insert_view(node_graph_panel, view4);
 
 	// create nodes
 	node_create(str("Node 1"), vec2(220.0f, 200.0f));
@@ -752,50 +768,6 @@ app_frame() {
 		draw_begin(renderer);
 		ui_begin_frame(ui);
 
-		
-		// render panel tree
-		/*ui_tooltip_begin();
-		ui_push_pref_size(ui_size_pixel(200.0f, 1.0f), ui_size_pixel(20.0f, 1.0f));
-		i32 depth = 0;
-		for (ui_panel_t* panel = ui->panel_root; panel != nullptr;) {
-			ui_panel_rec_t rec = ui_panel_rec_depth_first(panel);
-
-			ui_labelf("%*spanel: %u",depth * 3, " ", (u32)panel);
-			
-			depth += rec.push_count - rec.pop_count;
-			panel = rec.next;
-		}
-		ui_pop_pref_size();
-		ui_tooltip_end();*/
-
-
-		// widgets showcase
-		//ui_panel_begin(widgets_panel);
-		//	ui_widget_showcase_panel();
-		//ui_panel_end();
-
-		//// node graph
-		//ui_panel_begin(node_graph_panel);
-		//	ui_node_graph_panel();
-		//ui_panel_end();
-
-		//// console
-		//ui_panel_begin(console_panel);
-		//	ui_debug_panel();
-		//ui_panel_end();
-
-
-		//// properties
-		//ui_panel_begin(properties_panel);
-
-		//ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
-
-		//for (ui_view_t* view = properties_panel->view_first; view != nullptr; view = view->next) {
-		//	ui_labelf("%.*s", view->label.size, view->label.data);
-		//}
-		//ui_pop_pref_size();
-
-		//ui_panel_end();
 
 		ui_end_frame(ui);
 		draw_end(renderer);

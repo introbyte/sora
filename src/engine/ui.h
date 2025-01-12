@@ -7,16 +7,15 @@
 //
 // big stuff:
 // 
-// today:
 // [~] - finish panel and tabs.
 //     [x] - close panels.
-//     [ ] - split panels.
-//     [ ] - implement tabs. 
+//     [x] - split panels.
+//     [x] - implement tabs. 
 //     [ ] - drag tabs to different panels.
 // [ ] - investigate ui animation system to animate things.
 // 
 // 
-// 
+// minor stuff:
 // 
 // [x] - reduce memory arenas.
 // [ ] - rewrite layout algorithm.
@@ -565,6 +564,10 @@ ui_stack_node_decl(color_active, color_t)
 ui_stack_node_decl(color_shadow, color_t)
 ui_stack_node_decl(color_accent, color_t)
 
+struct ui_view_t;
+
+typedef void ui_view_function(ui_view_t*);
+
 // view
 struct ui_view_t {
 
@@ -578,6 +581,9 @@ struct ui_view_t {
 	
 	// info
 	str_t label;
+
+	// view function
+	ui_view_function* view_func;
 
 };
 
@@ -926,6 +932,9 @@ function ui_interaction ui_row_end();
 function ui_frame_t* ui_column_begin();
 function ui_interaction ui_column_end();
 
+function void ui_padding_begin(f32 size = 2.0f);
+function void ui_padding_end();
+
 // frames
 function ui_frame_t* ui_frame_find(ui_key_t key);
 function ui_frame_t* ui_frame_from_key(ui_key_t key, ui_frame_flags flags = 0);
@@ -942,9 +951,8 @@ function void ui_frame_set_custom_draw(ui_frame_t* frame, ui_frame_custom_draw_f
 function void ui_frame_set_user_data(ui_frame_t* frame, u32 size);
 
 // views
-function ui_view_t* ui_view_create(ui_context_t* context, str_t label);
+function ui_view_t* ui_view_create(ui_context_t* context, str_t label, ui_view_function* func);
 function void ui_view_release(ui_context_t* context, ui_view_t* view);
-
 
 // panels
 function ui_panel_t* ui_panel_create(ui_context_t* context, f32 percent = 0.5f, ui_axis split_axis = ui_axis_x);
@@ -959,11 +967,6 @@ function rect_t ui_rect_from_panel(arena_t* scratch, ui_panel_t* panel, rect_t r
 
 function void ui_panel_insert_view(ui_panel_t* panel, ui_view_t* view, ui_view_t* prev_view = nullptr);
 function void ui_panel_remove_view(ui_panel_t* panel, ui_view_t* view);
-
-
-// TODO: remove
-function ui_frame_t* ui_panel_begin(ui_panel_t* panel);
-function void ui_panel_end();
 
 // tooltips
 function void ui_tooltip_begin();
