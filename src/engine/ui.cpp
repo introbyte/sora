@@ -1883,7 +1883,7 @@ ui_layout_solve_set_positions(ui_frame_t* root, ui_axis axis) {
 function ui_frame_t*
 ui_row_begin() {
 	ui_set_next_layout_axis(ui_axis_x);
-	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
+	ui_frame_t* frame = ui_frame_from_key({ 0 }, 0);
 	ui_push_parent(frame);
 	return frame;
 }
@@ -1898,7 +1898,7 @@ ui_row_end() {
 function ui_frame_t*
 ui_column_begin() {
 	ui_set_next_layout_axis(ui_axis_y);
-	ui_frame_t* frame = ui_frame_from_string(str(""), 0);
+	ui_frame_t* frame = ui_frame_from_key({ 0 }, 0);
 	ui_push_parent(frame);
 	return frame;
 }
@@ -1911,19 +1911,21 @@ ui_column_end() {
 }
 
 function void 
-ui_padding_begin(f32 size) {
-
-	ui_frame_t* frame = ui_top_parent();
-	ui_set_next_rect(rect(size, size, rect_width(frame->rect) - size, rect_height(frame->rect) - size));
-	ui_frame_t* container = ui_frame_from_string(str(""), 0);
-
-	ui_push_parent(container);
-
+ui_padding_begin(ui_size_t size) {
+	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_by_child(1.0f));
+	ui_row_begin();
+	ui_spacer(size);
+	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_by_child(1.0f));
+	ui_column_begin();
+	ui_spacer(size);
 }
 
 function void 
-ui_padding_end() {
-	ui_pop_parent();
+ui_padding_end(ui_size_t size) {
+	ui_spacer(size);
+	ui_column_end();
+	ui_spacer(size);
+	ui_row_end();
 }
 
 
@@ -2894,15 +2896,41 @@ ui_expander_begin(str_t label, b8* is_expanded) {
 	// create container frame
 	ui_set_next_pref_size(ui_size_by_child(1.1f), ui_size_by_child(1.1f));
 	ui_set_next_flags(ui_frame_flag_anim_height);
-	ui_key_t frame_key = ui_key_from_stringf(ui_top_seed_key(), "###%.*s_expander_frame", label.size, label.data);
+	ui_key_t frame_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_expander_frame", label.size, label.data);
 	ui_frame_t* container_frame = ui_frame_from_key(frame_key, ui_frame_flag_draw_background | ui_frame_flag_clip);
 	
 	ui_push_parent(container_frame);
 
-	// create button
-	ui_set_next_pref_size(top_pref_width, top_pref_height);
-	ui_interaction interaction = ui_button(label);
+	// create expander button
+	ui_frame_flags button_flags =
+		ui_frame_flag_clickable |
+		ui_frame_flag_draw_background |
+		ui_frame_flag_draw_hover_effects |
+		ui_frame_flag_draw_active_effects |
+		ui_frame_flag_custom_hover_cursor;
 
+	ui_set_next_pref_size(top_pref_width, top_pref_height);
+	ui_set_next_layout_axis(ui_axis_x);
+	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_key_t button_key = ui_key_from_stringf(frame_key, "button_frame");
+	ui_frame_t* button_frame = ui_frame_from_key(button_key, button_flags);
+	
+	ui_push_parent(button_frame);
+
+	// icon frame
+	ui_set_next_pref_size(ui_size_pixel(ui_top_font_size() + 4.0f, 1.0f), top_pref_height);
+	ui_set_next_font(ui_state.icon_font);
+	ui_key_t icon_key = ui_key_from_stringf(frame_key, "icon_frame");
+	ui_frame_t* icon_frame = ui_frame_from_key(icon_key, ui_frame_flag_draw_text);
+	ui_frame_set_display_text(icon_frame, *is_expanded ? str("L") : str("O"));
+
+	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+	ui_label(label);
+
+	ui_pop_parent();
+
+	// button interaction
+	ui_interaction interaction = ui_frame_interaction(button_frame);
 	if (interaction & ui_interaction_left_clicked) {
 		*is_expanded = !*is_expanded;
 	}

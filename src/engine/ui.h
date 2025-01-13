@@ -12,23 +12,21 @@
 //     [x] - split panels.
 //     [x] - implement tabs. 
 //     [ ] - drag tabs to different panels.
-// [ ] - investigate ui animation system to animate things.
-// 
+// [x] - investigate ui animation system to animate things.
+//     [x] - animation cache.
+//     [x] - animate pos and size of frames.
+// [ ] - support different directions in layout algorithm.
+// [ ] - truncate long text (...).
 // 
 // minor stuff:
 // 
+// [ ] - style pass of everything.
 // [x] - reduce memory arenas.
-// [ ] - rewrite layout algorithm.
 // [x] - rewrite theming system again. :(
 // [ ] - add support for custom interaction shapes (circles, tris, etc).
 // [ ] - investigate some layout scaling issues. (fixed spacer's between widgets).
 // [x] - *fix clipping.
 // [ ] - *support fancier text (colored)
-// [ ] - scroll bars.
-// [x] - tooltips.
-// [~] - cutoff text (...).
-//     [ ] - find a better way to do this.
-// [ ] - implement popups.
 // [~] - widgets. 
 //     [~] - textbox. // needs some touch ups
 //         [x] - keyboard controls.
@@ -36,6 +34,9 @@
 //     [ ] - tree list.
 //     [ ] - list box.
 //     [~] - combo box.
+//	   [ ] - scroll bars.
+//     [x] - tooltips.
+//     [ ] - popups.
 // [~] - more ui events.
 //     [x] - scrolling.
 //     [x] - keyboard.

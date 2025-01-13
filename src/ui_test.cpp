@@ -201,7 +201,7 @@ connection_release(connection_t* connection) {
 function void
 widget_view(ui_view_t* view) {
 
-	ui_padding_begin(8.0f);
+	ui_padding_begin(ui_size_pixel(8.0f, 1.0f));
 
 	ui_push_pref_width(ui_size_percent(1.0f));
 	ui_push_pref_height(ui_size_pixel(20.0f, 1.0f));
@@ -228,54 +228,58 @@ widget_view(ui_view_t* view) {
 
 	// buttons
 	persist b8 buttons_expanded = false;
-	ui_expander(str("Buttons"), &buttons_expanded);
+	ui_expander_begin(str("Buttons"), &buttons_expanded);
 	if (buttons_expanded) {
-		ui_spacer();
-		ui_set_next_text_alignment(ui_text_alignment_left);
-		ui_buttonf("Left Button");
-		ui_spacer();
-		ui_set_next_text_alignment(ui_text_alignment_center);
-		ui_buttonf("Center Button");
-		ui_spacer();
-		ui_set_next_text_alignment(ui_text_alignment_right);
-		ui_buttonf("Right Button");
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
+			ui_set_next_text_alignment(ui_text_alignment_left);
+			ui_buttonf("Left Button");
+			ui_spacer();
+			ui_set_next_text_alignment(ui_text_alignment_center);
+			ui_buttonf("Center Button");
+			ui_spacer();
+			ui_set_next_text_alignment(ui_text_alignment_right);
+			ui_buttonf("Right Button");
+			ui_spacer();
 
-		ui_interaction interaction = ui_buttonf("Button with tooltip");
-		ui_spacer();
-		if (interaction & ui_interaction_hovered) {
-			ui_tooltip_begin();
-			ui_set_next_pref_width(ui_size_text(2.0f));
-			ui_labelf("This is a tooltip.");
-			ui_tooltip_end();
-		}
+			ui_interaction interaction = ui_buttonf("Button with tooltip");
+			ui_spacer();
+			if (interaction & ui_interaction_hovered) {
+				ui_tooltip_begin();
+				ui_set_next_pref_width(ui_size_text(2.0f));
+				ui_labelf("This is a tooltip.");
+				ui_tooltip_end();
+			}
 
-		ui_set_next_color_var(ui_color_background, color(0x203556ff));
-		ui_buttonf("Colored Button");
-		ui_spacer();
+			ui_set_next_color_var(ui_color_background, color(0x203556ff));
+			ui_buttonf("Colored Button");
+			ui_spacer();
 
-		ui_set_next_pref_height(ui_size_pixel(100.0f, 1.0f));
-		ui_set_next_text_alignment(ui_text_alignment_center);
-		ui_set_next_color_var(ui_color_background, color(0x563520ff));
-		ui_buttonf("Large Button!");
+			ui_set_next_pref_height(ui_size_pixel(100.0f, 1.0f));
+			ui_set_next_text_alignment(ui_text_alignment_center);
+			ui_set_next_color_var(ui_color_background, color(0x563520ff));
+			ui_buttonf("Large Button!");
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	// checkboxes
 	persist b8 checkboxes_expanded = false;
-	ui_expander(str("Checkboxes"), &checkboxes_expanded);
+	ui_expander_begin(str("Checkboxes"), &checkboxes_expanded);
 	if (checkboxes_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 		persist b8 checkbox_value = false;
 		ui_checkbox(str("Checkbox"), &checkbox_value);
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	// sliders
 	persist b8 sliders_expanded = false;
-	ui_expander(str("Sliders"), &sliders_expanded);
+	ui_expander_begin(str("Sliders"), &sliders_expanded);
 	if (sliders_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 		persist f32 slider_f32_value = 0.35f;
 		ui_slider(str("Float Slider: "), &slider_f32_value, 0.0f, 8.0f);
 
@@ -283,14 +287,17 @@ widget_view(ui_view_t* view) {
 		persist i32 slider_i32_value = 10;
 		ui_slider(str("Int Slider: "), &slider_i32_value, 5, 15);
 
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	// float edits
 	persist b8 float_edits_expanded = false;
-	ui_expander(str("Float Edits"), &float_edits_expanded);
+	ui_expander_begin(str("Float Edits"), &float_edits_expanded);
 	if (float_edits_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
+
 		persist f32 float_edit_value = 10.75f;
 		ui_float_edit(str("float_edit"), &float_edit_value, 0.01f);
 		ui_spacer();
@@ -337,15 +344,16 @@ widget_view(ui_view_t* view) {
 			ui_row_end();
 		}
 
-
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	// expander
 	persist b8 color_pickers_expanded = false;
-	ui_expander(str("Color Pickers"), &color_pickers_expanded);
+	ui_expander_begin(str("Color Pickers"), &color_pickers_expanded);
 	if (color_pickers_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 		persist color_t hsv_color = color(1.0f, 0.5f, 0.7f);
 
 		ui_labelf("Color Wheel");
@@ -369,27 +377,28 @@ widget_view(ui_view_t* view) {
 		ui_set_next_pref_height(ui_size_pixel(150.0f, 1.0f));
 		ui_color_quad(str("color_quad"), hsv_color.h, &hsv_color.s, &hsv_color.v);
 		ui_color_hue_bar(str("hue_bar"), &hsv_color.h, hsv_color.s, hsv_color.v);
-
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	ui_pop_pref_width();
 	ui_pop_pref_height();
 
-	ui_padding_end();
+	ui_padding_end(ui_size_pixel(8.0f, 1.0f));
 }
 
 function void
 debug_view(ui_view_t* view) {
 
-	ui_padding_begin(8.0f);
+	ui_padding_begin(ui_size_pixel(8.0f, 1.0f));
 
 	ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
 
 	persist b8 debug_option_expanded = false;
-	ui_expander(str("UI Frame Debug Options"), &debug_option_expanded);
+	ui_expander_begin(str("UI Frame Debug Options"), &debug_option_expanded);
 	if (debug_option_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 		ui_checkbox(str("Frame Outline"), &ui_debug_frame);
 		ui_spacer();
 		ui_checkbox(str("Text Outline"), &ui_debug_text);
@@ -399,13 +408,16 @@ debug_view(ui_view_t* view) {
 		ui_checkbox(str("Show Active"), &ui_show_active);
 		ui_spacer();
 		ui_checkbox(str("Show Focused"), &ui_show_focused);
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
-
+	ui_expander_end();
 	ui_spacer();
+
+
 	persist b8 frame_styling_expanded = false;
-	ui_expander(str("UI Frame Styling Options"), &frame_styling_expanded);
+	ui_expander_begin(str("UI Frame Styling Options"), &frame_styling_expanded);
 	if (frame_styling_expanded) {
-		ui_spacer();
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 		ui_checkbox(str("Frame Borders"), &ui_state.ui_active->theme.frame_borders);
 		ui_spacer();
 		ui_checkbox(str("Frame Shadows"), &ui_state.ui_active->theme.frame_shadows);
@@ -421,11 +433,13 @@ debug_view(ui_view_t* view) {
 		ui_active()->theme.pallete.accent = color_hsv_to_rgb(hsv_color);
 
 		ui_labelf("Accent Color: %x", color_to_hex(ui_active()->theme.pallete.accent));
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
+	ui_expander_end();
 
 	ui_pop_pref_size();
 
-	ui_padding_end();
+	ui_padding_end(ui_size_pixel(8.0f, 1.0f));
 }
 
 function void
@@ -593,32 +607,35 @@ node_graph_view(ui_view_t* view) {
 function void
 properties_view(ui_view_t* view) {
 
-	ui_padding_begin(8.0f);
+	ui_padding_begin(ui_size_pixel(8.0f, 1.0f));
 	ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
 
 
 	persist b8 test_expander = false;
 	ui_expander_begin(str("Test Expander"), &test_expander);
 	if (test_expander) {
+		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 
 		ui_buttonf("test button 1");
+		ui_spacer();
 		ui_buttonf("test button 2");
 
+		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
 	ui_expander_end();
 
 	ui_pop_pref_size();
-	ui_padding_end();
+	ui_padding_end(ui_size_pixel(8.0f, 1.0f));
 }
 
 function void
 console_view(ui_view_t* view) {
 
-	ui_padding_begin(8.0f);
+	ui_padding_begin(ui_size_pixel(8.0f, 1.0f));
 	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
 
 	ui_pop_pref_size();
-	ui_padding_end();
+	ui_padding_end(ui_size_pixel(8.0f, 1.0f));
 }
 
 
@@ -755,16 +772,6 @@ app_init() {
 	// create nodes
 	node_create(str("Node 1"), vec2(220.0f, 200.0f));
 	node_create(str("Node 2"), vec2(450.0f, 280.0f));
-
-
-	color_t src = color(0.0f, 1.0f, 0.5f, 0.4f);
-	color_t dst = color(1.0f, 1.0f, 0.0f, 0.4f);
-	color_t result = color_blend(src, dst);
-
-	printf("Color test cases: \n");
-	printf("col src: %.0f, %.0f, %.0f, %.0f\n", src.r * 255.0f, src.g * 255.0f, src.b * 255.0f, src.a * 255.0f);
-	printf("col dst: %.0f, %.0f, %.0f, %.0f\n", dst.r * 255.0f, dst.g * 255.0f, dst.b * 255.0f, dst.a * 255.0f);
-	printf("result: %.0f, %.0f, %.0f, %.0f\n", result.r * 255.0f, result.g * 255.0f, result.b * 255.0f, result.a * 255.0f);
 
 }
 

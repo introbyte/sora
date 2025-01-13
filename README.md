@@ -44,6 +44,10 @@ todo:
 		- [x] panel tree edits (split, close, etc).
 		- [ ] tabs.
 
+# screenshots
+
+![ui showcase](/images/ui_showcase.png?raw=true "ui showcase")
+
 # build
 
 ### windows:
