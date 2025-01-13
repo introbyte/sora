@@ -302,6 +302,12 @@ enum ui_cmd_type {
 	ui_cmd_type_close_panel,
 };
 
+typedef u32 ui_anim_flags;
+enum {
+	ui_anim_flag_none,
+	ui_anim_flag_wrap,
+};
+
 // structs
 
 struct ui_key_t {
@@ -406,7 +412,7 @@ struct ui_text_op_t {
 struct ui_frame_t;
 typedef void ui_frame_custom_draw_func(ui_frame_t*);
 
-typedef u32 ui_frame_flags;
+typedef u64 ui_frame_flags;
 enum {
 
 	// interaction
@@ -441,6 +447,10 @@ enum {
 	ui_frame_flag_draw_active_effects = (1 << 25),
 	ui_frame_flag_draw_custom = (1 << 26),
 	ui_frame_flag_custom_hover_cursor = (1 << 27),
+	ui_frame_flag_anim_pos_x = (1 << 28),
+	ui_frame_flag_anim_pos_y = (1 << 29),
+	ui_frame_flag_anim_width = (1 << 30),
+	ui_frame_flag_anim_height = (1 << 31),
 
 	// groups
 	ui_frame_flag_draw =
@@ -456,6 +466,8 @@ enum {
 	ui_frame_flag_floating = ui_frame_flag_floating_x | ui_frame_flag_floating_y,
 	ui_frame_flag_overflow = ui_frame_flag_overflow_x | ui_frame_flag_overflow_y,
 	ui_frame_flag_ignore_view_scroll = ui_frame_flag_ignore_view_scroll_x | ui_frame_flag_ignore_view_scroll_y,
+	ui_frame_flag_anim_pos = ui_frame_flag_anim_pos_x | ui_frame_flag_anim_pos_y,
+	ui_frame_flag_anim_size = ui_frame_flag_anim_width | ui_frame_flag_anim_height,
 };
 
 struct ui_frame_t {
@@ -478,6 +490,8 @@ struct ui_frame_t {
 	str_t string;
 	vec2_t fixed_position;
 	vec2_t fixed_size;
+	vec2_t anim_position;
+	vec2_t anim_size;
 	ui_size_t pref_size[2];
 	ui_text_alignment text_alignment;
 	f32 text_padding;
@@ -564,11 +578,34 @@ ui_stack_node_decl(color_active, color_t)
 ui_stack_node_decl(color_shadow, color_t)
 ui_stack_node_decl(color_accent, color_t)
 
-struct ui_view_t;
+// animation
 
-typedef void ui_view_function(ui_view_t*);
+struct ui_anim_params_t {
+	f32 initial;
+	f32 target;
+	f32 rate;
+};
+
+struct ui_anim_node_t {
+	ui_anim_node_t* list_next;
+	ui_anim_node_t* list_prev;
+
+	ui_anim_node_t* lru_next;
+	ui_anim_node_t* lru_prev;
+
+	u64 first_build_index;
+	u64 last_build_index;
+
+	ui_key_t key;
+	ui_anim_params_t params;
+	f32 current;
+};
 
 // view
+
+struct ui_view_t;
+typedef void ui_view_function(ui_view_t*);
+
 struct ui_view_t {
 
 	// list of all views
@@ -640,7 +677,10 @@ struct ui_context_t {
 	// state
 	u64 build_index;
 	b8 tooltip_open;
+	f32 fast_anim_rate;
+	f32 slow_anim_rate;
 
+	// TODO: maybe move this out of context.
 	// text cursor and mark
 	ui_text_point_t cursor;
 	ui_text_point_t mark;
@@ -657,6 +697,13 @@ struct ui_context_t {
 	void* drag_state_data;
 	u32 drag_state_size;
 	vec2_t drag_start_pos;
+
+	// animation cache
+	ui_anim_node_t* anim_node_free;
+	ui_anim_node_t* anim_node_first;
+	ui_anim_node_t* anim_node_last;
+	ui_anim_node_t* anim_node_lru;
+	ui_anim_node_t* anim_node_mru;
 
 	// frame list
 	ui_frame_t* frame_first;
@@ -972,6 +1019,12 @@ function void ui_panel_remove_view(ui_panel_t* panel, ui_view_t* view);
 function void ui_tooltip_begin();
 inlnfunc void ui_tooltip_end();
 
+// animation
+function ui_anim_params_t ui_anim_params_create(f32 initial, f32 target, f32 rate = ui_active()->fast_anim_rate);
+function f32 ui_anim_ex(ui_key_t key, ui_anim_params_t params);
+function f32 ui_anim(ui_key_t key, f32 initial, f32 target);
+
+
 // widgets
 function void ui_spacer(ui_size_t size = ui_size_pixel(2.0f, 1.0f));
 function ui_interaction ui_label(str_t label);
@@ -983,6 +1036,8 @@ function ui_interaction ui_slider(str_t label, i32* value, i32 min, i32 max);
 function ui_interaction ui_slider(str_t label, f32* value, f32 min, f32 max);
 function ui_interaction ui_checkbox(str_t label, b8* value);
 function ui_interaction ui_expander(str_t label, b8* is_expanded);
+function ui_interaction ui_expander_begin(str_t label, b8* is_expanded);
+function void ui_expander_end();
 function ui_interaction ui_float_edit(str_t label, f32* value, f32 delta = 0.01f, f32 min = 0.0f, f32 max = 0.0f);
 function ui_interaction ui_vec2_edit(str_t label, vec2_t* value);
 function ui_interaction ui_vec3_edit(str_t label, vec3_t* value);

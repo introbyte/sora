@@ -551,6 +551,7 @@ inlnfunc f32 radians(f32 deg);
 inlnfunc f32 degrees(f32 rad);
 inlnfunc f32 remap(f32 value, f32 from_min, f32 from_max, f32 to_min, f32 to_max);
 inlnfunc f32 lerp(f32 a, f32 b, f32 t);
+inlnfunc f32 wrap(f32 v, f32 min, f32 max);
 
 // vec2 
 inlnfunc vec2_t vec2(f32);

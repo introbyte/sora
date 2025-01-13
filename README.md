@@ -2,12 +2,47 @@
 **sora (そら)** is a codebase for creating 2d and 3d applications. 
 it takes heavy inspiration from the [raddebugger project](https://github.com/EpicGamesExt/raddebugger) and is used for my personal projects.
 
-features:
-- abstracted for different platform (currently only supports windows and d3d11).
-- simd math library.
-- 2d single draw call rendering library.
-- custom immediate mode ui library. 
-- customizable render graph.
+todo:
+- [ ] abstracted platform layers.
+	- [ ] os platforms.
+		- [x] win32.
+		- [ ] linux.
+		- [ ] macos? (unsure).
+	- [ ] graphics apis.
+		- [x] d3d11.
+		- [ ] opengl.
+		- [ ] metal? (unsure).
+		- [ ] vulkan (unsure).
+		- [ ] d3d12 (unsure).
+	- [ ] audio.
+		- [x] wasapi.
+		- [ ] alsa.
+		- [ ] coreaudio? (unsure).
+	- [ ] fonts.
+		- [x] directwrite.
+		- [ ] freetype.
+		- [ ] coretext (unsure).
+		- [ ] custom (unsure).
+- [x] math library.
+	- [x] vector functions.
+	- [x] matrix functions.
+	- [x] simd support.
+	- [x] color functions.
+- [x] 2d shape drawing library.
+	- [x] different shapes.
+	- [x] single draw call.
+	- [x] support for clipping.
+	- [x] support for textures.
+	- [x] stack property modifiers (push_color, pop_thickness, etc.).
+- [ ] custom immediate mode ui library. 
+	- [ ] widgets.
+		- [x] basic (labels, buttons, sliders, etc).
+		- [x] color pickers.
+		- [x] tooltips.
+		- [ ] popup contexts.
+	- [ ] panels.
+		- [x] panel tree edits (split, close, etc).
+		- [ ] tabs.
 
 # build
 
@@ -30,7 +65,6 @@ the `build.bat` script expects the main file to be in `\src` and outputs generat
 ### linux:
 
 not supported yet.
-
 
 # directory
 - `\res`: contains all resources and assets needed for each project.
@@ -64,4 +98,4 @@ this codebase contains several templates to start off from.
 - `template_console.cpp`: simple console program.
 - `template_window.cpp`: opens a single window set up for rendering.
 - `template_multi_window.cpp`: can open any number of windows set up for rendering.
-- `template_custom_border.cpp`: opens a clean borderless window.
+- `template_custom_border.cpp`: opens a clean custom borderless window.

@@ -208,7 +208,7 @@ widget_view(ui_view_t* view) {
 
 	// labels
 	persist b8 labels_expanded = false;
-	ui_expander(str("Labels"), &labels_expanded);
+	ui_expander_begin(str("Labels"), &labels_expanded);
 	if (labels_expanded) {
 		ui_spacer();
 		ui_labelf("This is a label.");
@@ -223,6 +223,7 @@ widget_view(ui_view_t* view) {
 		ui_labelf("right aligned");
 
 	}
+	ui_expander_end();
 	ui_spacer();
 
 	// buttons
@@ -454,8 +455,8 @@ node_graph_view(ui_view_t* view) {
 	// render nodes
 	for (node_t* node = node_state.node_first; node != nullptr; node = node->next) {
 
-		ui_set_next_fixed_x(panel_x + node->pos.x);
-		ui_set_next_fixed_y(panel_y + node->pos.y);
+		ui_set_next_fixed_x(node->pos.x);
+		ui_set_next_fixed_y(node->pos.y);
 		ui_set_next_fixed_width(150.0f);
 		ui_set_next_pref_height(ui_size_by_child(1.0f));
 		ui_set_next_rounding(8.0f);
@@ -593,11 +594,33 @@ function void
 properties_view(ui_view_t* view) {
 
 	ui_padding_begin(8.0f);
+	ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
 
-	
 
+	persist b8 test_expander = false;
+	ui_expander_begin(str("Test Expander"), &test_expander);
+	if (test_expander) {
+
+		ui_buttonf("test button 1");
+		ui_buttonf("test button 2");
+
+	}
+	ui_expander_end();
+
+	ui_pop_pref_size();
 	ui_padding_end();
 }
+
+function void
+console_view(ui_view_t* view) {
+
+	ui_padding_begin(8.0f);
+	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+
+	ui_pop_pref_size();
+	ui_padding_end();
+}
+
 
 // ui custom draw
 
@@ -670,8 +693,8 @@ port_draw_function(ui_frame_t* frame) {
 
 	// animate color
 	color_t port_color = frame->palette.accent;
-	port_color = color_lerp(port_color, color_blend(port_color, frame->palette.hover), frame->hover_t);
-	port_color = color_lerp(port_color, color_blend(port_color, frame->palette.active), frame->active_t);
+	port_color = color_lerp(port_color, color_blend(port_color, color(0xffffff45)), frame->hover_t);
+	port_color = color_lerp(port_color, color_blend(port_color, color(0xffffff65)), frame->active_t);
 
 	color_t inner_port_color = color_lerp(color(port_color.r, port_color.g, port_color.b, 0.0f), port_color, frame->active_t);
 
@@ -692,7 +715,7 @@ port_draw_function(ui_frame_t* frame) {
 
 function void
 app_init() {
-
+	
 	// open window and create renderer
 	window = os_window_open(str("ui_test"), 1440, 960);
 	renderer = gfx_renderer_create(window, color(0x262626ff));
@@ -720,16 +743,28 @@ app_init() {
 	ui_view_t* view2 = ui_view_create(ui, str("Widgets"), widget_view);
 	ui_view_t* view3 = ui_view_create(ui, str("Debug"), debug_view);
 	ui_view_t* view4 = ui_view_create(ui, str("Node Graph"), node_graph_view);
+	ui_view_t* view5 = ui_view_create(ui, str("Console"), console_view);
 
 	// insert views into panels
 	ui_panel_insert_view(properties_panel, view1);
 	ui_panel_insert_view(widgets_panel, view2);
 	ui_panel_insert_view(console_panel, view3);
+	ui_panel_insert_view(console_panel, view5);
 	ui_panel_insert_view(node_graph_panel, view4);
 
 	// create nodes
 	node_create(str("Node 1"), vec2(220.0f, 200.0f));
 	node_create(str("Node 2"), vec2(450.0f, 280.0f));
+
+
+	color_t src = color(0.0f, 1.0f, 0.5f, 0.4f);
+	color_t dst = color(1.0f, 1.0f, 0.0f, 0.4f);
+	color_t result = color_blend(src, dst);
+
+	printf("Color test cases: \n");
+	printf("col src: %.0f, %.0f, %.0f, %.0f\n", src.r * 255.0f, src.g * 255.0f, src.b * 255.0f, src.a * 255.0f);
+	printf("col dst: %.0f, %.0f, %.0f, %.0f\n", dst.r * 255.0f, dst.g * 255.0f, dst.b * 255.0f, dst.a * 255.0f);
+	printf("result: %.0f, %.0f, %.0f, %.0f\n", result.r * 255.0f, result.g * 255.0f, result.b * 255.0f, result.a * 255.0f);
 
 }
 
@@ -768,7 +803,7 @@ app_frame() {
 		draw_begin(renderer);
 		ui_begin_frame(ui);
 
-
+		
 		ui_end_frame(ui);
 		draw_end(renderer);
 		gfx_renderer_end(renderer);

@@ -675,6 +675,14 @@ lerp(f32 a, f32 b, f32 t) {
 	return (a * (1.0f - t)) + (b * t);
 }
 
+inlnfunc f32 
+wrap(f32 v, f32 min, f32 max) {
+	f32 range = max - min;
+	while (v < min) v += range;
+	while (v >= max) v -= range;
+	return v;
+}
+
 // vec2 
 
 inlnfunc vec2_t
@@ -2161,31 +2169,40 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 
 	switch (mode) {
 		case color_blend_mode_normal: {
-			
-			if (src.a == 0.0f) {
-				result = dst;
-			} else {
-				result.r = src.r * (1.0f - dst.a) + dst.r * dst.a;
-				result.g = src.g * (1.0f - dst.a) + dst.g * dst.a;
-				result.b = src.b * (1.0f - dst.a) + dst.b * dst.a;
-				result.a = src.a * (1.0f - dst.a) + dst.a;
-			}
+
+			// background = src
+			// foreground = dst
+
+			//f32 color_a = src.a + dst.a - src.a * dst.a;
+
+			//f32 color_r = 0.0f;
+			//f32 color_g = 0.0f;
+			//f32 color_b = 0.0f;
+
+			//f32 result_a = dst.a + src.a - dst.a * src.a;
+			f32 result_a = dst.a + (1 - dst.a) * src.a;
+
+			result.r = (dst.r * dst.a + src.r * src.a * (1.0f - dst.a)) / result_a;
+			result.g = (dst.g * dst.a + src.g * src.a * (1.0f - dst.a)) / result_a;
+			result.b = (dst.b * dst.a + src.b * src.a * (1.0f - dst.a)) / result_a;
+			result.a = result_a;
+
 			break;
 		}
 
 		case color_blend_mode_mul: {
-		/*	result.r = b.r * f.r;
-			result.g = b.g * f.g;
-			result.b = b.b * f.b;
-			result.a = b.a * f.a;*/
+			result.r = src.r * dst.r;
+			result.g = src.g * dst.g;
+			result.b = src.b * dst.b;
+			result.a = src.a * dst.a;
 			break;
 		}
 
 		case color_blend_mode_add: {
-			/*result.r = b.r + f.r;
-			result.g = b.g + f.g;
-			result.b = b.b + f.b;
-			result.a = b.a + f.a;*/
+			result.r = src.r + dst.r;
+			result.g = src.g + dst.g;
+			result.b = src.b + dst.b;
+			result.a = src.a + dst.a;
 			break;
 		}
 
