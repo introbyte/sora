@@ -59,6 +59,7 @@ struct os_w32_window_t {
 	b8 borderless;
 	b8 composition_enabled;
 	b8 maximized;
+	b8 is_moving;
 
 	os_frame_function_t* frame_func;
 

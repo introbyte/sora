@@ -225,7 +225,8 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 	context->theme.padding = 2.0f;
 	context->theme.shadow_size = 1.0f;
 	context->theme.border_size = 1.0f;
-	context->theme.pallete.background = color(0x3d3d3dff);
+	//context->theme.pallete.background = color(0x3d3d3dff);
+	context->theme.pallete.background = color(0x4f4f4fff);
 	context->theme.pallete.text = color(0xe2e2e2ff);
 	//context->theme.pallete.border = color(0xffffff15);
 	context->theme.pallete.border = color(0x00000000);
@@ -2845,48 +2846,6 @@ ui_checkbox(str_t label, b8* value) {
 
 }
 
-function ui_interaction
-ui_expander(str_t label, b8* is_expanded) {
-
-	// build parent frame
-	ui_set_next_hover_cursor(os_cursor_hand_point);
-	ui_set_next_layout_axis(ui_axis_x);
-
-	u32 flags =
-		ui_frame_flag_clickable | ui_frame_flag_draw_background |
-		ui_frame_flag_draw_hover_effects | ui_frame_flag_draw_active_effects |
-		ui_frame_flag_draw_shadow | ui_frame_flag_draw_border | 
-		ui_frame_flag_custom_hover_cursor;
-	ui_set_next_color_background(color(0x4f4f4fff));
-	ui_frame_t* parent_frame = ui_frame_from_string(label, flags);
-
-	ui_push_parent(parent_frame);
-	{
-		ui_set_next_pref_width(ui_size_pixel(rect_height(parent_frame->rect), 1.0f));
-		ui_set_next_font(ui_state.ui_active->icon_font);
-		ui_frame_t* icon_frame = ui_frame_from_string(str(""), ui_frame_flag_draw_text);
-		if (*is_expanded) {
-			ui_frame_set_display_text(icon_frame, str("L"));
-		}
-		else {
-			ui_frame_set_display_text(icon_frame, str("O"));
-		}
-
-		ui_set_next_pref_width(ui_size_percent(1.0f));
-		ui_set_next_pref_height(ui_size_percent(1.0f));
-		ui_label(label);
-	}
-	ui_pop_parent();
-
-	ui_interaction interaction = ui_frame_interaction(parent_frame);
-
-	if (interaction & ui_interaction_left_clicked) {
-		*is_expanded = !*is_expanded;
-	}
-
-	return interaction;
-}
-
 function ui_interaction 
 ui_expander_begin(str_t label, b8* is_expanded) {
 
@@ -2896,6 +2855,7 @@ ui_expander_begin(str_t label, b8* is_expanded) {
 	// create container frame
 	ui_set_next_pref_size(ui_size_by_child(1.1f), ui_size_by_child(1.1f));
 	ui_set_next_flags(ui_frame_flag_anim_height);
+	ui_set_next_color_background(color(0x3d3d3dff));
 	ui_key_t frame_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_expander_frame", label.size, label.data);
 	ui_frame_t* container_frame = ui_frame_from_key(frame_key, ui_frame_flag_draw_background | ui_frame_flag_clip);
 	
@@ -2912,6 +2872,7 @@ ui_expander_begin(str_t label, b8* is_expanded) {
 	ui_set_next_pref_size(top_pref_width, top_pref_height);
 	ui_set_next_layout_axis(ui_axis_x);
 	ui_set_next_hover_cursor(os_cursor_hand_point);
+	ui_set_next_color_background(color(0x3d3d3dff));
 	ui_key_t button_key = ui_key_from_stringf(frame_key, "button_frame");
 	ui_frame_t* button_frame = ui_frame_from_key(button_key, button_flags);
 	

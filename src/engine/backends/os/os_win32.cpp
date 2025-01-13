@@ -105,7 +105,7 @@ os_update() {
 		QueryPerformanceCounter(&window->tick_current);
 		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
 		window->elasped_time += window->delta_time;
-
+		
 		window->maximized = IsZoomed(window->handle);
 	}
 
@@ -911,6 +911,18 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				}
 				EndPaint(handle, &ps);
 			}
+			break;
+		}
+
+		case WM_ENTERSIZEMOVE: {
+			window->is_moving = true;
+			break;
+		}
+
+		case WM_EXITSIZEMOVE: {
+			window->is_moving = false;
+			QueryPerformanceCounter(&window->tick_current);
+			window->tick_previous = window->tick_current;
 			break;
 		}
 

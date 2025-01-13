@@ -17,184 +17,40 @@
 #include "engine/draw.cpp"
 #include "engine/ui.cpp"
 
-// structs
+// projects
 
-struct node_t {
-	node_t* next;
-	node_t* prev;
+#include "projects/graphs/force_graph.h"
+#include "projects/graphs/node_graph.h"
 
-	str_t label;
-	vec2_t pos;
-	ui_frame_t* frame;
-	f32 value;
-};
-
-struct connection_t {
-	connection_t* next;
-	connection_t* prev;
-
-	vec2_t from_pos;
-	vec2_t to_pos;
-
-	node_t* from;
-	node_t* to;
-
-	ui_frame_t* frame;
-};
-
-struct node_state_t {
-	
-	arena_t* arena;
-
-	node_t* node_first;
-	node_t* node_last;
-	node_t* node_free;
-	u32 node_count;
-
-	connection_t* connection_first;
-	connection_t* connection_last;
-	connection_t* connection_free;
-	u32 connection_count;
-
-};
+#include "projects/graphs/force_graph.cpp"
+#include "projects/graphs/node_graph.cpp"
 
 // globals
+
+// contexts
 global os_handle_t window;
 global gfx_handle_t renderer;
 global ui_context_t* ui;
 global b8 quit = false;
 
-global ui_panel_t* widgets_panel;
-global ui_panel_t* node_graph_panel;
-global ui_panel_t* console_panel;
-global ui_panel_t* properties_panel;
-
-
-global ui_view_t* view;
-
-global node_state_t node_state;
+// graphs
+global ng_state_t* node_state;
+global fg_state_t* fg_state;
 
 // functions
 
-// node state
-function void node_state_init();
-function void node_state_release();
-
-// node
-function node_t* node_create(str_t label, vec2_t pos);
-function void node_release(node_t* node);
-function void node_bring_to_front(node_t* node);
-
-// connection
-function connection_t* connection_create(node_t* from, node_t* to);
-function void connection_release(connection_t* connection);
-
-// ui custom draw
-function void node_background_draw_function(ui_frame_t* frame);
-function void connection_draw_function(ui_frame_t* frame);
-function void port_draw_function(ui_frame_t* frame);
-
-// app
 function void app_init();
 function void app_release();
 function void app_frame();
 
+// views
+function void widget_view(ui_view_t* view);
+function void debug_view(ui_view_t* view);
+function void node_graph_view(ui_view_t* view);
+function void properties_view(ui_view_t* view);
+function void console_view(ui_view_t* view);
+
 // implementation
-
-// node state
-
-function void
-node_state_init() {
-
-	node_state.arena = arena_create(megabytes(64));
-
-	node_state.node_first = nullptr;
-	node_state.node_last = nullptr;
-	node_state.node_free = nullptr;
-	node_state.node_count = 0;
-
-	node_state.connection_first = nullptr;
-	node_state.connection_last = nullptr;
-	node_state.connection_free = nullptr;
-	node_state.connection_count = 0;
-
-}
-
-function void
-node_state_release() {
-	arena_release(node_state.arena);
-}
-
-
-// node
-
-function node_t* 
-node_create(str_t label, vec2_t pos) {
-
-	node_t* node = node_state.node_free;
-	if (node != nullptr) {
-		stack_pop(node_state.node_free);
-	} else {
-		node = (node_t*)arena_alloc(node_state.arena, sizeof(node_t));
-	}
-	memset(node, 0, sizeof(node_t));
-	dll_push_back(node_state.node_first, node_state.node_last, node);
-	node_state.node_count++;
-
-
-	node->label = label;
-	node->pos = pos;
-	node->value = random_f32_range(0.0f, 10.0f);
-	
-	return node;
-}
-
-function void
-node_release(node_t* node) {
-	dll_remove(node_state.node_first, node_state.node_last, node);
-	stack_push(node_state.node_free, node);
-	node_state.node_count--;
-}
-
-function void 
-node_bring_to_front(node_t* node) {
-
-	dll_remove(node_state.node_first, node_state.node_last, node);
-	dll_push_front(node_state.node_first, node_state.node_last, node);
-
-}
-
-// connection
-
-function connection_t* 
-connection_create(node_t* from, node_t* to) {
-
-	// grab from free list of allocate one.
-	connection_t* connection = node_state.connection_free;
-	if (connection != nullptr) {
-		stack_pop(node_state.connection_free);
-	} else {
-		connection = (connection_t*)arena_alloc(node_state.arena, sizeof(connection_t));
-	}
-	memset(connection, 0, sizeof(connection_t));
-
-	// fill
-	connection->from = from;
-	connection->to = to;
-
-	// add to list
-	dll_push_back(node_state.connection_first, node_state.connection_last, connection);
-	node_state.connection_count++;
-
-	return connection;
-}
-
-function void 
-connection_release(connection_t* connection) {
-	dll_remove(node_state.connection_first, node_state.connection_last, connection);
-	stack_push(node_state.connection_free, connection);
-	node_state.connection_count--;
-}
 
 // ui
 
@@ -413,7 +269,6 @@ debug_view(ui_view_t* view) {
 	ui_expander_end();
 	ui_spacer();
 
-
 	persist b8 frame_styling_expanded = false;
 	ui_expander_begin(str("UI Frame Styling Options"), &frame_styling_expanded);
 	if (frame_styling_expanded) {
@@ -445,29 +300,36 @@ debug_view(ui_view_t* view) {
 function void
 node_graph_view(ui_view_t* view) {
 
+	ui_frame_flags background_flags = 
+		ui_frame_flag_clickable | 
+		ui_frame_flag_draw_background |
+		ui_frame_flag_draw_custom | 
+		ui_frame_flag_clip;
+
 	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
-	ui_frame_t* background_frame = ui_frame_from_string(str("node_background_frame"), ui_frame_flag_clickable | ui_frame_flag_draw_custom | ui_frame_flag_clip);
-	ui_frame_set_custom_draw(background_frame, node_background_draw_function, nullptr);
+	ui_set_next_color_background(color(0x131313ff));
+	ui_frame_t* background_frame = ui_frame_from_string(str("node_background_frame"), background_flags);
+	ui_frame_set_custom_draw(background_frame, ng_node_background_draw_function, nullptr);
 
 	ui_push_parent(background_frame);
 
-	ui_push_pref_size(ui_size_pixel(150.0f, 1.0f), ui_size_pixel(20.0f, 1.0f));
-	ui_push_flags(ui_frame_flag_ignore_view_scroll);
-	ui_labelf("node count: %u", node_state.node_count);
-	ui_labelf("connection count: %u", node_state.connection_count);
-	ui_pop_pref_size();
-	ui_pop_flags();
-
+	// labels
+	{
+		/*ui_push_flags(ui_frame_flag_ignore_view_scroll);
+		ui_push_pref_size(ui_size_pixel(150.0f, 1.0f), ui_size_pixel(20.0f, 1.0f));
+		ui_labelf("node count: %u", node_state->node_count);
+		ui_labelf("connection count: %u", node_state->connection_count);
+		ui_pop_pref_size();
+		ui_pop_flags();*/
+	}
 
 	// get parent panel pos
-	f32 panel_x = node_graph_panel->frame->rect.x0;
-	f32 panel_y = node_graph_panel->frame->rect.y0;
 
-	persist node_t* begin_node = nullptr;
-	persist node_t* end_node = nullptr;
+	persist ng_node_t* begin_node = nullptr;
+	persist ng_node_t* end_node = nullptr;
 
 	// render nodes
-	for (node_t* node = node_state.node_first; node != nullptr; node = node->next) {
+	for (ng_node_t* node = node_state->node_first; node != nullptr; node = node->next) {
 
 		ui_set_next_fixed_x(node->pos.x);
 		ui_set_next_fixed_y(node->pos.y);
@@ -507,7 +369,7 @@ node_graph_view(ui_view_t* view) {
 			ui_set_next_pref_width(ui_size_pixel(20.0f, 1.0f));
 			ui_key_t port_1_key = ui_key_from_stringf({ 0 }, "###%p_port_1", node);
 			ui_frame_t* port_1 = ui_frame_from_key(port_1_key, ui_frame_flag_clickable | ui_frame_flag_draw_custom);
-			ui_frame_set_custom_draw(port_1, port_draw_function, nullptr);
+			ui_frame_set_custom_draw(port_1, ng_port_draw_function, nullptr);
 			button_interaction |= ui_frame_interaction(port_1);
 
 			ui_set_next_pref_width(ui_size_percent(1.0f));
@@ -517,7 +379,7 @@ node_graph_view(ui_view_t* view) {
 			ui_set_next_pref_width(ui_size_pixel(20.0f, 1.0f));
 			ui_key_t port_2_key = ui_key_from_stringf({ 0 }, "###%p_port_2", node);
 			ui_frame_t* port_2 = ui_frame_from_key(port_2_key, ui_frame_flag_clickable | ui_frame_flag_draw_custom);
-			ui_frame_set_custom_draw(port_2, port_draw_function, nullptr);
+			ui_frame_set_custom_draw(port_2, ng_port_draw_function, nullptr);
 			button_interaction |= ui_frame_interaction(port_2);
 
 			// button interaction
@@ -558,7 +420,7 @@ node_graph_view(ui_view_t* view) {
 		ui_interaction interaction = ui_frame_interaction(frame);
 
 		if (interaction & ui_interaction_left_pressed) {
-			node_bring_to_front(node);
+			ng_node_bring_to_front(node_state, node);
 		}
 
 		if (interaction & ui_interaction_left_dragging) {
@@ -569,7 +431,7 @@ node_graph_view(ui_view_t* view) {
 	}
 
 	// render connection
-	for (connection_t* connection = node_state.connection_first; connection != nullptr; connection = connection->next) {
+	for (ng_connection_t* connection = node_state->connection_first; connection != nullptr; connection = connection->next) {
 
 		// update connection pos
 		connection->from_pos = connection->from->pos;
@@ -582,12 +444,12 @@ node_graph_view(ui_view_t* view) {
 
 		vec2_t size = vec2(max_pos.x - min_pos.x, max_pos.y - min_pos.y);
 
-		ui_set_next_fixed_x(panel_x + min_pos.x);
-		ui_set_next_fixed_y(panel_y + min_pos.y);
+		ui_set_next_fixed_x(min_pos.x);
+		ui_set_next_fixed_y(min_pos.y);
 		ui_set_next_fixed_width(size.x);
 		ui_set_next_fixed_height(size.y);
 		ui_frame_t* frame = ui_frame_from_key(frame_key, ui_frame_flag_clickable | ui_frame_flag_draw_custom | ui_frame_flag_floating);
-		ui_frame_set_custom_draw(frame, connection_draw_function, nullptr);
+		ui_frame_set_custom_draw(frame, ng_connection_draw_function, nullptr);
 
 	}
 
@@ -638,93 +500,81 @@ console_view(ui_view_t* view) {
 	ui_padding_end(ui_size_pixel(8.0f, 1.0f));
 }
 
-
-// ui custom draw
-
-function void 
-node_background_draw_function(ui_frame_t* frame) {
-	
-	// draw background
-	draw_set_next_color(color(0x232323ff));
-	draw_rect(frame->rect);
-
-	f32 frame_width = rect_width(frame->rect);
-
-	// draw grid
-	/*f32 offset_x = fmodf(frame->view_offset_last.x, 50.0f);
-	for (f32 x = frame->rect.x0 - offset_x; x < frame->rect.x1 - offset_x + 50.0f; x += 50.0f) {
-		f32 round_x = roundf(x);
-		rect_t line = rect(round_x, frame->rect.y0, round_x + 1.0f, frame->rect.y1);
-		draw_set_next_color(color(0x303030ff));
-		draw_rect(line);
-	}
-
-	f32 offset_y = fmodf(frame->view_offset_last.y, 50.0f);
-	for (f32 y = frame->rect.y0 - offset_y; y < frame->rect.y1 - offset_y + 50.0f; y += 50.0f) {
-		f32 round_y = roundf(y);
-		rect_t line = rect(frame->rect.x0, round_y, frame->rect.x1, round_y + 1.0f);
-		draw_set_next_color(color(0x303030ff));
-		draw_rect(line);
-	}*/
-
-	f32 offset_x = fmodf(frame->view_offset_last.x, 25.0f);
-	f32 offset_y = fmodf(frame->view_offset_last.y, 25.0f);
-	for (f32 x = frame->rect.x0 - offset_x; x < frame->rect.x1 - offset_x + 25.0f; x += 25.0f) {
-		for (f32 y = frame->rect.y0 - offset_y; y < frame->rect.y1 - offset_y + 25.0f; y += 25.0f) {
-			f32 radius = 1.25f;
-			draw_set_next_color(color(0x303030ff));
-			draw_circle(vec2(x, y), radius, 0.0f, 360.0f);
-		}
-	}
-
-
-}
-
 function void
-connection_draw_function(ui_frame_t* frame) {
+force_graph_view(ui_view_t* view) {
 	
-	vec2_t p0 = frame->rect.v0;
-	vec2_t p1 = frame->rect.v1;
-	vec2_t c0 = vec2_add(p0, vec2(50.0f, 0.0f));
-	vec2_t c1 = vec2_add(p1, vec2(-50.0f, 0.0f));
+	ui_frame_flags background_flags =
+		ui_frame_flag_clickable |
+		ui_frame_flag_draw_background |
+		ui_frame_flag_draw_custom |
+		ui_frame_flag_clip;
 
-	draw_push_color(frame->palette.accent);
-	draw_push_thickness(2.5f);
-	draw_push_softness(0.5f);
-	draw_bezier(p0, p1, c0, c1);
-	draw_pop_softness();
-	draw_pop_thickness();
-	draw_pop_color();
+	ui_set_next_pref_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+	ui_set_next_color_background(color(0x131313ff));
+	ui_key_t background_key = ui_key_from_stringf({ 0 }, "%p_force_graph_background", view);
+	ui_frame_t* background_frame = ui_frame_from_key(background_key, background_flags);
 
-}
+	ui_push_parent(background_frame);
 
-function void 
-port_draw_function(ui_frame_t* frame) {
+	// draw nodes
+	for (fg_node_t* node = fg_state->node_first; node != nullptr; node = node->next) {
 
-	vec2_t center = rect_center(frame->rect);
+		ui_frame_flags node_flags = 
+			ui_frame_flag_clickable | 
+			ui_frame_flag_draw_custom | 
+			ui_frame_flag_floating;
+		
+		f32 node_size = 8.0f;
+		ui_set_next_rect(rect(node->pos.x - node_size, node->pos.y - node_size, node->pos.x + node_size, node->pos.y + node_size));
+		ui_key_t node_key = ui_key_from_stringf(background_key, "%p_frame", node);
+		ui_frame_t* node_frame = ui_frame_from_key(node_key, node_flags);
+		node->frame = node_frame;
+		ui_frame_set_custom_draw(node_frame, fg_node_custom_draw, nullptr);
+
+		ui_interaction node_interaction = ui_frame_interaction(node_frame);
+
+		if (node_interaction & ui_interaction_left_dragging) {
+			vec2_t mouse_pos = os_window_get_cursor_pos(window);
+			node->pos.x = mouse_pos.x - background_frame->rect.x0 + background_frame->view_offset.x;
+			node->pos.y = mouse_pos.y - background_frame->rect.y0 + background_frame->view_offset.y;
+		}
+
+	}
+
+	// draw connections
+	for (fg_link_t* link = fg_state->link_first; link != nullptr; link = link->next) {
+
+		// calculate points
+		vec2_t from = vec2(0.0f);
+		vec2_t to = vec2(0.0f);
+		if (link->from->frame != nullptr && link->to->frame != nullptr) {
+			from = rect_center(link->from->frame->rect);
+			to = rect_center(link->to->frame->rect);
+		}
+
+		// calculate bounding rect
+		vec2_t points[2] = { from, to };
+		rect_t link_rect = rect_grow(rect_bbox(points, 2), 2.0f);
+
+		ui_set_next_rect(link_rect);
+		ui_key_t node_key = ui_key_from_stringf(background_key, "%p_frame", link);
+		ui_frame_t* link_frame = ui_frame_from_key(node_key, ui_frame_flag_draw_custom | ui_frame_flag_floating);
+		fg_link_draw_data_t* data = (fg_link_draw_data_t*)arena_alloc(ui_active()->per_frame_arena, sizeof(fg_link_draw_data_t));
+		ui_frame_set_custom_draw(link_frame, fg_link_custom_draw, data);
+
+		data->from = from;
+		data->to = to;
+	}
 	
-	// animate radius
-	f32 radius = roundf((min(rect_width(frame->rect), rect_height(frame->rect)) * 0.5f) - 2.0f);
-	radius = lerp(radius, radius + 1.0f, frame->hover_t);
-	f32 inner_radius = lerp(0.0f, radius - 5.0f, frame->active_t);
+	ui_pop_parent();
 
-	// animate color
-	color_t port_color = frame->palette.accent;
-	port_color = color_lerp(port_color, color_blend(port_color, color(0xffffff45)), frame->hover_t);
-	port_color = color_lerp(port_color, color_blend(port_color, color(0xffffff65)), frame->active_t);
-
-	color_t inner_port_color = color_lerp(color(port_color.r, port_color.g, port_color.b, 0.0f), port_color, frame->active_t);
-
-	// draw
-	draw_set_next_color(port_color);
-	draw_set_next_thickness(3.0f);
-	draw_set_next_softness(0.75f);
-	draw_circle(center, radius, 0.0f, 360.0f);
-
-	// inner
-	draw_set_next_color(inner_port_color);
-	draw_set_next_softness(0.5f);
-	draw_circle(center, inner_radius, 0.0f, 360.0f);
+	ui_interaction background_interaction = ui_frame_interaction(background_frame);
+	if (background_interaction & ui_interaction_middle_dragging) {
+		vec2_t mouse_delta = os_window_get_mouse_delta(window);
+		background_frame->view_offset_target.x -= mouse_delta.x;
+		background_frame->view_offset_target.y -= mouse_delta.y;
+		os_set_cursor(os_cursor_resize_all);
+	}
 
 }
 
@@ -741,42 +591,85 @@ app_init() {
 	// set frame function
 	os_window_set_frame_function(window, app_frame);
 
-	// create panels
-	widgets_panel = ui_panel_create(ui, 0.2f);
-	ui_panel_t* center = ui_panel_create(ui, 0.6f, ui_axis_y);
-	properties_panel = ui_panel_create(ui, 0.2f);
-	node_graph_panel = ui_panel_create(ui, 0.7f);
-	console_panel = ui_panel_create(ui, 0.3f);
+	// create panels and view
+	{
+		// create panels
+		ui_panel_t* widgets_panel = ui_panel_create(ui, 0.2f);
+		ui_panel_t* center = ui_panel_create(ui, 0.6f, ui_axis_y);
+		ui_panel_t* properties_panel = ui_panel_create(ui, 0.2f);
+		ui_panel_t* node_graph_panel = ui_panel_create(ui, 0.7f);
+		ui_panel_t* console_panel = ui_panel_create(ui, 0.3f);
 
-	// insert into tree
-	ui_panel_insert(center, console_panel);
-	ui_panel_insert(center, node_graph_panel);
-	ui_panel_insert(ui->panel_root, properties_panel);
-	ui_panel_insert(ui->panel_root, center);
-	ui_panel_insert(ui->panel_root, widgets_panel);
+		// insert into tree
+		ui_panel_insert(center, console_panel);
+		ui_panel_insert(center, node_graph_panel);
+		ui_panel_insert(ui->panel_root, properties_panel);
+		ui_panel_insert(ui->panel_root, center);
+		ui_panel_insert(ui->panel_root, widgets_panel);
 
-	// create views
-	ui_view_t* view1 = ui_view_create(ui, str("Properties"), properties_view);
-	ui_view_t* view2 = ui_view_create(ui, str("Widgets"), widget_view);
-	ui_view_t* view3 = ui_view_create(ui, str("Debug"), debug_view);
-	ui_view_t* view4 = ui_view_create(ui, str("Node Graph"), node_graph_view);
-	ui_view_t* view5 = ui_view_create(ui, str("Console"), console_view);
+		// create views
+		ui_view_t* view1 = ui_view_create(ui, str("Properties"), properties_view);
+		ui_view_t* view2 = ui_view_create(ui, str("Widgets"), widget_view);
+		ui_view_t* view3 = ui_view_create(ui, str("Debug"), debug_view);
+		ui_view_t* view4 = ui_view_create(ui, str("Node Graph"), node_graph_view);
+		ui_view_t* view5 = ui_view_create(ui, str("Console"), console_view);
+		ui_view_t* view6 = ui_view_create(ui, str("Force Graph"), force_graph_view);
 
-	// insert views into panels
-	ui_panel_insert_view(properties_panel, view1);
-	ui_panel_insert_view(widgets_panel, view2);
-	ui_panel_insert_view(console_panel, view3);
-	ui_panel_insert_view(console_panel, view5);
-	ui_panel_insert_view(node_graph_panel, view4);
+		// insert views into panels
+		ui_panel_insert_view(properties_panel, view1);
+		ui_panel_insert_view(widgets_panel, view2);
+		ui_panel_insert_view(console_panel, view3);
+		ui_panel_insert_view(console_panel, view5);
+		ui_panel_insert_view(node_graph_panel, view4);
+		ui_panel_insert_view(node_graph_panel, view6);
 
-	// create nodes
-	node_create(str("Node 1"), vec2(220.0f, 200.0f));
-	node_create(str("Node 2"), vec2(450.0f, 280.0f));
 
+	}
+	
+	// create node graph
+	{
+		node_state = ng_init();
+
+		// create nodes
+		ng_node_create(node_state, str("Node 1"), vec2(220.0f, 200.0f));
+		ng_node_create(node_state, str("Node 2"), vec2(450.0f, 280.0f));
+
+
+	}
+
+	// create force graph
+	{
+		fg_state = fg_create();
+		
+		vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+		fg_node_t* root = fg_node_create(fg_state, pos);
+			
+		fg_node_t* prev = root;
+		fg_node_t* prev_prev = root;
+		for (i32 i = 0; i < 35; i++) {
+			vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+			fg_node_t* node = fg_node_create(fg_state, pos);
+			
+			b8 chance = (random_u32_range(0, 10) < 5);
+			b8 chance2 = (random_u32_range(0, 10) < 4);
+
+			fg_node_t* connection = chance ? chance2 ? prev : prev_prev : root;
+			fg_link_create(fg_state, connection, node);
+
+			prev = node;
+			prev_prev = prev;
+		}
+
+
+	}
 }
 
 function void
 app_release() {
+
+	// release node graph
+	ng_release(node_state);
+	fg_release(fg_state);
 
 	// release renderer and window
 	ui_context_release(ui);
@@ -792,7 +685,7 @@ app_frame() {
 	os_update();
 	gfx_update();
 	ui_update();
-	
+
 	// hotkeys
 	if (os_key_press(window, os_key_F11)) {
 		os_window_fullscreen(window);
@@ -802,6 +695,11 @@ app_frame() {
 		quit = true;
 	}
 
+
+	// update force graph sim
+	f32 delta_time = os_window_get_delta_time(window);
+	fg_update(fg_state, delta_time);
+	
 	// render
 	if (!gfx_handle_equals(renderer, { 0 })) {
 		temp_t scratch = scratch_begin();
@@ -835,7 +733,6 @@ app_entry_point(i32 argc, char** argv) {
 	font_init();
 	draw_init();
 	ui_init();
-	node_state_init();
 
 	// init
 	app_init();
@@ -849,7 +746,6 @@ app_entry_point(i32 argc, char** argv) {
 	app_release();
 
 	// release layers
-	node_state_release();
 	ui_release();
 	draw_release();
 	font_release();
