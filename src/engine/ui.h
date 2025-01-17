@@ -16,6 +16,9 @@
 //     [x] - animation cache.
 //     [x] - animate pos and size of frames.
 // [ ] - support different directions in layout algorithm.
+//     [ ] - maybe rewrite layout algorithm? very big task but might be worth it
+//           i think a better option is start a new project and test out ideas
+//           of different layout algorithms before trying to rewrite this one.
 // [ ] - truncate long text (...).
 // 
 // minor stuff:

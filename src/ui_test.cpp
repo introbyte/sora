@@ -473,14 +473,19 @@ properties_view(ui_view_t* view) {
 	ui_push_pref_size(ui_size_percent(1.0f), ui_size_pixel(20.0f, 1.0f));
 
 
-	persist b8 test_expander = false;
-	ui_expander_begin(str("Test Expander"), &test_expander);
-	if (test_expander) {
+	persist b8 force_graph_params_expanded = false;
+	ui_expander_begin(str("Force Graph Params"), &force_graph_params_expanded);
+	if (force_graph_params_expanded) {
 		ui_padding_begin(ui_size_pixel(4.0f, 1.0f));
 
-		ui_buttonf("test button 1");
+
+		ui_float_edit(str("link_size"), &fg_state->link_size, 0.1f, 1.0f, 200.0f);
 		ui_spacer();
-		ui_buttonf("test button 2");
+		ui_float_edit(str("link_strength"), &fg_state->link_strength, 0.1f, 1.0f, 200.0f);
+		ui_spacer();
+		ui_float_edit(str("repulsive_strength"), &fg_state->repulsive_strength, 0.1f, 1.0f, 5000.0f);
+		ui_spacer();
+		ui_float_edit(str("damping"), &fg_state->damping, 0.01f, 0.01f, 1.0f);
 
 		ui_padding_end(ui_size_pixel(4.0f, 1.0f));
 	}
@@ -524,7 +529,7 @@ force_graph_view(ui_view_t* view) {
 			ui_frame_flag_draw_custom | 
 			ui_frame_flag_floating;
 		
-		f32 node_size = 8.0f;
+		f32 node_size = node->size;
 		ui_set_next_rect(rect(node->pos.x - node_size, node->pos.y - node_size, node->pos.x + node_size, node->pos.y + node_size));
 		ui_key_t node_key = ui_key_from_stringf(background_key, "%p_frame", node);
 		ui_frame_t* node_frame = ui_frame_from_key(node_key, node_flags);
@@ -534,6 +539,7 @@ force_graph_view(ui_view_t* view) {
 		ui_interaction node_interaction = ui_frame_interaction(node_frame);
 
 		if (node_interaction & ui_interaction_left_dragging) {
+			fg_state->node_active = node;
 			vec2_t mouse_pos = os_window_get_cursor_pos(window);
 			node->pos.x = mouse_pos.x - background_frame->rect.x0 + background_frame->view_offset.x;
 			node->pos.y = mouse_pos.y - background_frame->rect.y0 + background_frame->view_offset.y;
@@ -616,7 +622,7 @@ app_init() {
 		ui_view_t* view6 = ui_view_create(ui, str("Force Graph"), force_graph_view);
 
 		// insert views into panels
-		ui_panel_insert_view(properties_panel, view1);
+		//ui_panel_insert_view(properties_panel, view1);
 		ui_panel_insert_view(widgets_panel, view2);
 		ui_panel_insert_view(console_panel, view3);
 		ui_panel_insert_view(console_panel, view5);
@@ -642,22 +648,33 @@ app_init() {
 		fg_state = fg_create();
 		
 		vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
-		fg_node_t* root = fg_node_create(fg_state, pos);
-			
-		fg_node_t* prev = root;
-		fg_node_t* prev_prev = root;
-		for (i32 i = 0; i < 35; i++) {
-			vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
-			fg_node_t* node = fg_node_create(fg_state, pos);
-			
-			b8 chance = (random_u32_range(0, 10) < 5);
-			b8 chance2 = (random_u32_range(0, 10) < 4);
+		fg_node_t* root = fg_node_create(fg_state, pos, 15.0f);
 
-			fg_node_t* connection = chance ? chance2 ? prev : prev_prev : root;
-			fg_link_create(fg_state, connection, node);
+		u32 random_value_i = random_u32_range(5, 15);
+		for (u32 i = 0; i < random_value_i; i++) {
 
-			prev = node;
-			prev_prev = prev;
+			// create node
+			vec2_t pos_i = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+			fg_node_t* node_i = fg_node_create(fg_state, pos_i);
+			fg_link_create(fg_state, root, node_i, 100.0f);
+
+			// create random children
+			u32 random_value_j = random_u32_range(0, 4);
+			for (u32 j = 0; j < random_value_j; j++) {
+				vec2_t pos_j = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+				fg_node_t* node_j = fg_node_create(fg_state, pos_j);
+				fg_link_create(fg_state, node_i, node_j);
+
+				// create random children
+				u32 random_value_k = random_u32_range(0, 3);
+				for (u32 k = 0; k < random_value_k; k++) {
+					vec2_t pos_k = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+					fg_node_t* node_k = fg_node_create(fg_state, pos_k);
+					fg_link_create(fg_state, node_j, node_k, 50.0f);
+				}
+
+			}
+			
 		}
 
 
@@ -694,7 +711,6 @@ app_frame() {
 	if (os_key_press(window, os_key_esc)) {
 		quit = true;
 	}
-
 
 	// update force graph sim
 	f32 delta_time = os_window_get_delta_time(window);

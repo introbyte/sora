@@ -21,10 +21,17 @@ fg_create() {
 	state->node_first = nullptr;
 	state->node_last = nullptr;
 	state->node_free = nullptr;
+	state->node_active = nullptr;
 	
 	state->link_first = nullptr;
 	state->link_last = nullptr;
 	state->link_free = nullptr;
+
+	state->link_size = 75.0f;
+	state->link_strength = 10.0f;
+	state->repulsive_strength = 10000.0f;
+	state->damping = 0.99f;
+	state->iterations = 8;
 
 	return state;
 }
@@ -39,11 +46,14 @@ fg_release(fg_state_t* state) {
 function void
 fg_update(fg_state_t* state, f32 dt) {
 	
-	for (i32 i = 0; i < 50; i++) {
+	for (i32 i = 0; i < state->iterations; i++) {
 		fg_apply_spring_forces(state, dt);
 		fg_apply_repulsive_forces(state, dt);
 		fg_update_position(state, dt);
 	}
+
+	// reset node active
+	state->node_active = nullptr;
 
 }
 
@@ -53,7 +63,7 @@ function void
 fg_apply_spring_forces(fg_state_t* state, f32 dt) {
 
 	for (fg_link_t* link = state->link_first; link != nullptr; link = link->next) {
-		
+
 		fg_node_t* node_a = link->from;
 		fg_node_t* node_b = link->to;
 		
@@ -61,8 +71,8 @@ fg_apply_spring_forces(fg_state_t* state, f32 dt) {
 		vec2_t v = vec2_sub(node_b->pos, node_a->pos);
 		f32 dist = vec2_length(v);
 		vec2_t dir = vec2_normalize(v);
-		f32 displacement = dist - 75.0f;
-		f32 force = 2.0f * displacement;
+		f32 displacement = dist - link->length;
+		f32 force = state->link_strength * displacement;
 
 		// apply force
 		node_a->vel = vec2_add(node_a->vel, vec2_mul(dir, force * dt));
@@ -84,7 +94,7 @@ fg_apply_repulsive_forces(fg_state_t* state, f32 dt) {
 			f32 dist = vec2_length(v);
 			vec2_t dir = vec2_normalize(v);
 
-			f32 force = 1000.0f / (dist * dist);
+			f32 force = state->repulsive_strength / (dist * dist);
 
 			// apply forces
 			node_a->vel = vec2_sub(node_a->vel, vec2_mul(dir, force * dt));
@@ -101,7 +111,11 @@ fg_update_position(fg_state_t* state, f32 dt) {
 	for (fg_node_t* node = state->node_first; node != nullptr; node = node->next) {
 
 		// damp velocity
-		node->vel = vec2_mul(node->vel, 0.9f);
+		node->vel = vec2_mul(node->vel, state->damping);
+		
+		if (node == state->node_active) {
+			continue;
+		}
 
 		// apply velocity
 		node->pos = vec2_add(node->pos, vec2_mul(node->vel, dt));	
@@ -112,7 +126,7 @@ fg_update_position(fg_state_t* state, f32 dt) {
 // nodes
 
 function fg_node_t* 
-fg_node_create(fg_state_t* state, vec2_t pos) {
+fg_node_create(fg_state_t* state, vec2_t pos, f32 size) {
 
 	// grab from free list of allocate node
 	fg_node_t* node = state->node_free;
@@ -127,6 +141,7 @@ fg_node_create(fg_state_t* state, vec2_t pos) {
 	// fill struct
 	node->pos = pos;
 	node->vel = vec2(0.0f);
+	node->size = size;
 
 	return node;
 }
@@ -143,7 +158,7 @@ fg_node_release(fg_state_t* state, fg_node_t* node) {
 // links
 
 function fg_link_t* 
-fg_link_create(fg_state_t* state, fg_node_t* from, fg_node_t* to) {
+fg_link_create(fg_state_t* state, fg_node_t* from, fg_node_t* to, f32 length) {
 
 	// grab from free list of allocate link
 	fg_link_t* link = state->link_free;
@@ -158,6 +173,7 @@ fg_link_create(fg_state_t* state, fg_node_t* from, fg_node_t* to) {
 	// fill struct
 	link->from = from;
 	link->to = to;
+	link->length = length;
 
 	return link;
 }

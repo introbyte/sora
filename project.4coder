@@ -1,0 +1,31 @@
+version(1);
+project_name = "sora project";
+
+patterns = {
+	"*.c",
+	"*.cpp",
+	"*.h",
+	"*.inc",
+	"*.bat",
+	"*.4coder",
+};
+
+load_paths = {
+    { { { ".", .relative = true, .recursize = true, } }, .os = "win" },        
+};
+
+command_list = {
+    {
+        .name = "build",
+        .out = "*compilation*",
+        .footer_panel = true,
+        .save_dirty_files = true,
+        .cursor_at_end = false,
+        .cmd = {
+            { "build.bat new_layout", .os = "win" },
+        },
+    },
+};
+                  
+fkey_command[1] = "build";
+ 

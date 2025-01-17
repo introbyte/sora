@@ -1714,7 +1714,6 @@ ui_layout_solve_downward_dependent(ui_frame_t* root, ui_axis axis) {
 function void 
 ui_layout_solve_violations(ui_frame_t* root, ui_axis axis) {
 	
-	// x axis
 
 	f32 root_size = root->fixed_size[axis];
 	if (root->flags & (ui_frame_flag_anim_width << axis)) {
@@ -2150,7 +2149,9 @@ ui_frame_interaction(ui_frame_t* frame) {
 						}
 						context->active_frame_key[event->mouse] = { 0 };
 					}
-
+					// clicked -> in_bounds, frame_active
+					// released -> in_bounds, !frame_active
+					// reset active -> ~~~~~, frame_active
 					
 				}
 
