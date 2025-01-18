@@ -8,11 +8,10 @@
 // [x] - animation cache
 // [x] - custom drawing
 // [x] - commands
+// [x] - tooltips
+// [x] - popups contexts
 // [ ] - investigate animating layout 
-// [ ] - tooltips
-// [ ] - popups contexts
-// [ ] -
-// [ ] - 
+//
 
 //- enums
 
@@ -97,6 +96,22 @@ enum ui_event_delta_unit {
 	ui_event_delta_unit_whole,
 };
 
+enum ui_data_type {
+    ui_data_type_none,
+    ui_data_type_b8,
+    ui_data_type_u8,
+    ui_data_type_u16,
+    ui_data_type_u32,
+    ui_data_type_u64,
+    ui_data_type_i8,
+    ui_data_type_i16,
+    ui_data_type_i32,
+    ui_data_type_i64,
+    ui_data_type_f32,
+    ui_data_type_f64,
+    ui_data_type_count,
+};
+
 typedef u64 ui_frame_flags;
 enum {
 	ui_frame_flag_none = (0 << 0),
@@ -161,21 +176,21 @@ enum {
     ui_interaction_middle_pressed = (1 << 4),
     ui_interaction_right_pressed = (1 << 5),
     
-    ui_interaction_left_released = (1 < 6),
-    ui_interaction_middle_released = (1 < 7),
-    ui_interaction_right_released = (1 < 8),
+    ui_interaction_left_released = (1 << 6),
+    ui_interaction_middle_released = (1 << 7),
+    ui_interaction_right_released = (1 << 8),
     
-    ui_interaction_left_clicked = (1 < 9),
-    ui_interaction_middle_clicked = (1 < 10),
-    ui_interaction_right_clicked = (1 < 11),
+    ui_interaction_left_clicked = (1 << 9),
+    ui_interaction_middle_clicked = (1 << 10),
+    ui_interaction_right_clicked = (1 << 11),
     
-    ui_interaction_left_double_clicked = (1 < 12),
-    ui_interaction_middle_double_clicked = (1 < 13),
-    ui_interaction_right_double_clicked = (1 < 14),
+    ui_interaction_left_double_clicked = (1 << 12),
+    ui_interaction_middle_double_clicked = (1 << 13),
+    ui_interaction_right_double_clicked = (1 << 14),
     
-    ui_interaction_left_triple_clicked = (1 < 15),
-    ui_interaction_middle_triple_clicked = (1 < 16),
-    ui_interaction_right_triple_clicked = (1 < 17),
+    ui_interaction_left_triple_clicked = (1 << 15),
+    ui_interaction_middle_triple_clicked = (1 << 16),
+    ui_interaction_right_triple_clicked = (1 << 17),
     
     ui_interaction_left_dragging = (1 << 18),
     ui_interaction_middle_dragging = (1 << 19),
@@ -295,7 +310,7 @@ struct ui_frame_t {
     ui_size_t size_wanted[2];
     vec2_t size_target;
     vec2_t size;
-    ui_size_t padding;
+    f32 padding;
     ui_dir layout_dir;
     ui_text_alignment text_alignment;
     vec2_t view_bounds;
@@ -409,6 +424,37 @@ struct ui_anim_node_t {
     f32 current;
 };
 
+// data 
+
+struct ui_data_node_t {
+    ui_data_node_t* list_next;
+    ui_data_node_t* list_prev;
+    
+    ui_data_node_t* lru_next;
+    ui_data_node_t* lru_prev;
+    
+    u64 first_build_index;
+    u64 last_build_index;
+    
+    ui_key_t key;
+    ui_data_type type;
+    
+    union {
+        b8 b8_value;
+        i8 i8_value;
+        i16 i16_value;
+        i32 i32_value;
+        i64 i64_value;
+        u8 u8_value;
+        u16 u16_value;
+        u32 u32_value;
+        u64 u64_value;
+        f32 f32_value;
+        f64 f64_value;
+        void* ptr_value;
+    };
+    
+};
 
 // stacks
 
@@ -441,7 +487,7 @@ struct ui_width_stack_t { ui_width_node_t* top; ui_width_node_t* free; b8 auto_p
 struct ui_height_node_t { ui_height_node_t* next; ui_size_t v; };
 struct ui_height_stack_t { ui_height_node_t* top; ui_height_node_t* free; b8 auto_pop; };
 
-struct ui_padding_node_t { ui_padding_node_t* next; ui_size_t v; };
+struct ui_padding_node_t { ui_padding_node_t* next; f32 v; };
 struct ui_padding_stack_t { ui_padding_node_t* top; ui_padding_node_t* free; b8 auto_pop; };
 
 struct ui_layout_dir_node_t { ui_layout_dir_node_t* next; ui_dir v; };
@@ -510,7 +556,7 @@ struct ui_context_t {
     
     // arena
     arena_t* arena;
-    arena_t* build_arena;
+    arena_t* build_arena[2];
     arena_t* drag_state_arena;
     
     // context
@@ -527,6 +573,7 @@ struct ui_context_t {
     ui_frame_t* frame_root;
     ui_frame_t* frame_tooltip;
     ui_frame_t* frame_popup;
+    ui_frame_t* frame_mrc;
     
     // view list
     ui_view_t* view_first;
@@ -546,11 +593,19 @@ struct ui_context_t {
     ui_anim_node_t* anim_node_lru;
     ui_anim_node_t* anim_node_mru;
     
+    // data nodes
+    ui_data_node_t* data_node_first;
+    ui_data_node_t* data_node_last;
+    ui_data_node_t* data_node_free;
+    ui_data_node_t* data_node_lru;
+    ui_data_node_t* data_node_mru;
+    
     // keys
     ui_key_t key_hovered;
     ui_key_t key_hovered_prev;
     ui_key_t key_active[3];
     ui_key_t key_focused;
+    ui_key_t key_popup;
     
     // input state
     vec2_t mouse_pos;
@@ -564,6 +619,11 @@ struct ui_context_t {
     // animation
     f32 anim_slow_rate;
     f32 anim_fast_rate;
+    
+    // popup state
+    vec2_t popup_pos;
+    b8 popup_is_open;
+    b8 popup_updated_this_frame;
     
     // stacks
     ui_parent_node_t parent_default_node;
@@ -706,6 +766,8 @@ function void ui_update();
 function void ui_begin(ui_context_t* context);
 function void ui_end(ui_context_t* context);
 function ui_context_t* ui_active();
+function arena_t* ui_build_arena();
+function ui_frame_t* ui_last_frame();
 
 // context
 function ui_context_t* ui_context_create(os_handle_t window, gfx_handle_t renderer);
@@ -763,6 +825,12 @@ function ui_anim_params_t ui_anim_params_create(f32 initial, f32 target, f32 rat
 function f32 ui_anim_ex(ui_key_t key, ui_anim_params_t params);
 function f32 ui_anim(ui_key_t key, f32 initial, f32 target);
 
+// data
+function void* ui_data_ex(ui_key_t key, ui_data_type type, void* initial);
+function b8* ui_data(ui_key_t key, b8 initial);
+function f32* ui_data(ui_key_t key, f32 initial);
+
+
 // frames
 function ui_frame_t* ui_frame_find(ui_key_t key);
 function ui_frame_t* ui_frame_from_key(ui_frame_flags flags, ui_key_t key);
@@ -800,19 +868,40 @@ function void ui_row_begin();
 function void ui_row_end();
 function void ui_column_begin();
 function void ui_column_end();
-function void ui_padding_begin(ui_size_t size);
+function void ui_padding_begin(f32 size);
 function void ui_padding_end();
 
 // tooltip
 function void ui_tooltip_begin();
 function void ui_tooltip_end();
 
+// popups
+function b8 ui_popup_begin(ui_key_t key);
+function void ui_popup_end();
+function void ui_popup_open(ui_key_t key, vec2_t pos);
+function void ui_popup_close();
+
 // widgets
-function void ui_spacer(ui_size_t size);
+function void ui_spacer(ui_size_t size = ui_size_pixels(2.0f));
 function ui_interaction ui_label(str_t label);
 function ui_interaction ui_labelf(char* fmt, ...);
 function ui_interaction ui_button(str_t label);
 function ui_interaction ui_buttonf(char* fmt, ...);
+function ui_interaction ui_slider(f32* value, f32 min, f32 max, str_t label);
+function ui_interaction ui_sliderf(f32* value, f32 min, f32 max, char* fmt, ...);
+
+
+function b8 ui_expander_begin(str_t label);
+function b8 ui_expanderf_begin(char* fmt, ...);
+function void ui_expander_end();
+
+
+// widget draw functions
+function void ui_slider_draw_function(ui_frame_t* frame);
+
+
+
+
 
 
 // stacks
@@ -864,10 +953,10 @@ function ui_size_t ui_push_height(ui_size_t v);
 function ui_size_t ui_pop_height();
 function ui_size_t ui_set_next_height(ui_size_t v);
 
-function ui_size_t ui_top_padding();
-function ui_size_t ui_push_padding(ui_size_t v);
-function ui_size_t ui_pop_padding();
-function ui_size_t ui_set_next_padding(ui_size_t v);
+function f32 ui_top_padding();
+function f32 ui_push_padding(f32 v);
+function f32 ui_pop_padding();
+function f32 ui_set_next_padding(f32 v);
 
 function ui_dir ui_top_layout_dir();
 function ui_dir ui_push_layout_dir(ui_dir v);

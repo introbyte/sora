@@ -18,6 +18,7 @@ ui_state.ui_active->name##_stack.top = &ui_state.ui_active->name##_default_node;
 function void
 ui_init() {
 
+
 	// create arenas
 	ui_state.context_arena = arena_create(gigabytes(1));
 	ui_state.event_arena = arena_create(kilobytes(4));
@@ -2139,6 +2140,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 				if (event->type == ui_event_type_mouse_release) {
 
 					if (mouse_in_bounds) {
+						printf("release event!\n");
 						result |= ui_interaction_left_released << event->mouse;
 					}
 
@@ -2146,6 +2148,7 @@ ui_frame_interaction(ui_frame_t* frame) {
 						if (mouse_in_bounds) {
 							result |= ui_interaction_left_clicked << event->mouse;
 							taken = true;
+							printf("             widget clicked!\n");
 						}
 						context->active_frame_key[event->mouse] = { 0 };
 					}

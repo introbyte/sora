@@ -101,7 +101,6 @@ ui_update() {
                     ui_event.type = ui_event_type_mouse_press; 
                     ui_state.click_counter[os_event->mouse]++;
                     ui_state.last_click_time[os_event->mouse] = (os_time_microseconds() / 1000);
-                    
                     break;
                 }
                 case os_event_type_mouse_release: { ui_event.type = ui_event_type_mouse_release; break; }
@@ -117,27 +116,17 @@ ui_update() {
             }
             ui_event_push(&ui_event);
         }
+        
     }
     
-    
 }
-
-function ui_context_t*
-ui_active() {
-    
-	if (ui_state.context_active == nullptr) {
-		printf("[error] [ui] no active context is set!\n");
-	}
-    
-	return ui_state.context_active;
-}
-
 
 function void
 ui_begin(ui_context_t* context) {
     
 	// set active context
 	ui_state.context_active = context;
+    context->frame_mrc = nullptr;
     
     // process commands
     for (ui_cmd_t* command = ui_state.command_first, *next = nullptr; command != nullptr; command = next) {
@@ -269,9 +258,6 @@ ui_begin(ui_context_t* context) {
                 break;
             }
             
-            
-            
-            
         }
         
         // pop command
@@ -280,10 +266,6 @@ ui_begin(ui_context_t* context) {
         }
         
     }
-    
-    
-    
-    
     
     // animation rates
     f32 dt = os_window_get_delta_time(context->window);
@@ -304,10 +286,27 @@ ui_begin(ui_context_t* context) {
         }
     }
     
+    // remove unused data node
+    {
+        for (ui_data_node_t* n = context->data_node_lru, *next = nullptr; n != nullptr; n = next) {
+            next = n->lru_next;
+            if (n->last_build_index + 1 < context->build_index) {
+                dll_remove_np(context->data_node_first, context->data_node_last, n, list_next, list_prev);
+                dll_remove_np(context->data_node_lru, context->data_node_mru, n, lru_next, lru_prev);
+                stack_push_n(context->data_node_free, n, list_next);
+            } else {
+                break;
+            }
+        }
+    }
+    
     
 	// reset stacks
 	ui_context_reset_stacks(context);
 	
+    // reset popup
+    context->popup_updated_this_frame = false;
+    
     // reset keys
     {
         
@@ -350,14 +349,30 @@ ui_begin(ui_context_t* context) {
     ui_push_parent(context->frame_root);
     
     // create tooltip frame
+    ui_frame_flags tooltip_flags = ui_frame_flag_floating;
     ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
     ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
     ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-    ui_set_next_padding(ui_size_pixels(8.0f));
+    ui_set_next_padding(2.0f);
+    ui_set_next_color_background(color(0x1d1d1dff));
     ui_key_t tooltip_key = ui_key_from_stringf({ 0 }, "%p_tooltip_root_frame", context);
-    context->frame_tooltip = ui_frame_from_key(0, tooltip_key);
+    context->frame_tooltip = ui_frame_from_key(tooltip_flags, tooltip_key);
     ui_frame_set_display_string(context->frame_tooltip, str("tooltip_root_frame")); // for debug
     
+    // create popup frame
+    
+    ui_frame_flags popup_flags = 
+        ui_frame_flag_interactable |
+        ui_frame_flag_floating;
+    
+    ui_key_t popup_key = ui_key_from_stringf({ 0 }, "%p_popup_root_frame", context);
+    ui_set_next_fixed_x(context->popup_pos.x);
+    ui_set_next_fixed_y(context->popup_pos.y);
+    ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+    ui_set_next_padding(2.0f);
+    ui_set_next_color_background(color(0x1d1d1dff));
+    context->frame_popup = ui_frame_from_key(popup_flags, popup_key);
+    ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
     
     
     // create non leaf panel ui
@@ -395,6 +410,7 @@ ui_begin(ui_context_t* context) {
                 
                 ui_key_t boundary_key = ui_key_from_stringf({ 0 }, "%p_panel_boundary", child);
                 ui_frame_t* boundary_frame = ui_frame_from_key(boundary_flags, boundary_key);
+                ui_frame_set_display_string(boundary_frame, str("panel_boundary")); // for debug
                 ui_interaction boundary_interaction = ui_frame_interaction(boundary_frame);
                 
                 // dragging interaction
@@ -465,7 +481,7 @@ ui_begin(ui_context_t* context) {
                     ui_frame_flag_draw_clip;
                 
                 ui_set_next_rect(container_rect);
-                ui_set_next_color_background(color(0x303030ff));
+                ui_set_next_color_background(color(0x242424ff));
                 
                 ui_key_t panel_key = ui_key_from_stringf({ 0 }, "%p_panel_frame", panel);
                 panel->frame = ui_frame_from_key(panel_flags, panel_key);
@@ -529,7 +545,7 @@ ui_begin(ui_context_t* context) {
                 
                 for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
                     
-                    ui_set_next_color_background(color(0x303030ff));
+                    ui_set_next_color_background(color(0x242424ff));
                     ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
                     
                     if (tab_interaction & ui_interaction_left_clicked) {
@@ -570,12 +586,24 @@ ui_end(ui_context_t* context) {
         }
     }
     
-    // reset focus
-    {
-        for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
-            if (event->type == ui_event_type_mouse_release) {
-                context->key_focused = { 0 };
-            }
+    // close context
+    if (!context->popup_updated_this_frame) {
+        ui_popup_close();
+    }
+    
+    // popup interaction
+    if(context->popup_is_open) {
+        ui_frame_interaction(context->frame_popup);
+    }
+    
+    // unused mouse events
+    for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
+        if (event->type == ui_event_type_mouse_release) {
+            context->key_focused = { 0 };
+        }
+        
+        if (event->type == ui_event_type_mouse_press) {
+            ui_popup_close();
         }
     }
     
@@ -700,12 +728,12 @@ ui_end(ui_context_t* context) {
                 
             }
             
-            
             // custom draw
             if (frame->flags & ui_frame_flag_draw_custom) {
-                // TODO:
+                if (frame->custom_draw_func != nullptr) {
+                    frame->custom_draw_func(frame);
+                }
             }
-            
             
             // debug drawing
             {
@@ -730,8 +758,6 @@ ui_end(ui_context_t* context) {
                 
             }
             
-            
-            
             frame = rec.next;
         }
         
@@ -740,10 +766,33 @@ ui_end(ui_context_t* context) {
     
     // reset context
     context->build_index++;
-    arena_clear(context->build_arena);
+    arena_clear(ui_build_arena());
     
     // reset active context
     ui_state.context_active = nullptr;
+}
+
+
+function ui_context_t*
+ui_active() {
+    
+	if (ui_state.context_active == nullptr) {
+		printf("[error] [ui] no active context is set!\n");
+	}
+    
+	return ui_state.context_active;
+}
+
+function arena_t*
+ui_build_arena() {
+    ui_context_t* context = ui_active();
+    return context->build_arena[context->build_index % 2];
+}
+
+function ui_frame_t*
+ui_last_frame() {
+    ui_context_t* context = ui_active();
+    return context->frame_mrc;
 }
 
 //- context
@@ -763,7 +812,8 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
     
 	// allocate arenas
 	context->arena = arena_create(megabytes(256));
-	context->build_arena = arena_create(megabytes(256));
+	context->build_arena[0] = arena_create(megabytes(256));
+	context->build_arena[1] = arena_create(megabytes(256));
 	context->drag_state_arena = arena_create(kilobytes(4));
 	context->window = window;
 	context->renderer = renderer;
@@ -779,7 +829,7 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 	context->fixed_height_default_node.v = 0.0f;
 	context->width_default_node.v = {ui_size_type_none, 0.0f, 0.0f};
 	context->height_default_node.v =  {ui_size_type_none, 0.0f, 0.0f};
-	context->padding_default_node.v = ui_size_pixels(0.0f);
+	context->padding_default_node.v = 0.0f;
     context->layout_dir_default_node.v = ui_dir_down;
     context->text_alignment_default_node.v = ui_text_alignment_left;
 	context->rounding_00_default_node.v = 2.0f;
@@ -791,7 +841,7 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 	context->texture_default_node.v = { 0 };
 	context->font_default_node.v = draw_state.font;
 	context->font_size_default_node.v = 9.0f;
-    context->color_background_default_node.v = color(0x4f4f4fff);
+    context->color_background_default_node.v = color(0x323232ff);
     context->color_text_default_node.v = color(0xe2e2e2ff);
     context->color_border_default_node.v = color(0x00000000);
     context->color_shadow_default_node.v = color(0x00000035);
@@ -811,7 +861,8 @@ ui_context_release(ui_context_t* context) {
     
 	// release memory
 	arena_release(context->arena);
-	arena_release(context->build_arena);
+	arena_release(context->build_arena[0]);
+	arena_release(context->build_arena[1]);
 	arena_release(context->drag_state_arena);
     
 	// remove from list and push to free list
@@ -1078,7 +1129,6 @@ ui_side_from_dir(ui_dir dir) {
 
 //- text alignment
 
-
 function vec2_t
 ui_text_align(font_handle_t font, f32 size, str_t text, rect_t rect, ui_text_alignment alignment) {
     
@@ -1179,7 +1229,6 @@ ui_cmd_pop(ui_cmd_t* command) {
     dll_remove(ui_state.command_first, ui_state.command_last, command);
 	stack_push(ui_state.command_free, command);
 }
-
 
 //- events
 
@@ -1297,6 +1346,81 @@ ui_anim(ui_key_t key, f32 initial, f32 target) {
 	return ui_anim_ex(key, params);
 }
 
+//- data 
+
+function void*
+ui_data_ex(ui_key_t key, ui_data_type type, void* initial) {
+    
+    // get context
+    ui_context_t* context = ui_active();
+    
+    // search for in list
+    ui_data_node_t* node = nullptr;
+    if (!ui_key_equals(key, { 0 })) {
+        for (ui_data_node_t* n = context->data_node_first; n != nullptr; n = n->list_next) {
+            if (ui_key_equals(key, n->key)) {
+                node = n;
+                break;
+            }
+        }
+    }
+    
+    // if we didn't find one, allocate it
+    if (node == nullptr) {
+        node = context->data_node_free;
+        if (node != nullptr) {
+            stack_pop_n(context->data_node_free, list_next);
+        } else {
+            node = (ui_data_node_t*)arena_alloc(context->arena, sizeof(ui_data_node_t));
+        }
+        memset(node, 0, sizeof(ui_data_node_t));
+        
+        // fill struct
+        node->first_build_index = context->build_index;
+        node->key = key;
+        
+        // copy initial data
+        switch (type) {
+            case ui_data_type_b8: { node->b8_value = *(b8*)initial; break; }
+            case ui_data_type_u8: { node->u8_value = *(u8*)initial; break;}
+            case ui_data_type_u16: { node->u16_value = *(u16*)initial; break;}
+            case ui_data_type_u32: { node->u32_value = *(u32*)initial; break;}
+            case ui_data_type_u64: { node->u64_value = *(u64*)initial; break;}
+            case ui_data_type_i8: { node->i8_value = *(i8*)initial; break;}
+            case ui_data_type_i16: { node->i16_value = *(i16*)initial; break; }
+            case ui_data_type_i32: { node->i32_value = *(i32*)initial; break;}
+            case ui_data_type_i64: { node->i64_value = *(i64*)initial; break; }
+            case ui_data_type_f32: { node->f32_value = *(f32*)initial; break; }
+            case ui_data_type_f64: { node->f64_value = *(f64*)initial; break;}
+        }
+        
+        // add to list
+        dll_push_back_np(context->data_node_first, context->data_node_last, node, list_next, list_prev);
+        
+    } else {
+        // remove from lru list
+        dll_remove_np(context->data_node_lru, context->data_node_mru, node, lru_next, lru_prev);
+    }
+    
+    // update node
+    node->last_build_index = context->build_index;
+    dll_push_back_np(context->data_node_lru, context->data_node_mru, node, lru_next, lru_prev);
+    
+    return &(node->b8_value);
+}
+
+function b8* 
+ui_data(ui_key_t key, b8 initial) {
+    void* data = ui_data_ex(key, ui_data_type_b8, &initial);
+    return (b8*)data;
+}
+
+function f32*
+ui_data(ui_key_t key, f32 initial) {
+    void* data = ui_data_ex(key, ui_data_type_f32, &initial);
+    return (f32*)data;
+}
+
 
 //- frame
 
@@ -1340,7 +1464,7 @@ ui_frame_from_key(ui_frame_flags flags, ui_key_t key) {
         if (frame != nullptr) {
             stack_pop_n(context->frame_free, list_next);
         } else {
-            frame = (ui_frame_t*)arena_alloc(!frame_is_transient ? context->arena : context->build_arena, sizeof(ui_frame_t));
+            frame = (ui_frame_t*)arena_alloc(!frame_is_transient ? context->arena : ui_build_arena(), sizeof(ui_frame_t));
         }
         memset(frame, 0, sizeof(ui_frame_t));
         frame->first_build_index = context->build_index;
@@ -1417,8 +1541,10 @@ ui_frame_from_key(ui_frame_flags flags, ui_key_t key) {
     
     ui_auto_pop_stacks();
     
-    return frame;
+    // set most recently created frame
+    context->frame_mrc = frame;
     
+    return frame;
 }
 
 function ui_frame_t*
@@ -1435,7 +1561,7 @@ ui_frame_from_stringf(ui_frame_flags flags, char* fmt, ...) {
     
     va_list args;
     va_start(args, fmt);
-    str_t string = str_formatv(ui_active()->build_arena, fmt, args);
+    str_t string = str_formatv(ui_build_arena(), fmt, args);
     va_end(args);
     
     ui_frame_t* frame = ui_frame_from_string(flags, string);
@@ -1487,7 +1613,22 @@ ui_frame_interaction(ui_frame_t* frame) {
             rect = rect_intersection(rect, parent->rect);
         }
     }
-    b8 mouse_in_bounds = rect_contains(rect, context->mouse_pos);
+    
+    // block out context
+    b8 popup_is_ancestor = false;
+    for (ui_frame_t* parent = frame; parent != nullptr; parent = parent->tree_parent) {
+        if (parent == context->frame_popup) {
+            popup_is_ancestor = true;
+            break;
+        }
+    }
+    
+    rect_t popup_rect = { 0 };
+    if (!popup_is_ancestor && context->popup_is_open) {
+        popup_rect = context->frame_popup->rect;
+    }
+    
+    b8 mouse_in_bounds = rect_contains(rect, context->mouse_pos) && !rect_contains(popup_rect, context->mouse_pos);
     
     // go through ui events
     for (ui_event_t* event = ui_state.event_first, *next = nullptr; event != nullptr; event = next) {
@@ -1637,6 +1778,11 @@ ui_frame_interaction(ui_frame_t* frame) {
         }
         
         result |= ui_interaction_mouse_over;
+    }
+    
+    // close popup
+    if(context->popup_is_open && !popup_is_ancestor && (result & (ui_interaction_left_pressed | ui_interaction_right_pressed | ui_interaction_middle_pressed))) {
+        ui_popup_close();
     }
     
     return result;
@@ -1844,29 +1990,28 @@ ui_layout_solve_independent(ui_frame_t* frame, ui_axis axis) {
     // size has already been set and we don't need to set
     // the size here.
     
-    
-    // if we don't have a fixed size
-    if (!(frame->flags & (ui_frame_flag_fixed_width << axis))) {
+    // set size based on size wanted type
+    switch (frame->size_wanted[axis].type) {
         
-        // set size based on size wanted type
-        switch (frame->size_wanted[axis].type) {
-            
-            // by pixels
-            case ui_size_type_pixel: {
-                frame->size_target[axis] = frame->size_wanted[axis].value;
-                break;
-            }
-            
-            // by text
-            case ui_size_type_text: {
-                f32 padding = frame->size_wanted[axis].value;
-                vec2_t text_size = ui_text_size(frame->font, frame->font_size, frame->label);
-                frame->size_target[axis] = padding + text_size[axis] + 8.0f;
-                break;
-            }
-            
+        // by pixels
+        case ui_size_type_pixel: {
+            frame->size_target[axis] = frame->size_wanted[axis].value;
+            break;
         }
         
+        // by text
+        case ui_size_type_text: {
+            f32 padding = frame->size_wanted[axis].value;
+            vec2_t text_size = ui_text_size(frame->font, frame->font_size, frame->label);
+            frame->size_target[axis] = padding + text_size[axis] + 8.0f;
+            break;
+        }
+        
+    }
+    
+    // fix if transient frames
+    if (frame->flags & ui_frame_flag_is_transient) {
+        frame->size[axis] = frame->size_target[axis];
     }
     
     // recurse through children
@@ -1885,45 +2030,33 @@ ui_layout_solve_upward_dependent(ui_frame_t* frame, ui_axis axis) {
     // then the size has already been set and we don't need
     // to set the size here.
     
-    // if we don't have a fixed size flag
-    if (!(frame->flags & (ui_frame_flag_fixed_width << axis))) {
-        
-        // if wanted size is percent of parent
-        if (frame->size_wanted[axis].type == ui_size_type_percent) {
-            
-            // find a parent that has a strict size
-            ui_frame_t* parent = nullptr;
-            for (ui_frame_t* p = frame->tree_parent; p != nullptr; p = p->tree_parent) {
-                if (p->flags & (ui_frame_flag_fixed_width << axis) ||
-                    p->size_wanted[axis].type == ui_size_type_pixel ||
-                    p->size_wanted[axis].type == ui_size_type_percent) {
-                    parent = p;
-                    break;
-                }
-            }
-            
-            // calculate percent size of strict parent
-            if (parent != nullptr) {
-                
-                // calculate padding size
-                f32 padding_size = 0.0f;;
-                switch (parent->padding.type) {
-                    case ui_size_type_pixel: {
-                        padding_size = parent->padding.value;
-                        break;
-                    }
-                    case ui_size_type_percent: {
-                        padding_size = parent->padding.value * parent->size_target[axis];
-                        break;
-                    }
-                }
-                
-                // get parent size
-                frame->size_target[axis] = (parent->size_target[axis] - padding_size) * frame->size_wanted[axis].value;
-            }
-            
-        }
+    // fix if transient frames
+    if (frame->flags & ui_frame_flag_is_transient) {
+        frame->size[axis] = frame->size_target[axis];
     }
+    
+    // if wanted size is percent of parent
+    if (frame->size_wanted[axis].type == ui_size_type_percent) {
+        
+        // find a parent that has a strict size
+        ui_frame_t* parent = nullptr;
+        for (ui_frame_t* p = frame->tree_parent; p != nullptr; p = p->tree_parent) {
+            if (p->flags & (ui_frame_flag_fixed_width << axis) ||
+                p->size_wanted[axis].type == ui_size_type_pixel ||
+                p->size_wanted[axis].type == ui_size_type_percent) {
+                parent = p;
+                break;
+            }
+        }
+        
+        // calculate percent size of strict parent
+        if (parent != nullptr) {
+            // get parent size
+            frame->size_target[axis] = (parent->size_target[axis] - parent->padding) * frame->size_wanted[axis].value;
+        }
+        
+    }
+    
     // recurse children
     for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
         ui_layout_solve_upward_dependent(child, axis);
@@ -1934,73 +2067,55 @@ ui_layout_solve_upward_dependent(ui_frame_t* frame, ui_axis axis) {
 function void
 ui_layout_solve_downward_dependent(ui_frame_t* frame, ui_axis axis) {
     
+    // this sets the sizes of the frames that depend on
+    // the frames below it in the tree ie: sizes by
+    // children. if frame has any fixed size flag, then 
+    // the size has already been set and we don't need
+    // to set the size here.
+    
     // recurse children
     for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
         ui_layout_solve_downward_dependent(child, axis);
     }
     
+    // fix if transient frames
+    if (frame->flags & ui_frame_flag_is_transient) {
+        frame->size[axis] = frame->size_target[axis];
+    }
     
-    // if we don't have a fixed size flag
-    if (!(frame->flags & (ui_frame_flag_fixed_width << axis))) {
+    // if wanted size is percent of parent
+    if (frame->size_wanted[axis].type == ui_size_type_by_children) {
         
-        // if wanted size is percent of parent
-        if (frame->size_wanted[axis].type == ui_size_type_by_children) {
-            
-            // find width of children
-            f32 sum = 0.0f;
-            
-            for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
-                if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
-                    f32 child_size =  child->size_target[axis];
-                    ui_axis layout_axis = ui_axis_from_dir(frame->layout_dir);
-                    if (layout_axis == axis) {
-                        sum += child_size;
-                    } else {
-                        sum = max(sum, child_size);
-                    }
+        // find width of children
+        f32 sum = 0.0f;
+        
+        for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
+            if (!(child->flags & (ui_frame_flag_floating_x << axis))) {
+                f32 child_size =  child->size_target[axis];
+                ui_axis layout_axis = ui_axis_from_dir(frame->layout_dir);
+                if (layout_axis == axis) {
+                    sum += child_size;
+                } else {
+                    sum = max(sum, child_size);
                 }
             }
-            
-            // padding
-            f32 padding = 0.0f;
-            switch (frame->padding.type) {
-                case ui_size_type_pixel: {
-                    padding = frame->padding.value;
-                    break;
-                }
-                case ui_size_type_percent: {
-                    padding = frame->padding.value * frame->size_target[axis];
-                    break;
-                }
-            }
-            
-            frame->size_target[axis] = sum + (padding * 2.0f);
-            
         }
         
+        frame->size_target[axis] = sum + (frame->padding * 2.0f);
+        
     }
+    
     
 }
 
 function void
 ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
     
+    // this solves any size violations between the frames. 
     ui_context_t* context = ui_active();
     
-    // padding
-    f32 padding = 0.0f;
-    switch (frame->padding.type) {
-        case ui_size_type_pixel: {
-            padding = frame->padding.value;
-            break;
-        }
-        case ui_size_type_percent: {
-            padding = frame->padding.value * frame->size_target[axis];
-            break;
-        }
-    }
     
-    f32 frame_size = frame->size_target[axis] - (padding * 2.0f);
+    f32 frame_size = frame->size_target[axis] - (frame->padding * 2.0f);
     ui_axis layout_axis = ui_axis_from_dir(frame->layout_dir);
     
     // fix children if in non layout axis
@@ -2040,7 +2155,7 @@ ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
             
             // find fixup size
             f32 child_fixup_sum = 0.0f;
-            f32* child_fixups = (f32*)arena_alloc(context->build_arena, sizeof(f32) * child_count);
+            f32* child_fixups = (f32*)arena_alloc(ui_build_arena(), sizeof(f32) * child_count);
             u32 child_index = 0;
             
             for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
@@ -2085,33 +2200,22 @@ ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
 function void
 ui_layout_solve_set_positions(ui_frame_t* frame, ui_axis axis) {
     
-    // calculate padding
-    f32 padding_size = 0.0f;;
-    switch (frame->padding.type) {
-        case ui_size_type_pixel: {
-            padding_size = frame->padding.value;
-            break;
-        }
-        case ui_size_type_percent: {
-            padding_size = frame->padding.value * frame->size_target[axis];
-            break;
-        }
-    }
+    ui_context_t* context = ui_active();
     
     ui_dir layout_dir = frame->layout_dir;
     ui_axis layout_axis = ui_axis_from_dir(layout_dir);
     ui_side layout_side = ui_side_from_dir(layout_dir);
-    f32 layout_pos = padding_size;
+    f32 layout_pos = frame->padding;
     f32 bounds = 0.0f;
     
     if (layout_side == ui_side_min && layout_axis == axis) {
-        layout_pos = frame->size_target[axis] - padding_size;
+        layout_pos = frame->size[axis] - frame->padding;
     }
     
     for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
         
         f32 original_pos = min(child->rect.v0[axis], child->rect.v1[axis]);
-        f32 frame_pos = frame->rect.v0[axis];
+        f32 parent_pos = frame->rect.v0[axis];
         f32 child_size = child->size_target[axis];
         
         // calculate position
@@ -2132,29 +2236,31 @@ ui_layout_solve_set_positions(ui_frame_t* frame, ui_axis axis) {
         }
         
         // calculate pos and size for child
-        // TODO: animate
-        child->pos[axis] = child->pos_target[axis];
-        child->size[axis] = child->size_target[axis];
+        if (child->flags & (ui_frame_flag_anim_pos_x << axis)) {
+            child->pos[axis] += (child->pos_target[axis] - child->pos[axis]) * context->anim_slow_rate;
+            if (fabsf(child->pos_target[axis] - child->pos[axis]) < 1.0f) { child->pos[axis] = child->pos_target[axis]; }
+        } else {
+            child->pos[axis] = (child->pos_target[axis]);
+        }
+        
+        if (child->flags & (ui_frame_flag_anim_width << axis)) {
+            child->size[axis] += (child->size_target[axis] - child->size[axis]) * context->anim_slow_rate;
+            if (fabsf(child->size_target[axis] - child->size[axis]) < 1.0f) { child->size[axis] = child->size_target[axis]; }
+        } else {
+            child->size[axis] = child->size_target[axis];
+        }
         
         // view offset
         f32 view_offset = floorf(frame->view_offset[axis] * !(child->flags & (ui_frame_flag_ignore_view_scroll_x << axis)));
         
         // apply to rect
-        child->rect.v0[axis] = frame_pos + child->pos_target[axis] - view_offset;
-        child->rect.v1[axis] = child->rect.v0[axis] + child->size_target[axis];
+        child->rect.v0[axis] = parent_pos + child->pos[axis] - view_offset;
+        child->rect.v1[axis] = child->rect.v0[axis] + child->size[axis];
         
     }
     
     // store view bounds
     frame->view_bounds[axis] = bounds;
-    
-    // if root frame
-    if (frame->tree_parent == nullptr) {
-        frame->pos[axis] = frame->pos_target[axis];
-        frame->size[axis] = frame->size_target[axis];
-        frame->rect.v0[axis] = frame->pos[axis];
-        frame->rect.v1[axis] = frame->rect.v0[axis] + frame->size[axis];
-    }
     
     // recurse children
     for (ui_frame_t* child = frame->tree_first; child != nullptr; child = child->tree_next) {
@@ -2169,6 +2275,7 @@ function void
 ui_row_begin() {
     ui_set_next_layout_dir(ui_dir_right);
     ui_frame_t* frame = ui_frame_from_key(0, { 0 });
+    ui_frame_set_display_string(frame, str("row_frame"));
     ui_push_parent(frame);
 }
 
@@ -2181,6 +2288,7 @@ function void
 ui_column_begin() {
     ui_set_next_layout_dir(ui_dir_down);
     ui_frame_t* frame = ui_frame_from_key(0, { 0 });
+    ui_frame_set_display_string(frame, str("column_frame"));
     ui_push_parent(frame);
 }
 
@@ -2190,9 +2298,10 @@ ui_column_end() {
 }
 
 function void 
-ui_padding_begin(ui_size_t size) {
+ui_padding_begin(f32 size) {
     ui_set_next_padding(size);
     ui_frame_t* frame = ui_frame_from_key(0, { 0 });
+    ui_frame_set_display_string(frame, str("padding_frame"));
     ui_push_parent(frame);
 }
 
@@ -2201,11 +2310,12 @@ ui_padding_end() {
     ui_pop_parent();
 }
 
-//- tooltip 
+//- tooltip
 
 function void 
 ui_tooltip_begin() {
     ui_context_t* context = ui_active();
+    context->frame_tooltip->flags |= (ui_frame_flag_draw_background | ui_frame_flag_draw_shadow);
     ui_push_parent(context->frame_tooltip);
 }
 
@@ -2214,8 +2324,53 @@ ui_tooltip_end() {
     ui_pop_parent();
 }
 
+//- popups
 
-//- widgets 
+function b8
+ui_popup_begin(ui_key_t key) {
+    ui_context_t* context = ui_active();
+    
+    b8 is_open = ui_key_equals(context->key_popup, key);
+    
+    if (is_open) {
+        context->frame_popup->flags |= (ui_frame_flag_draw_background | ui_frame_flag_draw_shadow);
+        context->popup_updated_this_frame = true;
+        ui_push_parent(context->frame_popup);
+    }
+    
+    return is_open;
+}
+
+function void
+ui_popup_end() {
+    //ui_context_t* context = ui_active();
+    //ui_frame_interaction(context->frame_popup);
+    ui_pop_parent();
+}
+
+function void
+ui_popup_open(ui_key_t key, vec2_t pos) {
+    ui_context_t* context = ui_active();
+    context->key_popup = key;
+    context->popup_pos = pos;
+    context->popup_is_open = true;
+    context->popup_updated_this_frame = true;
+}
+
+function void
+ui_popup_close() {
+    ui_context_t* context = ui_active();
+    context->key_popup = { 0 };
+    context->popup_pos = vec2(0.0f, 0.0f);
+    context->popup_is_open = false;
+}
+
+function b8
+ui_popup_is_open(ui_key_t key) {
+    return ui_key_equals(ui_active()->key_popup, key);
+}
+
+//- widgets
 
 function void 
 ui_spacer(ui_size_t size) {
@@ -2241,7 +2396,7 @@ ui_labelf(char* fmt, ...) {
     
     va_list args;
     va_start(args, fmt);
-    str_t display_string = str_formatv(ui_active()->build_arena, fmt, args);
+    str_t display_string = str_formatv(ui_build_arena(), fmt, args);
     va_end(args);
     
     ui_interaction interaction = ui_label(display_string);
@@ -2274,13 +2429,135 @@ ui_buttonf(char* fmt, ...) {
     
     va_list args;
     va_start(args, fmt);
-    str_t display_string = str_formatv(ui_active()->build_arena, fmt, args);
+    str_t display_string = str_formatv(ui_build_arena(), fmt, args);
     va_end(args);
     
     ui_interaction interaction = ui_button(display_string);
     
     return interaction;
     
+}
+
+function ui_interaction 
+ui_slider(f32* value, f32 min, f32 max, str_t label) {
+    
+    ui_context_t* context = ui_active();
+    
+    // build frame
+    ui_frame_flags flags = 
+        ui_frame_flag_interactable |
+        ui_frame_flag_hover_cursor |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_active_effects |
+        ui_frame_flag_draw_shadow |
+        ui_frame_flag_draw_custom;
+    
+    ui_set_next_hover_cursor(os_cursor_resize_EW);
+    ui_set_next_text_alignment(ui_text_alignment_center);
+    ui_key_t slider_key = ui_key_from_string(ui_top_seed_key(), label);
+    ui_frame_t* slider_frame = ui_frame_from_key(flags, slider_key);
+    
+    // set display text
+    str_t text = str_format(ui_build_arena(), "%.2f", *value);
+    ui_frame_set_display_string(slider_frame, text);
+    
+    // set custom draw function and data
+    f32* percent = (f32*)arena_alloc(ui_build_arena(), sizeof(f32));
+    ui_frame_set_custom_draw(slider_frame, ui_slider_draw_function, percent);
+    
+    // do interaction
+    ui_interaction interaction = ui_frame_interaction(slider_frame);
+    if (interaction & ui_interaction_left_dragging) {
+        vec2_t mouse_pos = context->mouse_pos;
+        *value = remap(mouse_pos.x, slider_frame->rect.x0, slider_frame->rect.x1, min, max);
+        *value = clamp(*value, min, max);
+    }
+    
+    f32 percent_target = remap(*value, min, max, 0.0f, 1.0f);
+    ui_key_t anim_key = ui_key_from_stringf(slider_key, "anim_percent");
+    f32 anim_percent = ui_anim_ex(anim_key, ui_anim_params_create(percent_target, percent_target));
+    
+    *percent = anim_percent;
+    
+    return interaction;
+}
+
+function ui_interaction 
+ui_sliderf(f32* value, f32 min, f32 max, char* fmt, ...) {
+    
+    va_list args;
+    va_start(args, fmt);
+    str_t string = str_formatv(ui_build_arena(), fmt, args);
+    va_end(args);
+    
+    ui_interaction interaction = ui_slider(value, min, max, string);
+    
+    return interaction;
+}
+
+
+function b8
+ui_expander_begin(str_t label) {
+    
+    // build container
+    ui_frame_flags container_flags =
+        ui_frame_flag_draw_clip |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_shadow |
+        ui_frame_flag_anim_height;
+    
+    ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+    ui_set_next_color_background(color(0x2d2d2dff));
+    ui_key_t container_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_container", label.size, label.data);
+    ui_frame_t* container_frame = ui_frame_from_key(container_flags, container_key);
+    
+    // build button
+    ui_frame_flags button_flags = 
+        ui_frame_flag_interactable |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_active_effects;
+    
+    ui_set_next_parent(container_frame);
+    ui_set_next_color_background(color(0x2d2d2dff));
+    ui_key_t button_key = ui_key_from_string(container_key, str("button"));
+    ui_frame_t* button_frame = ui_frame_from_key(button_flags, button_key);
+    ui_interaction button_interaction = ui_frame_interaction(button_frame);
+    
+    // get persistent expanded value
+    b8* expanded_value = ui_data(container_key, false);
+    
+    // do interaction
+    if (button_interaction & ui_interaction_left_clicked) {
+        *expanded_value = !*expanded_value;
+    }
+    
+    if (*expanded_value) {
+        ui_push_parent(container_frame);
+        //ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+        //ui_padding_begin(ui_size_pixels(4.0f, 1.0f));
+    }
+    
+    return *expanded_value;
+}
+
+function b8
+ui_expanderf_begin(char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    str_t string = str_formatv(ui_build_arena(), fmt, args);
+    va_end(args);
+    
+    b8 expanded = ui_expander_begin(string);
+    
+    return expanded;
+}
+
+function void
+ui_expander_end() {
+    //ui_padding_end();
+    ui_pop_parent();
 }
 
 
@@ -2291,11 +2568,46 @@ ui_buttonf(char* fmt, ...) {
 
 
 
+//- widget draw functions
 
-
-
-
-
+function void 
+ui_slider_draw_function(ui_frame_t* frame) {
+    
+    ui_context_t* context = ui_active();
+    
+    // get data
+    f32* data = (f32*)frame->custom_draw_data;
+    
+    // calculate percent bar
+    rect_t bar_rect = frame->rect;
+    bar_rect.x1 = lerp(bar_rect.x0, bar_rect.x1, *data);
+    
+    // draw bar
+    color_t bar_color = frame->palette.accent;
+    bar_color.a = 0.3f;
+    draw_set_next_color(bar_color);
+    draw_set_next_radii(frame->rounding);
+    draw_rect(bar_rect);
+    
+    // draw text
+    
+    vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
+    draw_push_font(frame->font);
+    draw_push_font_size(frame->font_size);
+    
+    // text shadow
+    color_t text_shadow = frame->palette.shadow; text_shadow.a = 0.8f;
+    draw_set_next_color(text_shadow);
+    draw_text(frame->label, vec2_add(text_pos, 1.0f));
+    
+    // text
+    draw_set_next_color(frame->palette.text);
+    draw_text(frame->label, text_pos);
+    
+    draw_pop_font_size();
+    draw_pop_font();
+    
+}
 
 
 
@@ -2353,7 +2665,7 @@ ui_push_parent(ui_frame_t* v) {
     if (node != nullptr) {
         stack_pop(context->parent_stack.free);
     } else {
-        node = (ui_parent_node_t*)arena_alloc(context->build_arena, sizeof(ui_parent_node_t));
+        node = (ui_parent_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_parent_node_t));
     }
     ui_frame_t* old_value = context->parent_stack.top->v; node->v = v;
     stack_push(context->parent_stack.top, node);
@@ -2380,7 +2692,7 @@ ui_set_next_parent(ui_frame_t* v) {
     if (node != nullptr) {
         stack_pop(context->parent_stack.free);
     } else {
-        node = (ui_parent_node_t*)arena_alloc(context->build_arena, sizeof(ui_parent_node_t));
+        node = (ui_parent_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_parent_node_t));
     }
     ui_frame_t* old_value = context->parent_stack.top->v;
     node->v = v;
@@ -2402,7 +2714,7 @@ ui_push_flags(ui_frame_flags v) {
     if (node != nullptr) {
         stack_pop(context->flags_stack.free);
     } else {
-        node = (ui_flags_node_t*)arena_alloc(context->build_arena, sizeof(ui_flags_node_t));
+        node = (ui_flags_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_flags_node_t));
     }
     ui_frame_flags old_value = context->flags_stack.top->v; node->v = v;
     stack_push(context->flags_stack.top, node);
@@ -2429,7 +2741,7 @@ ui_set_next_flags(ui_frame_flags v) {
     if (node != nullptr) {
         stack_pop(context->flags_stack.free);
     } else {
-        node = (ui_flags_node_t*)arena_alloc(context->build_arena, sizeof(ui_flags_node_t));
+        node = (ui_flags_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_flags_node_t));
     }
     ui_frame_flags old_value = context->flags_stack.top->v;
     node->v = v;
@@ -2451,7 +2763,7 @@ ui_push_seed_key(ui_key_t v) {
     if (node != nullptr) {
         stack_pop(context->seed_key_stack.free);
     } else {
-        node = (ui_seed_key_node_t*)arena_alloc(context->build_arena, sizeof(ui_seed_key_node_t));
+        node = (ui_seed_key_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_seed_key_node_t));
     }
     ui_key_t old_value = context->seed_key_stack.top->v; node->v = v;
     stack_push(context->seed_key_stack.top, node);
@@ -2478,7 +2790,7 @@ ui_set_next_seed_key(ui_key_t v) {
     if (node != nullptr) {
         stack_pop(context->seed_key_stack.free);
     } else {
-        node = (ui_seed_key_node_t*)arena_alloc(context->build_arena, sizeof(ui_seed_key_node_t));
+        node = (ui_seed_key_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_seed_key_node_t));
     }
     ui_key_t old_value = context->seed_key_stack.top->v;
     node->v = v;
@@ -2503,7 +2815,7 @@ ui_push_fixed_x(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_x_stack.free);
     } else {
-        node = (ui_fixed_x_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_x_node_t));
+        node = (ui_fixed_x_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_x_node_t));
     }
     f32 old_value = context->fixed_x_stack.top->v; node->v = v;
     stack_push(context->fixed_x_stack.top, node);
@@ -2530,7 +2842,7 @@ ui_set_next_fixed_x(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_x_stack.free);
     } else {
-        node = (ui_fixed_x_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_x_node_t));
+        node = (ui_fixed_x_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_x_node_t));
     }
     f32 old_value = context->fixed_x_stack.top->v;
     node->v = v;
@@ -2554,7 +2866,7 @@ ui_push_fixed_y(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_y_stack.free);
     } else {
-        node = (ui_fixed_y_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_y_node_t));
+        node = (ui_fixed_y_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_y_node_t));
     }
     f32 old_value = context->fixed_y_stack.top->v; node->v = v;
     stack_push(context->fixed_y_stack.top, node);
@@ -2581,7 +2893,7 @@ ui_set_next_fixed_y(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_y_stack.free);
     } else {
-        node = (ui_fixed_y_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_y_node_t));
+        node = (ui_fixed_y_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_y_node_t));
     }
     f32 old_value = context->fixed_y_stack.top->v;
     node->v = v;
@@ -2604,7 +2916,7 @@ ui_push_fixed_width(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_width_stack.free);
     } else {
-        node = (ui_fixed_width_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_width_node_t));
+        node = (ui_fixed_width_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_width_node_t));
     }
     f32 old_value = context->fixed_width_stack.top->v; node->v = v;
     stack_push(context->fixed_width_stack.top, node);
@@ -2631,7 +2943,7 @@ ui_set_next_fixed_width(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_width_stack.free);
     } else {
-        node = (ui_fixed_width_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_width_node_t));
+        node = (ui_fixed_width_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_width_node_t));
     }
     f32 old_value = context->fixed_width_stack.top->v;
     node->v = v;
@@ -2654,7 +2966,7 @@ ui_push_fixed_height(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_height_stack.free);
     } else {
-        node = (ui_fixed_height_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_height_node_t));
+        node = (ui_fixed_height_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_height_node_t));
     }
     f32 old_value = context->fixed_height_stack.top->v; node->v = v;
     stack_push(context->fixed_height_stack.top, node);
@@ -2681,7 +2993,7 @@ ui_set_next_fixed_height(f32 v) {
     if (node != nullptr) {
         stack_pop(context->fixed_height_stack.free);
     } else {
-        node = (ui_fixed_height_node_t*)arena_alloc(context->build_arena, sizeof(ui_fixed_height_node_t));
+        node = (ui_fixed_height_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_fixed_height_node_t));
     }
     f32 old_value = context->fixed_height_stack.top->v;
     node->v = v;
@@ -2704,7 +3016,7 @@ ui_push_width(ui_size_t v) {
     if (node != nullptr) {
         stack_pop(context->width_stack.free);
     } else {
-        node = (ui_width_node_t*)arena_alloc(context->build_arena, sizeof(ui_width_node_t));
+        node = (ui_width_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_width_node_t));
     }
     ui_size_t old_value = context->width_stack.top->v; node->v = v;
     stack_push(context->width_stack.top, node);
@@ -2731,7 +3043,7 @@ ui_set_next_width(ui_size_t v) {
     if (node != nullptr) {
         stack_pop(context->width_stack.free);
     } else {
-        node = (ui_width_node_t*)arena_alloc(context->build_arena, sizeof(ui_width_node_t));
+        node = (ui_width_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_width_node_t));
     }
     ui_size_t old_value = context->width_stack.top->v;
     node->v = v;
@@ -2753,7 +3065,7 @@ ui_push_height(ui_size_t v) {
     if (node != nullptr) {
         stack_pop(context->height_stack.free);
     } else {
-        node = (ui_height_node_t*)arena_alloc(context->build_arena, sizeof(ui_height_node_t));
+        node = (ui_height_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_height_node_t));
     }
     ui_size_t old_value = context->height_stack.top->v; node->v = v;
     stack_push(context->height_stack.top, node);
@@ -2780,7 +3092,7 @@ ui_set_next_height(ui_size_t v) {
     if (node != nullptr) {
         stack_pop(context->height_stack.free);
     } else {
-        node = (ui_height_node_t*)arena_alloc(context->build_arena, sizeof(ui_height_node_t));
+        node = (ui_height_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_height_node_t));
     }
     ui_size_t old_value = context->height_stack.top->v;
     node->v = v;
@@ -2790,27 +3102,27 @@ ui_set_next_height(ui_size_t v) {
 }
 
 // padding
-function ui_size_t
+function f32
 ui_top_padding() {
     return ui_active()->padding_stack.top->v;
 }
 
-function ui_size_t
-ui_push_padding(ui_size_t v) {
+function f32
+ui_push_padding(f32 v) {
     ui_context_t* context = ui_active();
     ui_padding_node_t* node = context->padding_stack.free;
     if (node != nullptr) {
         stack_pop(context->padding_stack.free);
     } else {
-        node = (ui_padding_node_t*)arena_alloc(context->build_arena, sizeof(ui_padding_node_t));
+        node = (ui_padding_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_padding_node_t));
     }
-    ui_size_t old_value = context->padding_stack.top->v; node->v = v;
+    f32 old_value = context->padding_stack.top->v; node->v = v;
     stack_push(context->padding_stack.top, node);
     context->padding_stack.auto_pop = false;
     return old_value;
 }
 
-function ui_size_t
+function f32
 ui_pop_padding() {
     ui_context_t* context = ui_active();
     ui_padding_node_t* popped = context->padding_stack.top;
@@ -2822,16 +3134,16 @@ ui_pop_padding() {
     return popped->v;
 }
 
-function ui_size_t
-ui_set_next_padding(ui_size_t v) {
+function f32
+ui_set_next_padding(f32 v) {
     ui_context_t* context = ui_active();
     ui_padding_node_t* node = context->padding_stack.free;
     if (node != nullptr) {
         stack_pop(context->padding_stack.free);
     } else {
-        node = (ui_padding_node_t*)arena_alloc(context->build_arena, sizeof(ui_padding_node_t));
+        node = (ui_padding_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_padding_node_t));
     }
-    ui_size_t old_value = context->padding_stack.top->v;
+    f32 old_value = context->padding_stack.top->v;
     node->v = v;
     stack_push(context->padding_stack.top, node);
     context->padding_stack.auto_pop = true;
@@ -2852,7 +3164,7 @@ ui_push_layout_dir(ui_dir v) {
     if (node != nullptr) {
         stack_pop(context->layout_dir_stack.free);
     } else {
-        node = (ui_layout_dir_node_t*)arena_alloc(context->build_arena, sizeof(ui_layout_dir_node_t));
+        node = (ui_layout_dir_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_layout_dir_node_t));
     }
     ui_dir old_value = context->layout_dir_stack.top->v; node->v = v;
     stack_push(context->layout_dir_stack.top, node);
@@ -2879,7 +3191,7 @@ ui_set_next_layout_dir(ui_dir v) {
     if (node != nullptr) {
         stack_pop(context->layout_dir_stack.free);
     } else {
-        node = (ui_layout_dir_node_t*)arena_alloc(context->build_arena, sizeof(ui_layout_dir_node_t));
+        node = (ui_layout_dir_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_layout_dir_node_t));
     }
     ui_dir old_value = context->layout_dir_stack.top->v;
     node->v = v;
@@ -2903,7 +3215,7 @@ ui_push_text_alignment(ui_text_alignment v) {
     if (node != nullptr) {
         stack_pop(context->text_alignment_stack.free);
     } else {
-        node = (ui_text_alignment_node_t*)arena_alloc(context->build_arena, sizeof(ui_text_alignment_node_t));
+        node = (ui_text_alignment_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_text_alignment_node_t));
     }
     ui_text_alignment old_value = context->text_alignment_stack.top->v; node->v = v;
     stack_push(context->text_alignment_stack.top, node);
@@ -2930,7 +3242,7 @@ ui_set_next_text_alignment(ui_text_alignment v) {
     if (node != nullptr) {
         stack_pop(context->text_alignment_stack.free);
     } else {
-        node = (ui_text_alignment_node_t*)arena_alloc(context->build_arena, sizeof(ui_text_alignment_node_t));
+        node = (ui_text_alignment_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_text_alignment_node_t));
     }
     ui_text_alignment old_value = context->text_alignment_stack.top->v;
     node->v = v;
@@ -2954,7 +3266,7 @@ ui_push_rounding_00(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_00_stack.free);
     } else {
-        node = (ui_rounding_00_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_00_node_t));
+        node = (ui_rounding_00_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_00_node_t));
     }
     f32 old_value = context->rounding_00_stack.top->v; node->v = v;
     stack_push(context->rounding_00_stack.top, node);
@@ -2981,7 +3293,7 @@ ui_set_next_rounding_00(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_00_stack.free);
     } else {
-        node = (ui_rounding_00_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_00_node_t));
+        node = (ui_rounding_00_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_00_node_t));
     }
     f32 old_value = context->rounding_00_stack.top->v;
     node->v = v;
@@ -3003,7 +3315,7 @@ ui_push_rounding_01(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_01_stack.free);
     } else {
-        node = (ui_rounding_01_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_01_node_t));
+        node = (ui_rounding_01_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_01_node_t));
     }
     f32 old_value = context->rounding_01_stack.top->v; node->v = v;
     stack_push(context->rounding_01_stack.top, node);
@@ -3030,7 +3342,7 @@ ui_set_next_rounding_01(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_01_stack.free);
     } else {
-        node = (ui_rounding_01_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_01_node_t));
+        node = (ui_rounding_01_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_01_node_t));
     }
     f32 old_value = context->rounding_01_stack.top->v;
     node->v = v;
@@ -3052,7 +3364,7 @@ ui_push_rounding_10(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_10_stack.free);
     } else {
-        node = (ui_rounding_10_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_10_node_t));
+        node = (ui_rounding_10_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_10_node_t));
     }
     f32 old_value = context->rounding_10_stack.top->v; node->v = v;
     stack_push(context->rounding_10_stack.top, node);
@@ -3079,7 +3391,7 @@ ui_set_next_rounding_10(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_10_stack.free);
     } else {
-        node = (ui_rounding_10_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_10_node_t));
+        node = (ui_rounding_10_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_10_node_t));
     }
     f32 old_value = context->rounding_10_stack.top->v;
     node->v = v;
@@ -3101,7 +3413,7 @@ ui_push_rounding_11(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_11_stack.free);
     } else {
-        node = (ui_rounding_11_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_11_node_t));
+        node = (ui_rounding_11_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_11_node_t));
     }
     f32 old_value = context->rounding_11_stack.top->v; node->v = v;
     stack_push(context->rounding_11_stack.top, node);
@@ -3128,7 +3440,7 @@ ui_set_next_rounding_11(f32 v) {
     if (node != nullptr) {
         stack_pop(context->rounding_11_stack.free);
     } else {
-        node = (ui_rounding_11_node_t*)arena_alloc(context->build_arena, sizeof(ui_rounding_11_node_t));
+        node = (ui_rounding_11_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_rounding_11_node_t));
     }
     f32 old_value = context->rounding_11_stack.top->v;
     node->v = v;
@@ -3150,7 +3462,7 @@ ui_push_border_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->border_size_stack.free);
     } else {
-        node = (ui_border_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_border_size_node_t));
+        node = (ui_border_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_border_size_node_t));
     }
     f32 old_value = context->border_size_stack.top->v; node->v = v;
     stack_push(context->border_size_stack.top, node);
@@ -3177,7 +3489,7 @@ ui_set_next_border_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->border_size_stack.free);
     } else {
-        node = (ui_border_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_border_size_node_t));
+        node = (ui_border_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_border_size_node_t));
     }
     f32 old_value = context->border_size_stack.top->v;
     node->v = v;
@@ -3199,7 +3511,7 @@ ui_push_shadow_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->shadow_size_stack.free);
     } else {
-        node = (ui_shadow_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_shadow_size_node_t));
+        node = (ui_shadow_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_shadow_size_node_t));
     }
     f32 old_value = context->shadow_size_stack.top->v; node->v = v;
     stack_push(context->shadow_size_stack.top, node);
@@ -3226,7 +3538,7 @@ ui_set_next_shadow_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->shadow_size_stack.free);
     } else {
-        node = (ui_shadow_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_shadow_size_node_t));
+        node = (ui_shadow_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_shadow_size_node_t));
     }
     f32 old_value = context->shadow_size_stack.top->v;
     node->v = v;
@@ -3248,7 +3560,7 @@ ui_push_texture(gfx_handle_t v) {
     if (node != nullptr) {
         stack_pop(context->texture_stack.free);
     } else {
-        node = (ui_texture_node_t*)arena_alloc(context->build_arena, sizeof(ui_texture_node_t));
+        node = (ui_texture_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_texture_node_t));
     }
     gfx_handle_t old_value = context->texture_stack.top->v; node->v = v;
     stack_push(context->texture_stack.top, node);
@@ -3275,7 +3587,7 @@ ui_set_next_texture(gfx_handle_t v) {
     if (node != nullptr) {
         stack_pop(context->texture_stack.free);
     } else {
-        node = (ui_texture_node_t*)arena_alloc(context->build_arena, sizeof(ui_texture_node_t));
+        node = (ui_texture_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_texture_node_t));
     }
     gfx_handle_t old_value = context->texture_stack.top->v;
     node->v = v;
@@ -3297,7 +3609,7 @@ ui_push_font(font_handle_t v) {
     if (node != nullptr) {
         stack_pop(context->font_stack.free);
     } else {
-        node = (ui_font_node_t*)arena_alloc(context->build_arena, sizeof(ui_font_node_t));
+        node = (ui_font_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_font_node_t));
     }
     font_handle_t old_value = context->font_stack.top->v; node->v = v;
     stack_push(context->font_stack.top, node);
@@ -3324,7 +3636,7 @@ ui_set_next_font(font_handle_t v) {
     if (node != nullptr) {
         stack_pop(context->font_stack.free);
     } else {
-        node = (ui_font_node_t*)arena_alloc(context->build_arena, sizeof(ui_font_node_t));
+        node = (ui_font_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_font_node_t));
     }
     font_handle_t old_value = context->font_stack.top->v;
     node->v = v;
@@ -3346,7 +3658,7 @@ ui_push_font_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->font_size_stack.free);
     } else {
-        node = (ui_font_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_font_size_node_t));
+        node = (ui_font_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_font_size_node_t));
     }
     f32 old_value = context->font_size_stack.top->v; node->v = v;
     stack_push(context->font_size_stack.top, node);
@@ -3373,7 +3685,7 @@ ui_set_next_font_size(f32 v) {
     if (node != nullptr) {
         stack_pop(context->font_size_stack.free);
     } else {
-        node = (ui_font_size_node_t*)arena_alloc(context->build_arena, sizeof(ui_font_size_node_t));
+        node = (ui_font_size_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_font_size_node_t));
     }
     f32 old_value = context->font_size_stack.top->v;
     node->v = v;
@@ -3398,7 +3710,7 @@ ui_push_color_background(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_background_stack.free);
     } else {
-        node = (ui_color_background_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_background_node_t));
+        node = (ui_color_background_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_background_node_t));
     }
     color_t old_value = context->color_background_stack.top->v; node->v = v;
     stack_push(context->color_background_stack.top, node);
@@ -3425,7 +3737,7 @@ ui_set_next_color_background(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_background_stack.free);
     } else {
-        node = (ui_color_background_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_background_node_t));
+        node = (ui_color_background_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_background_node_t));
     }
     color_t old_value = context->color_background_stack.top->v;
     node->v = v;
@@ -3448,7 +3760,7 @@ ui_push_color_text(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_text_stack.free);
     } else {
-        node = (ui_color_text_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_text_node_t));
+        node = (ui_color_text_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_text_node_t));
     }
     color_t old_value = context->color_text_stack.top->v; node->v = v;
     stack_push(context->color_text_stack.top, node);
@@ -3475,7 +3787,7 @@ ui_set_next_color_text(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_text_stack.free);
     } else {
-        node = (ui_color_text_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_text_node_t));
+        node = (ui_color_text_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_text_node_t));
     }
     color_t old_value = context->color_text_stack.top->v;
     node->v = v;
@@ -3497,7 +3809,7 @@ ui_push_color_border(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_border_stack.free);
     } else {
-        node = (ui_color_border_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_border_node_t));
+        node = (ui_color_border_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_border_node_t));
     }
     color_t old_value = context->color_border_stack.top->v; node->v = v;
     stack_push(context->color_border_stack.top, node);
@@ -3524,7 +3836,7 @@ ui_set_next_color_border(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_border_stack.free);
     } else {
-        node = (ui_color_border_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_border_node_t));
+        node = (ui_color_border_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_border_node_t));
     }
     color_t old_value = context->color_border_stack.top->v;
     node->v = v;
@@ -3548,7 +3860,7 @@ ui_push_color_shadow(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_shadow_stack.free);
     } else {
-        node = (ui_color_shadow_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_shadow_node_t));
+        node = (ui_color_shadow_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_shadow_node_t));
     }
     color_t old_value = context->color_shadow_stack.top->v; node->v = v;
     stack_push(context->color_shadow_stack.top, node);
@@ -3575,7 +3887,7 @@ ui_set_next_color_shadow(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_shadow_stack.free);
     } else {
-        node = (ui_color_shadow_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_shadow_node_t));
+        node = (ui_color_shadow_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_shadow_node_t));
     }
     color_t old_value = context->color_shadow_stack.top->v;
     node->v = v;
@@ -3599,7 +3911,7 @@ ui_push_color_hover(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_hover_stack.free);
     } else {
-        node = (ui_color_hover_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_hover_node_t));
+        node = (ui_color_hover_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_hover_node_t));
     }
     color_t old_value = context->color_hover_stack.top->v; node->v = v;
     stack_push(context->color_hover_stack.top, node);
@@ -3626,7 +3938,7 @@ ui_set_next_color_hover(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_hover_stack.free);
     } else {
-        node = (ui_color_hover_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_hover_node_t));
+        node = (ui_color_hover_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_hover_node_t));
     }
     color_t old_value = context->color_hover_stack.top->v;
     node->v = v;
@@ -3650,7 +3962,7 @@ ui_push_color_active(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_active_stack.free);
     } else {
-        node = (ui_color_active_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_active_node_t));
+        node = (ui_color_active_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_active_node_t));
     }
     color_t old_value = context->color_active_stack.top->v; node->v = v;
     stack_push(context->color_active_stack.top, node);
@@ -3677,7 +3989,7 @@ ui_set_next_color_active(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_active_stack.free);
     } else {
-        node = (ui_color_active_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_active_node_t));
+        node = (ui_color_active_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_active_node_t));
     }
     color_t old_value = context->color_active_stack.top->v;
     node->v = v;
@@ -3699,7 +4011,7 @@ ui_push_color_accent(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_accent_stack.free);
     } else {
-        node = (ui_color_accent_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_accent_node_t));
+        node = (ui_color_accent_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_accent_node_t));
     }
     color_t old_value = context->color_accent_stack.top->v; node->v = v;
     stack_push(context->color_accent_stack.top, node);
@@ -3726,7 +4038,7 @@ ui_set_next_color_accent(color_t v) {
     if (node != nullptr) {
         stack_pop(context->color_accent_stack.free);
     } else {
-        node = (ui_color_accent_node_t*)arena_alloc(context->build_arena, sizeof(ui_color_accent_node_t));
+        node = (ui_color_accent_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_color_accent_node_t));
     }
     color_t old_value = context->color_accent_stack.top->v;
     node->v = v;
@@ -3748,7 +4060,7 @@ ui_push_hover_cursor(os_cursor v) {
     if (node != nullptr) {
         stack_pop(context->hover_cursor_stack.free);
     } else {
-        node = (ui_hover_cursor_node_t*)arena_alloc(context->build_arena, sizeof(ui_hover_cursor_node_t));
+        node = (ui_hover_cursor_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_hover_cursor_node_t));
     }
     os_cursor old_value = context->hover_cursor_stack.top->v; node->v = v;
     stack_push(context->hover_cursor_stack.top, node);
@@ -3775,7 +4087,7 @@ ui_set_next_hover_cursor(os_cursor v) {
     if (node != nullptr) {
         stack_pop(context->hover_cursor_stack.free);
     } else {
-        node = (ui_hover_cursor_node_t*)arena_alloc(context->build_arena, sizeof(ui_hover_cursor_node_t));
+        node = (ui_hover_cursor_node_t*)arena_alloc(ui_build_arena(), sizeof(ui_hover_cursor_node_t));
     }
     os_cursor old_value = context->hover_cursor_stack.top->v;
     node->v = v;
