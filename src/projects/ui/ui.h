@@ -37,8 +37,9 @@ enum {
     ui_side_count,
 };
 
-typedef u32 ui_dir;
+typedef i32 ui_dir;
 enum {
+    ui_dir_none = -1,
 	ui_dir_left,
 	ui_dir_up,
 	ui_dir_right,
@@ -112,6 +113,13 @@ enum ui_data_type {
     ui_data_type_count,
 };
 
+enum ui_drag_state {
+    ui_drag_state_none,
+    ui_drag_state_dragging,
+    ui_drag_state_dropping,
+    ui_drag_state_count,
+};
+
 typedef u64 ui_frame_flags;
 enum {
 	ui_frame_flag_none = (0 << 0),
@@ -120,35 +128,36 @@ enum {
 	// interactions
 	ui_frame_flag_interactable = (1 << 1),
 	ui_frame_flag_scrollable = (1 << 2),
-	ui_frame_flag_view_scroll_x = (1 << 3),
-	ui_frame_flag_view_scroll_y = (1 << 4),
-	ui_frame_flag_view_clamp_x = (1 << 5),
-	ui_frame_flag_view_clamp_y = (1 << 6),
+    ui_frame_flag_draggable = (1 << 3),
+	ui_frame_flag_view_scroll_x = (1 << 4),
+	ui_frame_flag_view_scroll_y = (1 << 5),
+	ui_frame_flag_view_clamp_x = (1 << 6),
+	ui_frame_flag_view_clamp_y = (1 << 7),
     
 	// layout
-	ui_frame_flag_fixed_width = (1 << 7),
-	ui_frame_flag_fixed_height = (1 << 8),
-	ui_frame_flag_floating_x = (1 << 9),
-	ui_frame_flag_floating_y = (1 << 10),
-	ui_frame_flag_overflow_x = (1 << 11),
-	ui_frame_flag_overflow_y = (1 << 12),
-	ui_frame_flag_ignore_view_scroll_x = (1 << 13),
-	ui_frame_flag_ignore_view_scroll_y = (1 << 14),
+	ui_frame_flag_fixed_width = (1 << 8),
+	ui_frame_flag_fixed_height = (1 << 9),
+	ui_frame_flag_floating_x = (1 << 10),
+	ui_frame_flag_floating_y = (1 << 11),
+	ui_frame_flag_overflow_x = (1 << 12),
+	ui_frame_flag_overflow_y = (1 << 13),
+	ui_frame_flag_ignore_view_scroll_x = (1 << 14),
+	ui_frame_flag_ignore_view_scroll_y = (1 << 15),
     
 	// appearance
-	ui_frame_flag_draw_clip = (1 << 15),
-	ui_frame_flag_draw_background = (1 << 16),
-	ui_frame_flag_draw_text = (1 << 17),
-	ui_frame_flag_draw_border = (1 << 18),
-	ui_frame_flag_draw_shadow = (1 << 19),
-	ui_frame_flag_draw_hover_effects = (1 << 20),
-	ui_frame_flag_draw_active_effects = (1 << 21),
-	ui_frame_flag_draw_custom = (1 << 22),
-	ui_frame_flag_hover_cursor = (1 << 23),
-	ui_frame_flag_anim_pos_x = (1 << 24),
-	ui_frame_flag_anim_pos_y = (1 << 25),
-	ui_frame_flag_anim_width = (1 << 26),
-	ui_frame_flag_anim_height = (1 << 27),
+	ui_frame_flag_draw_clip = (1 << 16),
+	ui_frame_flag_draw_background = (1 << 17),
+	ui_frame_flag_draw_text = (1 << 18),
+	ui_frame_flag_draw_border = (1 << 19),
+	ui_frame_flag_draw_shadow = (1 << 20),
+	ui_frame_flag_draw_hover_effects = (1 << 21),
+	ui_frame_flag_draw_active_effects = (1 << 22),
+	ui_frame_flag_draw_custom = (1 << 23),
+	ui_frame_flag_hover_cursor = (1 << 24),
+	ui_frame_flag_anim_pos_x = (1 << 25),
+	ui_frame_flag_anim_pos_y = (1 << 26),
+	ui_frame_flag_anim_width = (1 << 27),
+	ui_frame_flag_anim_height = (1 << 28),
     
 	// groups
 	ui_frame_flag_draw =
@@ -400,6 +409,14 @@ struct ui_panel_rect_t {
     rect_t rect;
 };
 
+// drop site
+
+struct ui_drop_site_t {
+    ui_key_t key;
+    ui_dir split_dir;
+    rect_t rect;
+};
+
 // animation
 
 struct ui_anim_params_t {
@@ -579,6 +596,7 @@ struct ui_context_t {
     ui_view_t* view_first;
     ui_view_t* view_last;
     ui_view_t* view_free;
+    ui_view_t* view_drag;
     
     // panel list
     ui_panel_t* panel_first;
@@ -612,6 +630,7 @@ struct ui_context_t {
     vec2_t mouse_delta;
     
     // drag state
+    ui_drag_state drag_state;
 	void* drag_state_data;
 	u32 drag_state_size;
 	vec2_t drag_start_pos;
@@ -725,6 +744,7 @@ struct ui_cmd_t {
     ui_context_t* context;
     
     ui_panel_t* panel;
+    ui_panel_t* split_panel;
     ui_dir dir;
 };
 
@@ -815,10 +835,16 @@ function void ui_event_push(ui_event_t* event);
 function void ui_event_pop(ui_event_t* event);
 
 // drag state
-function void ui_store_drag_data(void* data, u32 size);
-function void* ui_get_drag_data();
-function vec2_t ui_get_drag_delta();
-function void ui_clear_drag_data();
+function void ui_drag_store_data(void* data, u32 size);
+function void* ui_drag_get_data();
+function void ui_drag_clear_data();
+function vec2_t ui_drag_delta();
+function b8 ui_drag_is_active();
+function void ui_drag_begin();
+function b8 ui_drag_drop();
+function void ui_drag_kill();
+
+
 
 // animation
 function ui_anim_params_t ui_anim_params_create(f32 initial, f32 target, f32 rate = ui_active()->anim_fast_rate);
@@ -853,7 +879,7 @@ function void ui_panel_release(ui_context_t* context, ui_panel_t* panel);
 function void ui_panel_insert(ui_panel_t* parent, ui_panel_t* panel, ui_panel_t* prev = nullptr);
 function void ui_panel_remove(ui_panel_t* panel);
 function ui_panel_rec_t ui_panel_rec_depth_first(ui_panel_t* panel);
-function rect_t ui_rect_from_panel_child(ui_panel_t* panel, rect_t parent_rect);
+function rect_t ui_rect_from_panel_child(ui_panel_t* parent, ui_panel_t* panel, rect_t parent_rect);
 function rect_t ui_rect_from_panel(ui_panel_t* panel, rect_t root_rect);
 
 // layout
@@ -896,13 +922,11 @@ function b8 ui_expanderf_begin(char* fmt, ...);
 function void ui_expander_end();
 
 
-// widget draw functions
+// custom draw functions
+
+function void ui_drop_site_draw_function(ui_frame_t* frame);
+
 function void ui_slider_draw_function(ui_frame_t* frame);
-
-
-
-
-
 
 // stacks
 

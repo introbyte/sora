@@ -26,6 +26,7 @@ struct list_item_t {
     list_item_t* prev;
     
     str_t label;
+    ui_frame_t* frame;
 };
 
 struct list_state_t {
@@ -94,6 +95,7 @@ function void app_frame();
 function void app_render();
 
 function void console_view();
+function void test_view();
 
 // implementation
 
@@ -103,7 +105,7 @@ function void
 app_init() {
     
 	// open window and create renderer
-	window = os_window_open(str("new ui layout"), 1440, 960);
+	window = os_window_open(str("new ui layout"), 1440, 720);
 	renderer = gfx_renderer_create(window, color(0x131313ff));
 	context = ui_context_create(window, renderer);
     
@@ -111,14 +113,18 @@ app_init() {
 	os_window_set_frame_function(window, app_frame);
     
     // create panels
-    ui_panel_t* left = ui_panel_create(context, 0.5f, ui_axis_y);
-    ui_panel_t* right = ui_panel_create(context, 0.5f, ui_axis_y);
+    ui_panel_t* left = ui_panel_create(context, 0.35f, ui_axis_y);
+    ui_panel_t* right = ui_panel_create(context, 0.65f, ui_axis_y);
     ui_panel_insert(context->panel_root, left);
     ui_panel_insert(context->panel_root, right, left);
     
     // insert view
     ui_view_t* view = ui_view_create(context, str("Tab"), console_view);
     ui_view_insert(left, view);
+    
+    ui_view_t* view0 = ui_view_create(context, str("Test"), test_view);
+    ui_view_insert(right, view0);
+    
     
     // list state
     list_state.arena = arena_create(megabytes(4));
@@ -200,6 +206,11 @@ console_view() {
     ui_padding_begin(8.0f);
     ui_push_size(ui_size_percent(1.0f), ui_size_pixels(20.0f, 1.0f));
     
+    
+    ui_labelf("drag_state: %u", context->drag_state);
+    ui_labelf("mouse_pos_x: %.0f", context->mouse_pos.x);
+    ui_labelf("mouse_pos_y: %.0f", context->mouse_pos.y);
+    
     // label
     ui_labelf("Hello, This is a label!");
     ui_spacer();
@@ -246,24 +257,18 @@ console_view() {
     
     ui_spacer();
     
-    // redorable list
-    for (list_item_t* item = list_state.first; item != nullptr; item = item->next) {
-        
-        ui_set_next_flags(ui_frame_flag_anim_pos_y);
-        ui_interaction interaction = ui_button(item->label);
-        
-        if (interaction & ui_interaction_left_dragging) {
-            
-            
-            
-        }
-        ui_spacer();
-    }
     
     ui_pop_size();
     ui_padding_end();
     
 }
+
+function void
+test_view() {
+    
+}
+
+
 
 // entry point
 

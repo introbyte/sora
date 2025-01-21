@@ -15,26 +15,26 @@
 // state
 function void
 os_init() {
-
+    
 	// arenas
 	os_state.window_arena = arena_create(megabytes(64));
 	os_state.event_list_arena = arena_create(kilobytes(64));
 	os_state.entity_arena = arena_create(megabytes(128));
-
+    
 	// init entity free list
 	os_state.entity_free = nullptr;
-
+    
 	// init window list
 	os_state.window_first = nullptr;
 	os_state.window_last = nullptr;
 	os_state.window_free = nullptr;
-
+    
 	// time
 	timeBeginPeriod(1);
 	QueryPerformanceFrequency(&os_state.time_frequency);
 	os_state.blink_time = GetCaretBlinkTime();
 	os_state.double_click_time = GetDoubleClickTime();
-
+    
 	// register window class
 	WNDCLASS window_class = { 0 };
 	window_class.lpfnWndProc = os_w32_window_procedure;
@@ -43,7 +43,7 @@ os_init() {
 	window_class.hCursor = LoadCursorA(0, IDC_ARROW);
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	RegisterClassA(&window_class);
-
+    
 	// load cursors
 	os_state.cursors[os_cursor_pointer] = LoadCursorA(NULL, IDC_ARROW);
 	os_state.cursors[os_cursor_I_beam] = LoadCursorA(NULL, IDC_IBEAM);
@@ -54,18 +54,18 @@ os_init() {
 	os_state.cursors[os_cursor_resize_all] = LoadCursorA(NULL, IDC_SIZEALL);
 	os_state.cursors[os_cursor_hand_point] = LoadCursorA(NULL, IDC_HAND);
 	os_state.cursors[os_cursor_disabled] = LoadCursorA(NULL, IDC_NO);
-
+    
 	// init locks
 	InitializeCriticalSection(&os_state.entity_mutex);
-
+    
 }
 
 function void
 os_release() {
-
+    
 	// release locks
 	DeleteCriticalSection(&os_state.entity_mutex);
-
+    
 	// release arenas
 	arena_release(os_state.window_arena);
 	arena_release(os_state.event_list_arena);
@@ -73,25 +73,25 @@ os_release() {
 
 function void
 os_update() {
-
+    
 	// clear event list
 	arena_clear(os_state.event_list_arena);
 	os_state.event_list = { 0 };
-
+    
 	// dispatch win32 messages
 	for (MSG message; PeekMessageA(&message, 0, 0, 0, PM_REMOVE);) {
 		TranslateMessage(&message);
 		DispatchMessageA(&message);
 	}
-
+    
 	// update each window
 	for (os_w32_window_t* window = os_state.window_first; window != 0; window = window->next) {
-
+        
 		// window size
 		RECT w32_rect = { 0 };
 		GetClientRect(window->handle, &w32_rect);
 		window->resolution = uvec2((w32_rect.right - w32_rect.left), (w32_rect.bottom - w32_rect.top));
-
+        
 		// mouse position
 		POINT cursor_pos;
 		GetCursorPos(&cursor_pos);
@@ -99,7 +99,7 @@ os_update() {
 		window->mouse_pos_last = window->mouse_pos;
 		window->mouse_pos = { (f32)cursor_pos.x, (f32)cursor_pos.y };
 		window->mouse_delta = vec2_sub(window->mouse_pos, window->mouse_pos_last);
-
+        
 		// time
 		window->tick_previous = window->tick_current;
 		QueryPerformanceCounter(&window->tick_current);
@@ -108,7 +108,7 @@ os_update() {
 		
 		window->maximized = IsZoomed(window->handle);
 	}
-
+    
 }
 
 function void
@@ -150,7 +150,7 @@ function color_t
 os_get_sys_color(os_sys_color id) {
 	
 	DWORD result_color;
-
+    
 	if (id == os_sys_color_accent) {
 		DWORD size;
 		RegGetValueA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\DWM", "AccentColor", RRF_RT_REG_DWORD, nullptr, &result_color, &size);
@@ -158,13 +158,13 @@ os_get_sys_color(os_sys_color id) {
 	} else {
 		result_color = GetSysColor(id);
 	}
-
-
+    
+    
 	f32 r = (f32)GetRValue(result_color) / 255.0f;
 	f32 g = (f32)GetGValue(result_color) / 255.0f;
 	f32 b = (f32)GetBValue(result_color) / 255.0f;
 	color_t result = color(r, g, b, 1.0f);
-
+    
 	return result;
 }
 
@@ -194,14 +194,14 @@ os_key_is_down(os_key key) {
 
 function b8
 os_mouse_is_down(os_mouse_button button) {
-
+    
 }
 
 // window functions
 
 function os_handle_t
 os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
-
+    
 	// grab from free list or allocate one
 	os_w32_window_t* window = nullptr;
 	window = os_state.window_free;
@@ -212,7 +212,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	}
 	memset(window, 0, sizeof(os_w32_window_t));
 	dll_push_back(os_state.window_first, os_state.window_last, window);
-
+    
 	// fill struct
 	window->flags = flags;
 	QueryPerformanceCounter(&window->tick_current);
@@ -221,17 +221,17 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	window->elasped_time = 0.0;
 	window->resolution = uvec2(width, height);
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
-
+    
 	// borderless
 	window->borderless = flags & os_window_flag_borderless;
 	BOOL enabled = 0;
 	DwmIsCompositionEnabled(&enabled);
 	window->composition_enabled = enabled;
-
+    
 	if (window->borderless) {
 		window->title_bar_arena = arena_create(megabytes(8));
 	}
-
+    
 	// adjust window size
 	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
 	
@@ -240,12 +240,12 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	AdjustWindowRect(&rect, style, FALSE);
 	i32 adjusted_width = rect.right - rect.left;
 	i32 adjusted_height = rect.bottom - rect.top;
-
+    
 	// open window
 	os_state.new_borderless_window = !!(flags & os_window_flag_borderless);
 	window->handle = CreateWindowExA(WS_EX_APPWINDOW, "sora_window_class", (char*)title.data,
-		style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
-		nullptr, nullptr, GetModuleHandle(NULL), nullptr);
+                                     style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
+                                     nullptr, nullptr, GetModuleHandle(NULL), nullptr);
 	os_state.new_borderless_window = false;
 	ShowWindow(window->handle, SW_SHOW);
 	
@@ -255,19 +255,19 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 
 function void
 os_window_close(os_handle_t handle) {
-
+    
 	os_w32_window_t* window = os_w32_window_from_handle(handle);
-
+    
 	// remove from list and push to free list
 	dll_remove(os_state.window_first, os_state.window_last, window);
 	stack_push(os_state.window_free, window);
-
+    
 	// release arena if needed
 	if (window->title_bar_arena != nullptr) { arena_release(window->title_bar_arena); }
-
+    
 	// destroy window
 	if (window->handle != nullptr) { DestroyWindow(window->handle);  }
-
+    
 }
 
 function void 
@@ -297,9 +297,9 @@ os_window_restore(os_handle_t handle) {
 
 function void
 os_window_fullscreen(os_handle_t handle) {
-
+    
 	os_w32_window_t* window = os_w32_window_from_handle(handle);
-
+    
 	DWORD window_style = GetWindowLong(window->handle, GWL_STYLE);
 	if (window_style & WS_OVERLAPPEDWINDOW) {
 		MONITORINFO monitor_info = { sizeof(monitor_info) };
@@ -307,22 +307,22 @@ os_window_fullscreen(os_handle_t handle) {
 			GetMonitorInfo(MonitorFromWindow(window->handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
 			SetWindowLong(window->handle, GWL_STYLE, window_style & ~WS_OVERLAPPEDWINDOW);
 			SetWindowPos(window->handle, HWND_TOP,
-				monitor_info.rcMonitor.left,
-				monitor_info.rcMonitor.top,
-				monitor_info.rcMonitor.right -
-				monitor_info.rcMonitor.left,
-				monitor_info.rcMonitor.bottom -
-				monitor_info.rcMonitor.top,
-				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+                         monitor_info.rcMonitor.left,
+                         monitor_info.rcMonitor.top,
+                         monitor_info.rcMonitor.right -
+                         monitor_info.rcMonitor.left,
+                         monitor_info.rcMonitor.bottom -
+                         monitor_info.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 		}
 	} else {
 		SetWindowLong(window->handle, GWL_STYLE, window_style | WS_OVERLAPPEDWINDOW);
 		SetWindowPlacement(window->handle, &window->last_window_placement);
 		SetWindowPos(window->handle, 0, 0, 0, 0, 0,
-			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-			SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 	}
-
+    
 }
 
 function void
@@ -388,11 +388,13 @@ os_window_set_frame_function(os_handle_t handle, os_frame_function_t* func) {
 
 function vec2_t
 os_window_get_cursor_pos(os_handle_t handle) {
-	os_w32_window_t* window = os_w32_window_from_handle(handle);
+	/*os_w32_window_t* window = os_w32_window_from_handle(handle);
 	POINT cursor_pos;
 	GetCursorPos(&cursor_pos);
 	ScreenToClient(window->handle, &cursor_pos);
-	return vec2(cursor_pos.x, cursor_pos.y);
+	return vec2(cursor_pos.x, cursor_pos.y);*/
+    os_w32_window_t* window = os_w32_window_from_handle(handle);
+    return window->mouse_pos;
 }
 
 function void
@@ -474,7 +476,7 @@ os_file_open(str_t filepath, os_file_access_flag flags) {
 	DWORD access_flags = 0;
 	DWORD share_mode = 0;
 	DWORD creation_disposition = OPEN_EXISTING;
-
+    
 	if (flags & os_file_access_flag_read) { access_flags |= GENERIC_READ; }
 	if (flags & os_file_access_flag_write) { access_flags |= GENERIC_WRITE; }
 	if (flags & os_file_access_flag_execute) { access_flags |= GENERIC_EXECUTE; }
@@ -483,15 +485,15 @@ os_file_open(str_t filepath, os_file_access_flag flags) {
 	if (flags & os_file_access_flag_write) { creation_disposition = CREATE_ALWAYS; }
 	if (flags & os_file_access_flag_append) { creation_disposition = OPEN_ALWAYS; }
 	if (flags & os_file_access_flag_attribute) { access_flags = READ_CONTROL | FILE_READ_ATTRIBUTES;  share_mode = FILE_SHARE_READ; }
-
+    
 	HANDLE handle = CreateFileA((char*)filepath.data, access_flags, share_mode, NULL, creation_disposition, FILE_ATTRIBUTE_NORMAL, NULL);
-
+    
 	if (handle == INVALID_HANDLE_VALUE) {
 		printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
 	} else {
 		result.data[0] = (u64)handle;
 	}
-
+    
 	return result;
 }
 
@@ -506,20 +508,20 @@ function str_t
 os_file_read_range(arena_t* arena, os_handle_t file, u32 start, u32 length) {
 	
 	HANDLE handle = (HANDLE)file.data[0];
-
+    
 	str_t result;
 	LARGE_INTEGER off_li = { 0 };
 	off_li.QuadPart = start;
-
+    
 	if (SetFilePointerEx(handle, off_li, 0, FILE_BEGIN)) {
 		u32 bytes_to_read = length;
 		u32 bytes_actually_read = 0;
 		result.data = (u8*)arena_alloc(arena, sizeof(u8) * bytes_to_read);
 		result.size = 0;
-
+        
 		u8* ptr = (u8*)result.data;
 		u8* opl = (u8*)result.data + bytes_to_read;
-
+        
 		for (;;) {
 			u32 unread = (u32)(opl - ptr);
 			DWORD to_read = (DWORD)(min(unread, u32_max));
@@ -535,17 +537,17 @@ os_file_read_range(arena_t* arena, os_handle_t file, u32 start, u32 length) {
 		}
 	}
 	return result;
-
+    
 }
 
 function str_t
 os_file_read_all(arena_t* arena, str_t filepath) {
-
+    
 	str_t data = str("");
 	os_handle_t file = os_file_open(filepath);
 	data = os_file_read_all(arena, file);
 	os_file_close(file);
-
+    
 	return data;
 }
 
@@ -564,18 +566,18 @@ function os_file_info_t
 os_file_get_info(os_handle_t file) {
 	
 	HANDLE handle = (HANDLE)file.data[0];
-
+    
 	// get info
 	u32 high_bits = 0;
 	u32 low_bits = GetFileSize(handle, (DWORD*)&high_bits);
 	FILETIME last_write_time = { 0 };
 	GetFileTime(handle, 0, 0, &last_write_time);
-
+    
 	// fill info
 	os_file_info_t info = { 0 };
 	info.size = (u64)low_bits | (((u64)high_bits) << 32);
 	info.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
-
+    
 	return info;
 }
 
@@ -595,10 +597,10 @@ os_file_get_info(str_t filepath) {
 
 function os_handle_t
 os_thread_create(os_thread_function_t* thread_function, str_t name = str("")) {
-
+    
 	// get entity
 	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_thread);
-
+    
 	entity->thread.func = thread_function;
 	entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.thread_id);
 	
@@ -608,24 +610,24 @@ os_thread_create(os_thread_function_t* thread_function, str_t name = str("")) {
 
 function b8
 os_thread_join(os_handle_t thread, u64 endt_us) {
-
+    
 	DWORD sleep_ms = os_w32_sleep_ms_from_endt_us(endt_us);
 	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
 	DWORD wait_result = WAIT_OBJECT_0;
-
+    
 	if (entity != nullptr) {
 		wait_result = WaitForSingleObject(entity->thread.handle, sleep_ms);
 		CloseHandle(entity->thread.handle);
 		os_w32_entity_release(entity);
 	}
-
+    
 }
 
 function void
 os_thread_detach(os_handle_t thread) {
 	
 	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
-
+    
 	if (entity != nullptr) {
 		CloseHandle(entity->thread.handle);
 		os_w32_entity_release(entity);
@@ -634,9 +636,9 @@ os_thread_detach(os_handle_t thread) {
 
 function void
 os_thread_set_name(os_handle_t thread, str_t name) {
-
+    
 	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
-
+    
 	if (entity != nullptr) {
 		// TODO: get scratch arena here
 		//str16_t thread_wide = str_to_str16(os_state.scratch_arena, name);
@@ -821,9 +823,9 @@ os_w32_hwnd_from_window(os_w32_window_t* window) {
 // entities
 function os_w32_entity_t* 
 os_w32_entity_create(os_w32_entity_type type) {
-
+    
 	os_w32_entity_t* entity = nullptr;
-
+    
 	EnterCriticalSection(&os_state.entity_mutex);
 	{
 		// grab from free list or create one
@@ -836,18 +838,18 @@ os_w32_entity_create(os_w32_entity_type type) {
 		memset(entity, 0, sizeof(os_w32_entity_t));
 	}
 	LeaveCriticalSection(&os_state.entity_mutex);
-
+    
 	// set type
 	entity->type = type;
-
+    
 	return entity;
 }
 
 function void 
 os_w32_entity_release(os_w32_entity_t* entity) {
-
+    
 	entity->type = os_w32_entity_type_null;
-
+    
 	EnterCriticalSection(&os_state.entity_mutex);
 	{
 		// push to free stack
@@ -883,21 +885,21 @@ os_w32_thread_entry_point(void* ptr) {
 // window procedure
 LRESULT CALLBACK
 os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
-
+    
 	os_w32_window_t* window = os_w32_window_from_hwnd(handle);
 	os_handle_t window_handle = os_w32_handle_from_window(window);
 	os_event_t* event = nullptr;
 	LRESULT result = 0;
-
+    
 	switch (msg) {
-
+        
 		case WM_CLOSE: {
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 			event->window = window_handle;
 			event->type = os_event_type_window_close;
 			break;
 		}
-
+        
 		case WM_SIZE:
 		case WM_PAINT: {
 			if (window != nullptr) {
@@ -913,19 +915,19 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_ENTERSIZEMOVE: {
 			window->is_moving = true;
 			break;
 		}
-
+        
 		case WM_EXITSIZEMOVE: {
 			window->is_moving = false;
 			QueryPerformanceCounter(&window->tick_current);
 			window->tick_previous = window->tick_current;
 			break;
 		}
-
+        
 		case WM_NCACTIVATE: {
 			if (!os_state.new_borderless_window && (window == nullptr || window->borderless == 0)) {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
@@ -934,7 +936,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_NCCALCSIZE: {
 			if (os_state.new_borderless_window || (window != nullptr && window->borderless)) {
 				f32 dpi = (f32)GetDpiForWindow(handle);
@@ -962,7 +964,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_NCHITTEST: {
 			DWORD window_style = window ? GetWindowLong(window->handle, GWL_STYLE) : 0;
 			b8 is_fullscreen = !(window_style & WS_OVERLAPPEDWINDOW);
@@ -970,7 +972,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 				result = DefWindowProcA(handle, msg, wparam, lparam);
 			} else {
 				b8 is_default_handled = 0;
-
+                
 				result = DefWindowProcA(handle, msg, wparam, lparam);
 				switch (result) {
 					case HTNOWHERE:
@@ -985,28 +987,28 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 						break;
 					}
 				}
-
+                
 				if (!is_default_handled) {
 					POINT pos_monitor;
 					pos_monitor.x = LOWORD(lparam);
 					pos_monitor.y = HIWORD(lparam);
 					POINT pos_client = pos_monitor;
 					ScreenToClient(handle, &pos_client);
-
+                    
 					f32 dpi = (f32)GetDpiForWindow(handle);
 					i32 frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
 					i32 padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-
+                    
 					b8 is_over_top_resize = pos_client.y >= 0 && pos_client.y < frame_y + padding;
 					b8 is_over_title_bar = pos_client.y >= 0 && pos_client.y < 30;
-
+                    
 					b8 is_over_title_bar_client_area = 0;
 					for (os_title_bar_client_area_t* area = window->title_bar_client_area_first; area != 0; area = area->next) {
 						if (rect_contains(area->area, vec2(pos_client.x, pos_client.y))) {
 							is_over_title_bar_client_area = 1;
 						}
 					}
-
+                    
 					if (IsZoomed(handle)) {
 						if (is_over_title_bar_client_area) {
 							result = HTCLIENT;
@@ -1030,8 +1032,8 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
-
+        
+        
 		case WM_NCPAINT: {
 			if (os_state.new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
 				result = 0;
@@ -1040,7 +1042,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_DWMCOMPOSITIONCHANGED: {
 			if ((window != nullptr && window->borderless)) {
 				BOOL enabled = 0;
@@ -1057,12 +1059,12 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_WINDOWPOSCHANGED: { 
 			result = 0;
 			break;
 		}
-
+        
 		case WM_NCUAHDRAWCAPTION:
 		case WM_NCUAHDRAWFRAME: {
 			if (os_state.new_borderless_window || (window != nullptr && window->borderless)) {
@@ -1072,7 +1074,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_SETICON:
 		case WM_SETTEXT: {
 			if (os_state.new_borderless_window || (window != nullptr && window->borderless && !window->composition_enabled)) {
@@ -1085,7 +1087,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN: {
 			u32 key = (u32)wparam;
@@ -1095,7 +1097,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->key = (os_key)key;
 			break;
 		}
-
+        
 		case WM_SYSKEYUP:
 		case WM_KEYUP: {
 			u32 key = (u32)wparam;
@@ -1105,26 +1107,26 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->key = (os_key)key;
 			break;
 		}
-
-
+        
+        
 		//case WM_SYSCHAR:
 		case WM_CHAR: {
 			u32 key = (u32)wparam;
-
+            
 			if (key == '\r') { key = '\n'; }
-
+            
 			if ((key >= 32 && key != 127) || key == '\t' || key == '\n') {
 				event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
 				event->window = window_handle;
 				event->type = os_event_type_text;
 				event->character = key;
 			}
-
+            
 			break;
 		}
-
+        
 		// mouse input
-
+        
 		case WM_NCMOUSEMOVE:
 		case WM_MOUSEMOVE: {
 			f32 mouse_x = (f32)(i16)LOWORD(lparam);
@@ -1135,7 +1137,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->position = { mouse_x, mouse_y };
 			break;
 		}
-
+        
 		case WM_MOUSEWHEEL: {
 			f32 delta = (f32)GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
 			event = (os_event_t*)arena_calloc(os_state.event_list_arena, sizeof(os_event_t));
@@ -1144,7 +1146,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			event->scroll = { 0.0f, delta };
 			break;
 		}
-
+        
 		case WM_LBUTTONDOWN:
 		case WM_RBUTTONDOWN:
 		case WM_MBUTTONDOWN: {
@@ -1159,7 +1161,7 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
-
+        
 		case WM_LBUTTONUP:
 		case WM_RBUTTONUP:
 		case WM_MBUTTONUP: {
@@ -1179,9 +1181,9 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			result = DefWindowProcA(handle, msg, wparam, lparam);
 			break;
 		}
-
+        
 	}
-
+    
 	// add event to event list
 	if (event) {
 		event->modifiers = os_get_modifiers();
@@ -1189,9 +1191,9 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 		dll_push_back(os_state.event_list.first, os_state.event_list.last, event);
 		os_state.event_list.count++;
 	}
-
+    
 	return result;
-
+    
 }
 
 

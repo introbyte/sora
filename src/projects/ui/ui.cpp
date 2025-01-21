@@ -128,6 +128,17 @@ ui_begin(ui_context_t* context) {
 	ui_state.context_active = context;
     context->frame_mrc = nullptr;
     
+    // handle inputs
+    for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
+        if (!os_handle_equals(event->window, context->window)) { continue; }
+        
+        // drop drag state
+        if (event->type == ui_event_type_mouse_release && ui_drag_is_active()) {
+            context->drag_state = ui_drag_state_dropping;
+        }
+        
+    }
+    
     // process commands
     for (ui_cmd_t* command = ui_state.command_first, *next = nullptr; command != nullptr; command = next) {
         next = command->next;
@@ -202,7 +213,7 @@ ui_begin(ui_context_t* context) {
             
             case ui_cmd_type_split_panel: {
                 
-                ui_panel_t* split_panel = command->panel;
+                ui_panel_t* split_panel = command->split_panel;
                 ui_axis split_axis = ui_axis_from_dir(command->dir);
                 ui_side split_side = ui_side_from_dir(command->dir);
                 
@@ -213,18 +224,18 @@ ui_begin(ui_context_t* context) {
                 if (split_parent != nullptr && split_parent->split_axis == split_axis) {
                     
                     // create and insert panel
-                    ui_panel_t* next = ui_panel_create(context);
-                    ui_panel_insert(split_parent, next, split_panel);
-                    next->percent_of_parent = 1.0f / (f32)split_parent->child_count;
+                    ui_panel_t* inserted_panel = ui_panel_create(context);
+                    ui_panel_insert(split_parent, inserted_panel, split_side == ui_side_max ? split_panel : split_panel->tree_prev);
+                    inserted_panel->percent_of_parent = 1.0f / (f32)split_parent->child_count;
                     
                     // update sizes
                     for (ui_panel_t* child = split_parent->tree_first; child != nullptr; child = child->tree_next) {
-                        if (child != next) {
+                        if (child != inserted_panel) {
                             child->percent_of_parent *= (f32)(split_parent->child_count - 1) / (split_parent->child_count);
                         }
                     }
                     
-                    new_panel = next;
+                    new_panel = inserted_panel;
                 } else {
                     // parents split axis is not the same
                     
@@ -244,6 +255,13 @@ ui_begin(ui_context_t* context) {
                     // create new panel
                     ui_panel_t* left = split_panel;
                     ui_panel_t* right = ui_panel_create(context);
+                    
+                    if (split_side == ui_side_min) {
+                        ui_panel_t* t = left;
+                        left = right;
+                        right = t;
+                    }
+                    
                     left->percent_of_parent = 0.5f;
                     right->percent_of_parent = 0.5f;
                     new_panel = right;
@@ -321,7 +339,9 @@ ui_begin(ui_context_t* context) {
         
         // reset hover key
         context->key_hovered_prev = context->key_hovered;
-        b8 has_active = false;
+        context->key_hovered = { 0 };
+        
+        /*b8 has_active = false;
         for (i32 i = 0; i < 3; i++) {
             if (!ui_key_equals(context->key_active[i], { 0 })) {
                 has_active = true;
@@ -332,56 +352,138 @@ ui_begin(ui_context_t* context) {
         if (!has_active) {
             context->key_hovered = { 0 };
         }
-        
+        */
     }
     
     // get input
     context->mouse_pos = os_window_get_cursor_pos(context->window);
     context->mouse_delta = os_window_get_mouse_delta(context->window);
-    
-    // create root frame
     uvec2_t content_size = gfx_renderer_get_size(context->renderer);
     rect_t content_rect = rect(0.0f, 0.0f, content_size.x, content_size.y);
-    ui_set_next_rect(content_rect);
-    ui_key_t root_key = ui_key_from_stringf({ 0 }, "%p_window_root_frame", context);
-    context->frame_root = ui_frame_from_key(0, root_key);
-    ui_frame_set_display_string(context->frame_root, str("window_root_frame")); // for debug
-    ui_push_parent(context->frame_root);
+    
+    // create root frame
+    {
+        ui_set_next_rect(content_rect);
+        ui_key_t root_key = ui_key_from_stringf({ 0 }, "%p_window_root_frame", context);
+        context->frame_root = ui_frame_from_key(0, root_key);
+        ui_frame_set_display_string(context->frame_root, str("window_root_frame")); // for debug
+        ui_push_parent(context->frame_root);
+    }
     
     // create tooltip frame
-    ui_frame_flags tooltip_flags = ui_frame_flag_floating;
-    ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
-    ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
-    ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-    ui_set_next_padding(2.0f);
-    ui_set_next_color_background(color(0x1d1d1dff));
-    ui_key_t tooltip_key = ui_key_from_stringf({ 0 }, "%p_tooltip_root_frame", context);
-    context->frame_tooltip = ui_frame_from_key(tooltip_flags, tooltip_key);
-    ui_frame_set_display_string(context->frame_tooltip, str("tooltip_root_frame")); // for debug
-    
+    {
+        ui_frame_flags tooltip_flags = ui_frame_flag_floating;
+        ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
+        ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
+        ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+        ui_set_next_padding(2.0f);
+        ui_set_next_color_background(color(0x1d1d1dff));
+        ui_key_t tooltip_key = ui_key_from_stringf({ 0 }, "%p_tooltip_root_frame", context);
+        context->frame_tooltip = ui_frame_from_key(tooltip_flags, tooltip_key);
+        ui_frame_set_display_string(context->frame_tooltip, str("tooltip_root_frame")); // for debug
+    }
     // create popup frame
-    
-    ui_frame_flags popup_flags = 
-        ui_frame_flag_interactable |
-        ui_frame_flag_floating;
-    
-    ui_key_t popup_key = ui_key_from_stringf({ 0 }, "%p_popup_root_frame", context);
-    ui_set_next_fixed_x(context->popup_pos.x);
-    ui_set_next_fixed_y(context->popup_pos.y);
-    ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-    ui_set_next_padding(2.0f);
-    ui_set_next_color_background(color(0x1d1d1dff));
-    context->frame_popup = ui_frame_from_key(popup_flags, popup_key);
-    ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
-    
+    {
+        ui_frame_flags popup_flags = 
+            ui_frame_flag_interactable |
+            ui_frame_flag_floating;
+        
+        ui_key_t popup_key = ui_key_from_stringf({ 0 }, "%p_popup_root_frame", context);
+        ui_set_next_fixed_x(context->popup_pos.x);
+        ui_set_next_fixed_y(context->popup_pos.y);
+        ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+        ui_set_next_padding(2.0f);
+        ui_set_next_color_background(color(0x1d1d1dff));
+        context->frame_popup = ui_frame_from_key(popup_flags, popup_key);
+        ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
+    }
     
     // create non leaf panel ui
     {
         
         for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
             
+            // skip if leaf panel
+            if (panel->tree_first == nullptr) { continue; }
+            
+            // calculate rect
             rect_t panel_rect = ui_rect_from_panel(panel, content_rect);
             ui_axis split_axis = panel->split_axis;
+            
+            // boundary drop sites
+            if (ui_drag_is_active() && context->view_drag != nullptr) {
+                
+                // interate through children building drop sites
+                for (ui_panel_t* child = panel->tree_first;  ; child = child->tree_next) {
+                    
+                    // calculate drop rect
+                    rect_t child_rect = ui_rect_from_panel_child(panel, child, panel_rect);
+                    vec2_t child_rect_center = rect_center(child_rect);
+                    
+                    rect_t drop_rect = rect(child_rect_center, child_rect_center);
+                    drop_rect.v0[split_axis] = child_rect.v0[split_axis] - 30.0f;
+                    drop_rect.v1[split_axis] = child_rect.v0[split_axis] + 30.0f;
+                    drop_rect.v0[!split_axis] -= 50.0f;
+                    drop_rect.v1[!split_axis] += 50.0f;
+                    
+                    // build drop frame
+                    ui_frame_flags drop_flags = 
+                        ui_frame_flag_interactable |
+                        ui_frame_flag_draw_background |
+                        ui_frame_flag_draw_border |
+                        ui_frame_flag_draw_custom |
+                        ui_frame_flag_draw_hover_effects |
+                        ui_frame_flag_draw_active_effects;
+                    
+                    ui_set_next_rect(drop_rect);
+                    ui_set_next_rounding(vec4(5.0f));
+                    ui_set_next_color_background(color(0x50505080));
+                    ui_set_next_color_border(color(0x80808080));
+                    ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
+                    ui_frame_t* drop_frame = ui_frame_from_key(drop_flags, drop_key);
+                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, nullptr);
+                    ui_frame_interaction(drop_frame);
+                    
+                    // visualize new panel
+                    if (ui_key_equals(drop_key, context->key_hovered)) {
+                        rect_t new_panel_rect = drop_rect;
+                        new_panel_rect.v0[split_axis] -= 50.0f * drop_frame->hover_t;
+                        new_panel_rect.v1[split_axis] += 50.0f * drop_frame->hover_t;
+                        new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis];// * drop_frame->hover_t;
+                        new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis];// * drop_frame->hover_t;
+                        
+                        ui_set_next_rect(new_panel_rect);
+                        ui_set_next_color_background(color(0x50505080));
+                        ui_frame_from_key(ui_frame_flag_draw_background, { 0 });
+                    }
+                    
+                    // perform drop
+                    if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                        
+                        // detemine split panel and directiob
+                        ui_panel_t* split_panel = child;
+                        ui_dir split_dir = (split_axis == ui_axis_x) ? ui_dir_left : ui_dir_up;
+                        if (split_panel == nullptr) {
+                            split_panel = panel->tree_last;
+                            split_dir = (split_axis == ui_axis_x) ? ui_dir_right : ui_dir_down;
+                        }
+                        
+                        // push command
+                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                        cmd->split_panel = split_panel;
+                        cmd->panel = panel;
+                        cmd->dir = split_dir;
+                    }
+                    
+                    // end on opl
+                    if (child == nullptr) {
+                        break;
+                    }
+                    
+                }
+                
+            }
+            
             
             // build drag boundaries
             for (ui_panel_t* child = panel->tree_first; child != nullptr && child->tree_next != nullptr; child = child->tree_next) {
@@ -389,13 +491,13 @@ ui_begin(ui_context_t* context) {
                 ui_panel_t* min_child = child;
                 ui_panel_t* max_child = child->tree_next;
                 
-                rect_t min_child_rect = ui_rect_from_panel_child(min_child, panel_rect);
-                rect_t max_child_rect = ui_rect_from_panel_child(max_child, panel_rect);
+                rect_t min_child_rect = ui_rect_from_panel_child(min_child->tree_parent, min_child, panel_rect);
+                rect_t max_child_rect = ui_rect_from_panel_child(max_child->tree_parent, max_child, panel_rect);
                 
                 // calculate boundary rect
                 rect_t boundary_rect = { 0 };
-                boundary_rect.v0[split_axis]  = min_child_rect.v1[split_axis] - 4.0f;
-                boundary_rect.v1[split_axis]  = max_child_rect.v0[split_axis] + 4.0f;
+                boundary_rect.v0[split_axis]  = min_child_rect.v1[split_axis] - 8.0f;
+                boundary_rect.v1[split_axis]  = max_child_rect.v0[split_axis] + 8.0f;
                 boundary_rect.v0[!split_axis] = panel_rect.v0[!split_axis];
                 boundary_rect.v1[!split_axis] = panel_rect.v1[!split_axis];	
                 
@@ -403,11 +505,14 @@ ui_begin(ui_context_t* context) {
                 ui_frame_flags boundary_flags = 
                     ui_frame_flag_interactable |
                     ui_frame_flag_floating |
+                    //ui_frame_flag_draw_background |
+                    //ui_frame_flag_draw_hover_effects |
+                    //ui_frame_flag_draw_active_effects |
                     ui_frame_flag_hover_cursor;
                 
                 ui_set_next_rect(boundary_rect);
                 ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
-                
+                //ui_set_next_color_background(color(0x00000000));
                 ui_key_t boundary_key = ui_key_from_stringf({ 0 }, "%p_panel_boundary", child);
                 ui_frame_t* boundary_frame = ui_frame_from_key(boundary_flags, boundary_key);
                 ui_frame_set_display_string(boundary_frame, str("panel_boundary")); // for debug
@@ -419,12 +524,12 @@ ui_begin(ui_context_t* context) {
                     // drag start
                     if (boundary_interaction & ui_interaction_left_pressed) {
                         vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
-                        ui_store_drag_data(&drag_data, sizeof(vec2_t));
+                        ui_drag_store_data(&drag_data, sizeof(vec2_t));
                     }
                     
                     // get drag data
-                    vec2_t* drag_data = (vec2_t*)ui_get_drag_data();
-                    vec2_t mouse_delta = ui_get_drag_delta();
+                    vec2_t* drag_data = (vec2_t*)ui_drag_get_data();
+                    vec2_t mouse_delta = ui_drag_delta();
                     
                     vec2_t panel_size = rect_size(panel_rect);
                     f32 total_size = panel_size[split_axis];
@@ -451,13 +556,11 @@ ui_begin(ui_context_t* context) {
                     max_child->percent_of_parent = max_pct_after;
                     
                 }
+                
             }
             
-            // drop zones
-            
-            
-            
         }
+        
     }
     
     // create leaf panel ui
@@ -470,8 +573,138 @@ ui_begin(ui_context_t* context) {
             
             // calculate rect
             rect_t panel_rect = rect_shrink(ui_rect_from_panel(panel, content_rect), 2.0f);
+            vec2_t panel_center = rect_center(panel_rect);
+            vec2_t panel_size = rect_size(panel_rect);
+            
             rect_t container_rect = panel_rect; container_rect.y0 += 20.0f;
             rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 26.0f;
+            
+            // build drop sites
+            if (ui_drag_is_active() && context->view_drag != nullptr && rect_contains(panel_rect, context->mouse_pos)) {
+                
+                // calculate drop rects
+                rect_t drop_rect_center = rect(vec2_sub(panel_center, 40.0f), vec2_add(panel_center, 40.0f));
+                rect_t drop_rect_up = rect_translate(drop_rect_center, vec2(0.0f, -100.0f));
+                rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +100.0f));
+                rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-100.0f, 0.0f));
+                rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+100.0f, 0.0f));
+                
+                ui_drop_site_t drop_sites[] = {
+                    { ui_key_from_stringf( { 0 }, "drop_site_center_%p", panel), ui_dir_none, drop_rect_center },
+                    { ui_key_from_stringf( { 0 }, "drop_site_up_%p", panel), ui_dir_up, drop_rect_up},
+                    { ui_key_from_stringf( { 0 }, "drop_site_down_%p", panel), ui_dir_down, drop_rect_down},
+                    { ui_key_from_stringf( { 0 }, "drop_site_left_%p", panel), ui_dir_left, drop_rect_left},
+                    { ui_key_from_stringf( { 0 }, "drop_site_right_%p", panel), ui_dir_right, drop_rect_right},
+                };
+                
+                for (u32 i = 0; i < array_count(drop_sites); i++) {
+                    
+                    // get info
+                    ui_key_t drop_key = drop_sites[i].key;
+                    ui_dir drop_dir = drop_sites[i].split_dir;
+                    rect_t drop_rect = drop_sites[i].rect;
+                    ui_axis split_axis = ui_axis_from_dir(drop_dir);
+                    ui_side split_side = ui_side_from_dir(drop_dir);
+                    
+                    // skip if not in same axis as split axis
+                    if (drop_dir != ui_dir_none && split_axis == panel->tree_parent->split_axis) {
+                        continue;
+                    }
+                    
+                    // build frame
+                    
+                    ui_frame_flags drop_flags = 
+                        ui_frame_flag_interactable |
+                        ui_frame_flag_draw_background |
+                        ui_frame_flag_draw_border |
+                        ui_frame_flag_draw_hover_effects |
+                        ui_frame_flag_draw_active_effects;
+                    
+                    ui_set_next_rect(drop_rect);
+                    ui_set_next_color_background(color(0x50505080));
+                    ui_set_next_color_border(color(0x80808080));
+                    ui_set_next_rounding(vec4(5.0f));
+                    ui_frame_t* drop_frame = ui_frame_from_key(drop_flags, drop_key);
+                    ui_frame_interaction(drop_frame);
+                    
+                    // visualize new panel
+                    if (ui_key_equals(drop_key, context->key_hovered)) {
+                        rect_t new_panel_rect = drop_rect;
+                        rect_t padded_panel_rect = rect_shrink(panel_rect, 5.0f);
+                        
+                        switch (drop_dir) {
+                            case ui_dir_none: {
+                                new_panel_rect = rect( vec2_sub(panel_center, vec2_mul(panel_size, 0.05f * drop_frame->hover_t + 0.45f)), 
+                                                      vec2_add(panel_center, vec2_mul(panel_size, 0.05f * drop_frame->hover_t + 0.45f) ));
+                                break;
+                            }
+                            
+                            case ui_dir_up: {
+                                new_panel_rect = padded_panel_rect;
+                                new_panel_rect .y0 = lerp(padded_panel_rect.y1 * 0.2f, padded_panel_rect.y0, drop_frame->hover_t);
+                                new_panel_rect .y1 = padded_panel_rect.y1 * 0.5f;
+                                break;
+                            }
+                            
+                            case ui_dir_down: {
+                                new_panel_rect  = padded_panel_rect;
+                                new_panel_rect .y0 = padded_panel_rect.y1 * 0.5f;
+                                new_panel_rect .y1 = lerp(padded_panel_rect.y1 * 0.8f, padded_panel_rect.y1, drop_frame->hover_t);
+                                break;
+                            }
+                            
+                            case ui_dir_left: {
+                                new_panel_rect  = padded_panel_rect;
+                                new_panel_rect .x0 = lerp(padded_panel_rect.x1 * 0.2f, padded_panel_rect.x0, drop_frame->hover_t);
+                                new_panel_rect .x1 = padded_panel_rect.x1 * 0.5f;
+                                break;
+                            }
+                            
+                            case ui_dir_right: {
+                                new_panel_rect  = padded_panel_rect;
+                                new_panel_rect .x0 = padded_panel_rect.x1 * 0.5f;
+                                new_panel_rect .x1 = lerp(padded_panel_rect.x1 * 0.8f, padded_panel_rect.x1, drop_frame->hover_t);
+                                break;
+                            }
+                            
+                        }
+                        
+                        ui_set_next_rect(new_panel_rect);
+                        ui_set_next_color_background(color(0x50505080));
+                        ui_set_next_color_border(color(0x50505050));
+                        ui_frame_from_key(ui_frame_flag_draw_background | ui_frame_flag_draw_border, { 0 });
+                        
+                        // perform drop
+                        if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                            
+                            if (drop_dir != ui_dir_none) {
+                                // push command
+                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                                cmd->split_panel = panel;
+                                cmd->dir = drop_dir;
+                            }
+                            
+                            
+                        }
+                        
+                        
+                        
+                        
+                        
+                    }
+                    
+                    
+                    
+                    
+                    
+                }
+                
+                
+                
+                
+                
+            }
+            
             
             // build frame
             {
@@ -546,10 +779,21 @@ ui_begin(ui_context_t* context) {
                 for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
                     
                     ui_set_next_color_background(color(0x242424ff));
+                    ui_set_next_flags(ui_frame_flag_draggable);
                     ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
                     
                     if (tab_interaction & ui_interaction_left_clicked) {
                         panel->view_focus = view; 
+                    }
+                    
+                    if (tab_interaction & ui_interaction_left_dragging) {
+                        ui_drag_begin();
+                        
+                        vec2_t mouse_pos = context->mouse_pos;
+                        
+                        if (!rect_contains(tab_bar_rect, mouse_pos)) {
+                            context->view_drag = view;
+                        }
                     }
                     
                 }
@@ -596,7 +840,13 @@ ui_end(ui_context_t* context) {
         ui_frame_interaction(context->frame_popup);
     }
     
-    // unused mouse events
+    // end drag dropping if neccessary
+    if (context->drag_state == ui_drag_state_dropping) {
+        context->drag_state = ui_drag_state_none;
+        context->view_drag = nullptr;
+    }
+    
+    // unused events
     for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
         if (event->type == ui_event_type_mouse_release) {
             context->key_focused = { 0 };
@@ -644,7 +894,10 @@ ui_end(ui_context_t* context) {
         ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
         ui_frame_t* active_frame = ui_frame_find(context->key_active[os_mouse_button_left]);
         
-        if (hovered_frame != nullptr && (hovered_frame->flags & ui_frame_flag_hover_cursor)) {
+        //if (hovered_frame != nullptr && (hovered_frame->flags & ui_frame_flag_hover_cursor)) {
+        //}
+        if (!ui_key_equals(context->key_hovered, { 0 })) {
+            ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
             os_cursor cursor = hovered_frame->hover_cursor;
             os_set_cursor(cursor);
         }
@@ -661,7 +914,7 @@ ui_end(ui_context_t* context) {
             // draw shadow
             if (frame->flags & ui_frame_flag_draw_shadow) {
                 draw_set_next_color(palette->shadow);
-                draw_set_next_radii(frame->rounding);
+                draw_set_next_rounding(frame->rounding);
                 draw_set_next_softness(frame->shadow_size);
                 draw_rect(rect_translate(rect_grow(frame->rect, frame->shadow_size), 1.0f));
             }
@@ -682,7 +935,7 @@ ui_end(ui_context_t* context) {
                 }
                 
                 draw_set_next_color(background_color);
-                draw_set_next_radii(frame->rounding);
+                draw_set_next_rounding(frame->rounding);
                 draw_rect(frame->rect);
             }
             
@@ -690,7 +943,7 @@ ui_end(ui_context_t* context) {
             // draw border
             if (frame->flags & ui_frame_flag_draw_border) {
                 draw_set_next_color(palette->border);
-                draw_set_next_radii(frame->rounding);
+                draw_set_next_rounding(frame->rounding);
                 draw_set_next_thickness(frame->border_size);
                 draw_rect(frame->rect);
             }
@@ -1250,7 +1503,7 @@ ui_event_pop(ui_event_t* event) {
 //- drag state 
 
 function void 
-ui_store_drag_data(void* data, u32 size) {
+ui_drag_store_data(void* data, u32 size) {
     ui_context_t* context = ui_active();
     arena_clear(context->drag_state_arena);
     context->drag_state_data = arena_alloc(context->drag_state_arena, size);
@@ -1260,21 +1513,52 @@ ui_store_drag_data(void* data, u32 size) {
 }
 
 function void* 
-ui_get_drag_data() {
+ui_drag_get_data() {
     return  ui_active()->drag_state_data;
 }
 
+function void 
+ui_drag_clear_data() {
+    ui_context_t* context = ui_active();
+    arena_clear(context->drag_state_arena);
+    context->drag_state_size = 0;
+}
+
 function vec2_t 
-ui_get_drag_delta() {
+ui_drag_delta() {
     ui_context_t* context =  ui_active();
     return vec2_sub(context->mouse_pos, context->drag_start_pos);
 }
 
-function void 
-ui_clear_drag_data() {
+function b8 
+ui_drag_is_active() {
     ui_context_t* context = ui_active();
-    arena_clear(context->drag_state_arena);
-    context->drag_state_size = 0;
+    return (context->drag_state == ui_drag_state_dragging || context->drag_state == ui_drag_state_dropping);
+}
+
+function void
+ui_drag_begin() {
+    ui_context_t* context = ui_active();
+    if (!ui_drag_is_active()) {
+        context->drag_state = ui_drag_state_dragging;
+    }
+}
+
+function b8
+ui_drag_drop() {
+    ui_context_t* context = ui_active();
+    b8 result = false;
+    if (context->drag_state == ui_drag_state_dropping) {
+        result = true;
+        context->drag_state = ui_drag_state_none;
+    }
+    return result;
+}
+
+function void
+ui_drag_kill() {
+    ui_context_t* context = ui_active();
+    context->drag_state = ui_drag_state_none;
 }
 
 //- animation 
@@ -1769,14 +2053,46 @@ ui_frame_interaction(ui_frame_t* frame) {
     // hovering
     if ((frame->flags & ui_frame_flag_interactable) && mouse_in_bounds) {
         
-        if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
-            (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
-            (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
-            (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
-            context->key_hovered = frame->key;
-            result |= ui_interaction_hovered;
+        // if we are dragging
+        if (ui_drag_is_active()) { 
+            
+            if (ui_key_equals(context->key_hovered, { 0 })) {
+                result |= ui_interaction_hovered;
+                context->key_hovered = frame->key;
+                
+            }
+            
+        } else {
+            
+            if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
+                context->key_hovered = frame->key;
+                result |= ui_interaction_hovered;
+            }
+            
         }
         
+        
+        // if the frame is draggable we still want to be able to hover over
+        // other widgets.
+        /*if (frame->flags & ui_frame_flag_draggable) {
+            result |= ui_interaction_hovered;
+            context->key_hovered = frame->key;
+        } else {
+            
+            if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
+                (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
+                context->key_hovered = frame->key;
+                result |= ui_interaction_hovered;
+            }
+            
+        }
+        */
+        // mouse over even if not active
         result |= ui_interaction_mouse_over;
     }
     
@@ -1911,10 +2227,9 @@ ui_panel_rec_depth_first(ui_panel_t* panel) {
 }
 
 function rect_t 
-ui_rect_from_panel_child(ui_panel_t* panel, rect_t parent_rect) {
+ui_rect_from_panel_child(ui_panel_t* parent, ui_panel_t* panel, rect_t parent_rect) {
     
     rect_t result = parent_rect;
-    ui_panel_t* parent = panel->tree_parent;
     
     if (parent != nullptr) {
         
@@ -1923,9 +2238,9 @@ ui_rect_from_panel_child(ui_panel_t* panel, rect_t parent_rect) {
         
         result.v1[axis] = result.v0[axis];
         
-        for (ui_panel_t* p = parent->tree_first; p != 0; p = p->tree_next) {
-            result.v1[axis] += parent_rect_size[axis] * p->percent_of_parent;
-            if (p == panel) {
+        for (ui_panel_t* child = parent->tree_first; child != nullptr; child = child->tree_next) {
+            result.v1[axis] += parent_rect_size[axis] * child->percent_of_parent;
+            if (child == panel) {
                 break;
             }
             result.v0[axis] = result.v1[axis];
@@ -1964,13 +2279,13 @@ ui_rect_from_panel(ui_panel_t* panel, rect_t root_rect) {
         ui_panel_t* ancestor = ancestors[ancestor_index];
         
         if (ancestor->tree_parent != nullptr) {
-            parent_rect = ui_rect_from_panel_child(ancestor, parent_rect);
+            parent_rect = ui_rect_from_panel_child(ancestor->tree_parent, ancestor, parent_rect);
         }
         
     }
     
     // calculate final rect
-    rect_t result = ui_rect_from_panel_child(panel, parent_rect);
+    rect_t result = ui_rect_from_panel_child(panel->tree_parent, panel, parent_rect);
     scratch_end(scratch);
     
     return result;
@@ -2556,19 +2871,25 @@ ui_expanderf_begin(char* fmt, ...) {
 
 function void
 ui_expander_end() {
-    //ui_padding_end();
     ui_pop_parent();
 }
 
 
+//- custom draw functions
 
+function void 
+ui_drop_site_draw_function(ui_frame_t* frame) {
+    
+    ui_palette_t* palette = &frame->palette;
+    
+    rect_t inner_rect = rect_shrink(frame->rect, vec2(15.0f, 10.0f));
+    draw_set_next_color(palette->border);
+    draw_set_next_thickness(1.0f);
+    draw_set_next_rounding(frame->rounding);
+    draw_rect(inner_rect);
+    
+}
 
-
-
-
-
-
-//- widget draw functions
 
 function void 
 ui_slider_draw_function(ui_frame_t* frame) {
@@ -2586,11 +2907,10 @@ ui_slider_draw_function(ui_frame_t* frame) {
     color_t bar_color = frame->palette.accent;
     bar_color.a = 0.3f;
     draw_set_next_color(bar_color);
-    draw_set_next_radii(frame->rounding);
+    draw_set_next_rounding(frame->rounding);
     draw_rect(bar_rect);
     
     // draw text
-    
     vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
     draw_push_font(frame->font);
     draw_push_font_size(frame->font_size);
@@ -2608,9 +2928,6 @@ ui_slider_draw_function(ui_frame_t* frame) {
     draw_pop_font();
     
 }
-
-
-
 
 
 //- stacks

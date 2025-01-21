@@ -9,22 +9,8 @@
 //       this keeps our one draw call feature.
 // [ ] - add fancy text.
 //
-//
 
 // defines
-
-#define draw_stack_node_decl(name, type) struct draw_##name##_node_t { draw_##name##_node_t* next; type v; };
-#define draw_stack_decl(name) struct { draw_##name##_node_t* top; draw_##name##_node_t* free; b8 auto_pop; } name##_stack;
-#define gfx_stack_default_decl(name) draw_##name##_node_t name##_default_node;
-#define draw_stack_top_func(name, type) function type draw_top_##name();
-#define draw_stack_push_func(name, type) function type draw_push_##name(type);
-#define draw_stack_pop_func(name, type) function type draw_pop_##name();
-#define draw_stack_set_next_func(name, type) function type draw_set_next_##name(type);
-#define draw_stack_func_decl(name, type)\
-draw_stack_top_func(name, type)\
-draw_stack_push_func(name, type)\
-draw_stack_pop_func(name, type)\
-draw_stack_set_next_func(name, type)\
 
 #define draw_max_clip_rects 128
 #define draw_max_textures 16
@@ -75,27 +61,51 @@ struct draw_batch_t {
 };
 
 // stacks
-draw_stack_node_decl(color0, color_t);
-draw_stack_node_decl(color1, color_t);
-draw_stack_node_decl(color2, color_t);
-draw_stack_node_decl(color3, color_t);
+struct draw_color0_node_t { draw_color0_node_t* next; color_t v; };
+struct draw_color0_stack_t { draw_color0_node_t* top; draw_color0_node_t* free; b8 auto_pop; };
 
-draw_stack_node_decl(radius0, f32);
-draw_stack_node_decl(radius1, f32);
-draw_stack_node_decl(radius2, f32);
-draw_stack_node_decl(radius3, f32);
+struct draw_color1_node_t { draw_color1_node_t* next; color_t v; };
+struct draw_color1_stack_t { draw_color1_node_t* top; draw_color1_node_t* free; b8 auto_pop; };
 
-draw_stack_node_decl(thickness, f32);
-draw_stack_node_decl(softness, f32);
+struct draw_color2_node_t { draw_color2_node_t* next; color_t v; };
+struct draw_color2_stack_t { draw_color2_node_t* top; draw_color2_node_t* free; b8 auto_pop; };
 
-draw_stack_node_decl(font, font_handle_t);
-draw_stack_node_decl(font_size, f32);
-draw_stack_node_decl(clip_mask, rect_t);
+struct draw_color3_node_t { draw_color3_node_t* next; color_t v; };
+struct draw_color3_stack_t { draw_color3_node_t* top; draw_color3_node_t* free; b8 auto_pop; };
 
-draw_stack_node_decl(texture, gfx_handle_t);
+struct draw_radius0_node_t { draw_radius0_node_t* next; f32 v; };
+struct draw_radius0_stack_t { draw_radius0_node_t* top; draw_radius0_node_t* free; b8 auto_pop; };
+
+struct draw_radius1_node_t { draw_radius1_node_t* next; f32 v; };
+struct draw_radius1_stack_t { draw_radius1_node_t* top; draw_radius1_node_t* free; b8 auto_pop; };
+
+struct draw_radius2_node_t { draw_radius2_node_t* next; f32 v; };
+struct draw_radius2_stack_t { draw_radius2_node_t* top; draw_radius2_node_t* free; b8 auto_pop; };
+
+struct draw_radius3_node_t { draw_radius3_node_t* next; f32 v; };
+struct draw_radius3_stack_t { draw_radius3_node_t* top; draw_radius3_node_t* free; b8 auto_pop; };
+
+struct draw_thickness_node_t { draw_thickness_node_t* next; f32 v; };
+struct draw_thickness_stack_t { draw_thickness_node_t* top; draw_thickness_node_t* free; b8 auto_pop; };
+
+struct draw_softness_node_t { draw_softness_node_t* next; f32 v; };
+struct draw_softness_stack_t { draw_softness_node_t* top; draw_softness_node_t* free; b8 auto_pop; };
+
+struct draw_font_node_t { draw_font_node_t* next; font_handle_t v; };
+struct draw_font_stack_t { draw_font_node_t* top; draw_font_node_t* free; b8 auto_pop; };
+
+struct draw_font_size_node_t { draw_font_size_node_t* next; f32 v; };
+struct draw_font_size_stack_t { draw_font_size_node_t* top; draw_font_size_node_t* free; b8 auto_pop; };
+
+struct draw_clip_mask_node_t { draw_clip_mask_node_t* next; rect_t v; };
+struct draw_clip_mask_stack_t { draw_clip_mask_node_t* top; draw_clip_mask_node_t* free; b8 auto_pop; };
+
+struct draw_texture_node_t { draw_texture_node_t* next; gfx_handle_t v; };
+struct draw_texture_stack_t { draw_texture_node_t* top; draw_texture_node_t* free; b8 auto_pop; };
+
 
 struct draw_state_t {
-
+    
 	// assets
 	gfx_handle_t instance_buffer;
 	gfx_handle_t constant_buffer;
@@ -108,54 +118,54 @@ struct draw_state_t {
 	
 	gfx_handle_t texture_list[draw_max_textures];
 	u32 texture_count;
-
+    
 	// batches
 	arena_t* batch_arena;
 	draw_batch_t* batch_first;
 	draw_batch_t* batch_last;
-
+    
 	// stacks
-	draw_stack_decl(color0);
-	draw_stack_decl(color1);
-	draw_stack_decl(color2);
-	draw_stack_decl(color3);
-
-	draw_stack_decl(radius0);
-	draw_stack_decl(radius1);
-	draw_stack_decl(radius2);
-	draw_stack_decl(radius3);
-
-	draw_stack_decl(thickness);
-	draw_stack_decl(softness);
-
-	draw_stack_decl(font);
-	draw_stack_decl(font_size);
-
-	draw_stack_decl(clip_mask);
-
-	draw_stack_decl(texture);
-
+	draw_color0_stack_t color0_stack;
+	draw_color1_stack_t color1_stack;
+	draw_color2_stack_t color2_stack;
+	draw_color3_stack_t color3_stack;
+    
+	draw_radius0_stack_t radius0_stack;
+	draw_radius1_stack_t radius1_stack;
+	draw_radius2_stack_t radius2_stack;
+	draw_radius3_stack_t radius3_stack;
+    
+	draw_thickness_stack_t thickness_stack;
+	draw_softness_stack_t softness_stack;
+    
+	draw_font_stack_t font_stack;
+	draw_font_size_stack_t font_size_stack;
+    
+	draw_clip_mask_stack_t clip_mask_stack;
+    
+	draw_texture_stack_t texture_stack;
+    
 	// stack defaults
-	gfx_stack_default_decl(color0);
-	gfx_stack_default_decl(color1);
-	gfx_stack_default_decl(color2);
-	gfx_stack_default_decl(color3);
-
-	gfx_stack_default_decl(radius0);
-	gfx_stack_default_decl(radius1);
-	gfx_stack_default_decl(radius2);
-	gfx_stack_default_decl(radius3);
-
-	gfx_stack_default_decl(thickness);
-	gfx_stack_default_decl(softness);
-
-	gfx_stack_default_decl(font);
-	gfx_stack_default_decl(font_size);
-
-	gfx_stack_default_decl(clip_mask);
-
-	gfx_stack_default_decl(texture);
-
+	draw_color0_node_t color0_default_node;
+	draw_color1_node_t color1_default_node;
+	draw_color2_node_t color2_default_node;
+	draw_color3_node_t color3_default_node;
+    
+	draw_radius0_node_t radius0_default_node;
+	draw_radius1_node_t radius1_default_node;
+	draw_radius2_node_t radius2_default_node;
+	draw_radius3_node_t radius3_default_node;
+    
+	draw_thickness_node_t thickness_default_node;
+	draw_softness_node_t softness_default_node;
+    
+	draw_font_node_t font_default_node;
+	draw_font_size_node_t font_size_default_node;
+    
+	draw_clip_mask_node_t clip_mask_default_node;
+    
+	draw_texture_node_t texture_default_node;
+    
 };
 
 // globals
@@ -186,36 +196,86 @@ function void draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1);
 // stacks
 function void draw_auto_pop_stacks();
 
-draw_stack_func_decl(color0, color_t);
-draw_stack_func_decl(color1, color_t);
-draw_stack_func_decl(color2, color_t);
-draw_stack_func_decl(color3, color_t);
+function color_t draw_top_color0();
+function color_t draw_push_color0(color_t);
+function color_t draw_pop_color0();
+function color_t draw_set_next_color0(color_t);
 
-draw_stack_func_decl(radius0, f32);
-draw_stack_func_decl(radius1, f32);
-draw_stack_func_decl(radius2, f32);
-draw_stack_func_decl(radius3, f32);
+function color_t draw_top_color1();
+function color_t draw_push_color1(color_t); 
+function color_t draw_pop_color1(); 
+function color_t draw_set_next_color1(color_t);
 
-draw_stack_func_decl(thickness, f32);
-draw_stack_func_decl(softness, f32);
+function color_t draw_top_color2(); 
+function color_t draw_push_color2(color_t); 
+function color_t draw_pop_color2(); 
+function color_t draw_set_next_color2(color_t);
 
-draw_stack_func_decl(font, font_handle_t);
-draw_stack_func_decl(font_size, f32);
+function color_t draw_top_color3(); 
+function color_t draw_push_color3(color_t); 
+function color_t draw_pop_color3(); 
+function color_t draw_set_next_color3(color_t);
 
-draw_stack_func_decl(clip_mask, rect_t);
+function f32 draw_top_radius0(); 
+function f32 draw_push_radius0(f32); 
+function f32 draw_pop_radius0(); 
+function f32 draw_set_next_radius0(f32);
 
-draw_stack_func_decl(texture, gfx_handle_t);
+function f32 draw_top_radius1();
+function f32 draw_push_radius1(f32);
+function f32 draw_pop_radius1(); 
+function f32 draw_set_next_radius1(f32);
+
+function f32 draw_top_radius2(); 
+function f32 draw_push_radius2(f32);
+function f32 draw_pop_radius2();
+function f32 draw_set_next_radius2(f32);
+
+function f32 draw_top_radius3(); 
+function f32 draw_push_radius3(f32);
+function f32 draw_pop_radius3(); 
+function f32 draw_set_next_radius3(f32);
+
+function f32 draw_top_thickness(); 
+function f32 draw_push_thickness(f32);
+function f32 draw_pop_thickness(); 
+function f32 draw_set_next_thickness(f32);
+
+function f32 draw_top_softness(); 
+function f32 draw_push_softness(f32); 
+function f32 draw_pop_softness();
+function f32 draw_set_next_softness(f32);
+
+function font_handle_t draw_top_font(); 
+function font_handle_t draw_push_font(font_handle_t); 
+function font_handle_t draw_pop_font(); 
+function font_handle_t draw_set_next_font(font_handle_t);
+
+function f32 draw_top_font_size(); 
+function f32 draw_push_font_size(f32); 
+function f32 draw_pop_font_size(); 
+function f32 draw_set_next_font_size(f32);
+
+function rect_t draw_top_clip_mask();
+function rect_t draw_push_clip_mask(rect_t); 
+function rect_t draw_pop_clip_mask();
+function rect_t draw_set_next_clip_mask(rect_t);
+
+function gfx_handle_t draw_top_texture();
+function gfx_handle_t draw_push_texture(gfx_handle_t);
+function gfx_handle_t draw_pop_texture();
+function gfx_handle_t draw_set_next_texture(gfx_handle_t);
 
 // group stacks
 function void draw_push_color(color_t);
 function void draw_set_next_color(color_t);
 function void draw_pop_color();
 
-function vec4_t draw_top_radii();
-function void draw_push_radii(f32);
-function void draw_push_radii(vec4_t);
-function void draw_set_next_radii(f32);
-function void draw_set_next_radii(vec4_t);
-function void draw_pop_radii();
+function vec4_t draw_top_rounding();
+function void draw_push_rounding(f32);
+function void draw_push_rounding(vec4_t);
+function void draw_set_next_rounding(f32);
+function void draw_set_next_rounding(vec4_t);
+function void draw_pop_rounding();
 
 #endif // DRAW_H

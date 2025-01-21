@@ -628,6 +628,7 @@ app_init() {
 		ui_panel_insert_view(console_panel, view5);
 		ui_panel_insert_view(node_graph_panel, view4);
 		ui_panel_insert_view(node_graph_panel, view6);
+		ui_panel_insert_view(properties_panel , view1);
 
 
 	}

@@ -2140,7 +2140,6 @@ ui_frame_interaction(ui_frame_t* frame) {
 				if (event->type == ui_event_type_mouse_release) {
 
 					if (mouse_in_bounds) {
-						printf("release event!\n");
 						result |= ui_interaction_left_released << event->mouse;
 					}
 
@@ -2148,7 +2147,6 @@ ui_frame_interaction(ui_frame_t* frame) {
 						if (mouse_in_bounds) {
 							result |= ui_interaction_left_clicked << event->mouse;
 							taken = true;
-							printf("             widget clicked!\n");
 						}
 						context->active_frame_key[event->mouse] = { 0 };
 					}

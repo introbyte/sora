@@ -28,10 +28,10 @@ fg_create() {
 	state->link_free = nullptr;
 
 	state->link_size = 75.0f;
-	state->link_strength = 10.0f;
-	state->repulsive_strength = 10000.0f;
+	state->link_strength = 2.0f;
+	state->repulsive_strength = 5000.0f;
 	state->damping = 0.99f;
-	state->iterations = 8;
+	state->iterations = 25;
 
 	return state;
 }
