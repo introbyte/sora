@@ -218,6 +218,7 @@ enum ui_cmd_type {
     ui_cmd_type_none,
     ui_cmd_type_close_panel,
     ui_cmd_type_split_panel,
+    ui_cmd_type_move_view,
 };
 
 
@@ -353,6 +354,8 @@ struct ui_frame_rec_t {
 
 // views
 
+struct ui_panel_t;
+
 struct ui_view_t {
     
     // global list
@@ -362,6 +365,8 @@ struct ui_view_t {
     // list
     ui_view_t* next;
     ui_view_t* prev;
+    
+    ui_panel_t* parent_panel;
     
     // info
     str_t label;
@@ -406,14 +411,6 @@ struct ui_panel_rec_t {
 
 struct ui_panel_rect_t {
     ui_panel_rect_t* next;
-    rect_t rect;
-};
-
-// drop site
-
-struct ui_drop_site_t {
-    ui_key_t key;
-    ui_dir split_dir;
     rect_t rect;
 };
 
@@ -743,8 +740,9 @@ struct ui_cmd_t {
     ui_cmd_type type;
     ui_context_t* context;
     
-    ui_panel_t* panel;
-    ui_panel_t* split_panel;
+    ui_panel_t* src_panel;
+    ui_panel_t* dst_panel;
+    ui_view_t* view;
     ui_dir dir;
 };
 
@@ -833,6 +831,7 @@ function void ui_cmd_pop(ui_cmd_t* command);
 // events
 function void ui_event_push(ui_event_t* event);
 function void ui_event_pop(ui_event_t* event);
+function void ui_kill_action();
 
 // drag state
 function void ui_drag_store_data(void* data, u32 size);

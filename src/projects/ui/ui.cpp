@@ -150,7 +150,7 @@ ui_begin(ui_context_t* context) {
             case ui_cmd_type_close_panel: {
                 
                 // get panels
-                ui_panel_t* panel = command->panel;
+                ui_panel_t* panel = command->src_panel;
                 ui_panel_t* parent = panel->tree_parent;
                 
                 // skip if last panel so we can't remove all panels
@@ -213,7 +213,7 @@ ui_begin(ui_context_t* context) {
             
             case ui_cmd_type_split_panel: {
                 
-                ui_panel_t* split_panel = command->split_panel;
+                ui_panel_t* split_panel = command->dst_panel;
                 ui_axis split_axis = ui_axis_from_dir(command->dir);
                 ui_side split_side = ui_side_from_dir(command->dir);
                 
@@ -255,6 +255,7 @@ ui_begin(ui_context_t* context) {
                     // create new panel
                     ui_panel_t* left = split_panel;
                     ui_panel_t* right = ui_panel_create(context);
+                    new_panel = right;
                     
                     if (split_side == ui_side_min) {
                         ui_panel_t* t = left;
@@ -264,13 +265,33 @@ ui_begin(ui_context_t* context) {
                     
                     left->percent_of_parent = 0.5f;
                     right->percent_of_parent = 0.5f;
-                    new_panel = right;
                     
                     // insert both panels
                     ui_panel_insert(new_parent, left);
                     ui_panel_insert(new_parent, right, left);
                     
                 }
+                
+                
+                if (command->view != nullptr) {
+                    
+                    ui_view_remove(command->src_panel, command->view);
+                    ui_view_insert(new_panel, command->view, new_panel->view_last);
+                    
+                }
+                
+                taken = true;
+                break;
+            }
+            
+            case ui_cmd_type_move_view: {
+                
+                ui_panel_t* from_panel = command->src_panel;
+                ui_panel_t* to_panel = command->dst_panel;
+                ui_view_t* view = command->view;
+                
+                ui_view_remove(from_panel, view);
+                ui_view_insert(to_panel, view, to_panel->view_last);
                 
                 taken = true;
                 break;
@@ -341,18 +362,6 @@ ui_begin(ui_context_t* context) {
         context->key_hovered_prev = context->key_hovered;
         context->key_hovered = { 0 };
         
-        /*b8 has_active = false;
-        for (i32 i = 0; i < 3; i++) {
-            if (!ui_key_equals(context->key_active[i], { 0 })) {
-                has_active = true;
-                break;
-            }
-        }
-        
-        if (!has_active) {
-            context->key_hovered = { 0 };
-        }
-        */
     }
     
     // get input
@@ -398,6 +407,29 @@ ui_begin(ui_context_t* context) {
         ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
     }
     
+    // drop site and visualization params
+    
+    ui_frame_flags drop_site_flags = 
+        ui_frame_flag_interactable |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_border |
+        ui_frame_flag_draw_custom;
+    
+    ui_frame_flags vis_panel_flags =
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_border;
+    
+    color_t drop_background_color = color(0x151515ff);
+    color_t drop_border_color = color(0x353535ff);
+    
+    color_t vis_background_color = color(0x50505080);
+    color_t vis_border_color = color(0x80808080);
+    
+    f32 drop_site_major_size = 50.0f;
+    f32 drop_site_minor_size = 30.0f;
+    
+    f32 vis_major_size = 50.0f;
+    
     // create non leaf panel ui
     {
         
@@ -413,6 +445,82 @@ ui_begin(ui_context_t* context) {
             // boundary drop sites
             if (ui_drag_is_active() && context->view_drag != nullptr) {
                 
+                // build root drop sites
+                if (panel == context->panel_root) {
+                    
+                    for (ui_side side = ui_side_min; side < ui_side_count; side++) {
+                        
+                        // calculate rect
+                        vec2_t panel_rect_center = rect_center(panel_rect);
+                        rect_t drop_rect = rect(panel_rect_center, panel_rect_center);
+                        
+                        drop_rect.v0[split_axis] = panel_rect_center[split_axis] - drop_site_major_size;
+                        drop_rect.v1[split_axis] = panel_rect_center[split_axis] + drop_site_major_size;
+                        
+                        if (side == ui_side_min) {
+                            drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f;
+                            drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f + (drop_site_minor_size * 2.0f);
+                        } else {
+                            drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f - (drop_site_minor_size * 2.0f);
+                            drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f;
+                        }
+                        
+                        // build frame
+                        ui_set_next_rect(drop_rect);
+                        ui_set_next_color_background(drop_background_color);
+                        ui_set_next_color_border(drop_border_color);
+                        ui_key_t drop_key = ui_key_from_stringf({ 0 }, "root_drop_site_%i", side);
+                        ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
+                        ui_frame_interaction(drop_frame);
+                        
+                        // visualize new panel
+                        if (ui_key_equals(drop_key, context->key_hovered)) {
+                            
+                            // calculate rect
+                            rect_t new_panel_rect = drop_rect;
+                            new_panel_rect.v0[split_axis] = panel_rect.v0[split_axis] + 5.0f;
+                            new_panel_rect.v1[split_axis] = panel_rect.v1[split_axis] - 5.0f;
+                            
+                            if (side == ui_side_min) {
+                                new_panel_rect.v0[!split_axis] = panel_rect.v0[!split_axis] + 5.0f;
+                                new_panel_rect.v1[!split_axis] += vis_major_size * drop_frame->hover_t;
+                            } else {
+                                new_panel_rect.v0[!split_axis] -= vis_major_size * drop_frame->hover_t;
+                                new_panel_rect.v1[!split_axis] = panel_rect.v1[!split_axis] - 5.0f;
+                            }
+                            
+                            //build visualization frame
+                            ui_set_next_rect(new_panel_rect);
+                            ui_set_next_color_background(vis_background_color);
+                            ui_set_next_color_border(vis_border_color);
+                            ui_frame_from_key(vis_panel_flags, { 0 });
+                            
+                        }
+                        
+                        // perform drop
+                        if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                            
+                            // detemine split panel and directiob
+                            ui_dir dir = (split_axis == ui_axis_x ? (side == ui_side_min ? ui_dir_up : ui_dir_down) :
+                                          split_axis == ui_axis_y ? (side == ui_side_min ? ui_dir_left: ui_dir_right) :
+                                          ui_dir_none);
+                            
+                            if (dir != ui_dir_none) {
+                                
+                                // push command
+                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                                cmd->dst_panel = panel;
+                                cmd->src_panel = context->view_drag->parent_panel;
+                                cmd->dir = dir;
+                                cmd->view = context->view_drag;
+                                
+                            }
+                        }
+                        
+                    }
+                    
+                }
+                
                 // interate through children building drop sites
                 for (ui_panel_t* child = panel->tree_first;  ; child = child->tree_next) {
                     
@@ -421,40 +529,37 @@ ui_begin(ui_context_t* context) {
                     vec2_t child_rect_center = rect_center(child_rect);
                     
                     rect_t drop_rect = rect(child_rect_center, child_rect_center);
-                    drop_rect.v0[split_axis] = child_rect.v0[split_axis] - 30.0f;
-                    drop_rect.v1[split_axis] = child_rect.v0[split_axis] + 30.0f;
-                    drop_rect.v0[!split_axis] -= 50.0f;
-                    drop_rect.v1[!split_axis] += 50.0f;
+                    drop_rect.v0[split_axis] = child_rect.v0[split_axis] - drop_site_minor_size;
+                    drop_rect.v1[split_axis] = child_rect.v0[split_axis] + drop_site_minor_size;
+                    drop_rect.v0[!split_axis] -= drop_site_major_size;
+                    drop_rect.v1[!split_axis] += drop_site_major_size;
                     
                     // build drop frame
-                    ui_frame_flags drop_flags = 
-                        ui_frame_flag_interactable |
-                        ui_frame_flag_draw_background |
-                        ui_frame_flag_draw_border |
-                        ui_frame_flag_draw_custom |
-                        ui_frame_flag_draw_hover_effects |
-                        ui_frame_flag_draw_active_effects;
-                    
                     ui_set_next_rect(drop_rect);
                     ui_set_next_rounding(vec4(5.0f));
-                    ui_set_next_color_background(color(0x50505080));
-                    ui_set_next_color_border(color(0x80808080));
+                    ui_set_next_color_background(drop_background_color);
+                    ui_set_next_color_border(drop_border_color);
                     ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
-                    ui_frame_t* drop_frame = ui_frame_from_key(drop_flags, drop_key);
-                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, nullptr);
+                    ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
+                    //ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, nullptr);
                     ui_frame_interaction(drop_frame);
+                    
                     
                     // visualize new panel
                     if (ui_key_equals(drop_key, context->key_hovered)) {
-                        rect_t new_panel_rect = drop_rect;
-                        new_panel_rect.v0[split_axis] -= 50.0f * drop_frame->hover_t;
-                        new_panel_rect.v1[split_axis] += 50.0f * drop_frame->hover_t;
-                        new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis];// * drop_frame->hover_t;
-                        new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis];// * drop_frame->hover_t;
                         
+                        // calculate rect
+                        rect_t new_panel_rect = drop_rect;
+                        new_panel_rect.v0[split_axis] -= vis_major_size* drop_frame->hover_t;
+                        new_panel_rect.v1[split_axis] += vis_major_size* drop_frame->hover_t;
+                        new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
+                        new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
+                        
+                        //build visualization frame
                         ui_set_next_rect(new_panel_rect);
-                        ui_set_next_color_background(color(0x50505080));
-                        ui_frame_from_key(ui_frame_flag_draw_background, { 0 });
+                        ui_set_next_color_background(vis_background_color);
+                        ui_set_next_color_border(vis_border_color);
+                        ui_frame_from_key(vis_panel_flags, { 0 });
                     }
                     
                     // perform drop
@@ -470,9 +575,10 @@ ui_begin(ui_context_t* context) {
                         
                         // push command
                         ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
-                        cmd->split_panel = split_panel;
-                        cmd->panel = panel;
+                        cmd->src_panel = context->view_drag->parent_panel;
+                        cmd->dst_panel = split_panel;
                         cmd->dir = split_dir;
+                        cmd->view = context->view_drag;
                     }
                     
                     // end on opl
@@ -505,27 +611,39 @@ ui_begin(ui_context_t* context) {
                 ui_frame_flags boundary_flags = 
                     ui_frame_flag_interactable |
                     ui_frame_flag_floating |
-                    //ui_frame_flag_draw_background |
-                    //ui_frame_flag_draw_hover_effects |
-                    //ui_frame_flag_draw_active_effects |
                     ui_frame_flag_hover_cursor;
                 
                 ui_set_next_rect(boundary_rect);
                 ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
-                //ui_set_next_color_background(color(0x00000000));
                 ui_key_t boundary_key = ui_key_from_stringf({ 0 }, "%p_panel_boundary", child);
                 ui_frame_t* boundary_frame = ui_frame_from_key(boundary_flags, boundary_key);
                 ui_frame_set_display_string(boundary_frame, str("panel_boundary")); // for debug
                 ui_interaction boundary_interaction = ui_frame_interaction(boundary_frame);
                 
-                // dragging interaction
-                if (boundary_interaction & ui_interaction_left_dragging) {
+                /*if (boundary_interaction & ui_interaction_hovered) {
+                    rect_t vis_rect = boundary_rect;
+                    vis_rect.v0[split_axis] += 7.0f;
+                    vis_rect.v1[split_axis] -= 8.0f;
                     
-                    // drag start
-                    if (boundary_interaction & ui_interaction_left_pressed) {
-                        vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
-                        ui_drag_store_data(&drag_data, sizeof(vec2_t));
+                    if (boundary_interaction & ui_interaction_left_dragging) {
+                        vis_rect.v0[split_axis] += context->mouse_delta[split_axis];
+                        vis_rect.v1[split_axis] += context->mouse_delta[split_axis];
                     }
+                    
+                    ui_set_next_rect(vis_rect);
+                    ui_frame_t* vis_frame = ui_frame_from_key(ui_frame_flag_draw_background, { 0 });
+                }*/
+                
+                if (boundary_interaction & ui_interaction_left_double_clicked) {
+                    ui_kill_action();
+                    f32 sum_percent = min_child->percent_of_parent + max_child->percent_of_parent;
+                    min_child->percent_of_parent = 0.5f * sum_percent ;
+                    max_child->percent_of_parent = 0.5f * sum_percent ;
+                    
+                } else if (boundary_interaction & ui_interaction_left_pressed) {
+                    vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
+                    ui_drag_store_data(&drag_data, sizeof(vec2_t));
+                } else if (boundary_interaction & ui_interaction_left_dragging) {
                     
                     // get drag data
                     vec2_t* drag_data = (vec2_t*)ui_drag_get_data();
@@ -576,7 +694,7 @@ ui_begin(ui_context_t* context) {
             vec2_t panel_center = rect_center(panel_rect);
             vec2_t panel_size = rect_size(panel_rect);
             
-            rect_t container_rect = panel_rect; container_rect.y0 += 20.0f;
+            rect_t container_rect = panel_rect; container_rect.y0 += 25.0f;
             rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 26.0f;
             
             // build drop sites
@@ -588,6 +706,13 @@ ui_begin(ui_context_t* context) {
                 rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +100.0f));
                 rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-100.0f, 0.0f));
                 rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+100.0f, 0.0f));
+                
+                struct ui_drop_site_t {
+                    ui_key_t key;
+                    ui_dir split_dir;
+                    rect_t rect;
+                    ui_frame_t* frame;
+                };
                 
                 ui_drop_site_t drop_sites[] = {
                     { ui_key_from_stringf( { 0 }, "drop_site_center_%p", panel), ui_dir_none, drop_rect_center },
@@ -604,75 +729,60 @@ ui_begin(ui_context_t* context) {
                     ui_dir drop_dir = drop_sites[i].split_dir;
                     rect_t drop_rect = drop_sites[i].rect;
                     ui_axis split_axis = ui_axis_from_dir(drop_dir);
-                    ui_side split_side = ui_side_from_dir(drop_dir);
                     
                     // skip if not in same axis as split axis
                     if (drop_dir != ui_dir_none && split_axis == panel->tree_parent->split_axis) {
                         continue;
                     }
                     
-                    // build frame
-                    
-                    ui_frame_flags drop_flags = 
-                        ui_frame_flag_interactable |
-                        ui_frame_flag_draw_background |
-                        ui_frame_flag_draw_border |
-                        ui_frame_flag_draw_hover_effects |
-                        ui_frame_flag_draw_active_effects;
-                    
+                    // build drop site frame
                     ui_set_next_rect(drop_rect);
-                    ui_set_next_color_background(color(0x50505080));
-                    ui_set_next_color_border(color(0x80808080));
+                    ui_set_next_color_background(drop_background_color);
+                    ui_set_next_color_border(drop_border_color);
                     ui_set_next_rounding(vec4(5.0f));
-                    ui_frame_t* drop_frame = ui_frame_from_key(drop_flags, drop_key);
-                    ui_frame_interaction(drop_frame);
+                    drop_sites[i].frame = ui_frame_from_key(drop_site_flags, drop_key);
+                    ui_frame_interaction(drop_sites[i].frame);
+                    
+                }
+                
+                for (i32 i = 0; i < array_count(drop_sites); i++) {
+                    
+                    // get drop site info
+                    ui_key_t drop_key = drop_sites[i].key;
+                    rect_t drop_rect = drop_sites[i].rect;
+                    ui_frame_t* drop_frame = drop_sites[i].frame;
+                    ui_dir drop_dir = drop_sites[i].split_dir;
+                    ui_axis split_axis = ui_axis_from_dir(drop_dir);
+                    ui_side split_side = ui_side_from_dir(drop_dir);
                     
                     // visualize new panel
                     if (ui_key_equals(drop_key, context->key_hovered)) {
+                        
+                        // calculate rect based on which drop site
                         rect_t new_panel_rect = drop_rect;
                         rect_t padded_panel_rect = rect_shrink(panel_rect, 5.0f);
+                        vec2_t padded_panel_size = rect_size(padded_panel_rect);
                         
-                        switch (drop_dir) {
-                            case ui_dir_none: {
-                                new_panel_rect = rect( vec2_sub(panel_center, vec2_mul(panel_size, 0.05f * drop_frame->hover_t + 0.45f)), 
-                                                      vec2_add(panel_center, vec2_mul(panel_size, 0.05f * drop_frame->hover_t + 0.45f) ));
-                                break;
-                            }
-                            
-                            case ui_dir_up: {
-                                new_panel_rect = padded_panel_rect;
-                                new_panel_rect .y0 = lerp(padded_panel_rect.y1 * 0.2f, padded_panel_rect.y0, drop_frame->hover_t);
-                                new_panel_rect .y1 = padded_panel_rect.y1 * 0.5f;
-                                break;
-                            }
-                            
-                            case ui_dir_down: {
-                                new_panel_rect  = padded_panel_rect;
-                                new_panel_rect .y0 = padded_panel_rect.y1 * 0.5f;
-                                new_panel_rect .y1 = lerp(padded_panel_rect.y1 * 0.8f, padded_panel_rect.y1, drop_frame->hover_t);
-                                break;
-                            }
-                            
-                            case ui_dir_left: {
-                                new_panel_rect  = padded_panel_rect;
-                                new_panel_rect .x0 = lerp(padded_panel_rect.x1 * 0.2f, padded_panel_rect.x0, drop_frame->hover_t);
-                                new_panel_rect .x1 = padded_panel_rect.x1 * 0.5f;
-                                break;
-                            }
-                            
-                            case ui_dir_right: {
-                                new_panel_rect  = padded_panel_rect;
-                                new_panel_rect .x0 = padded_panel_rect.x1 * 0.5f;
-                                new_panel_rect .x1 = lerp(padded_panel_rect.x1 * 0.8f, padded_panel_rect.x1, drop_frame->hover_t);
-                                break;
-                            }
-                            
+                        if (drop_dir == ui_dir_none) {
+                            new_panel_rect = rect_lerp(rect_shrink(padded_panel_rect, vec2_mul(padded_panel_size, 0.1f)), padded_panel_rect, drop_frame->hover_t);
+                        } else if (split_side == ui_side_min) {
+                            f32 padding = (padded_panel_size[split_axis] * 0.2f);
+                            new_panel_rect = padded_panel_rect;
+                            new_panel_rect.v0[split_axis] = lerp(new_panel_rect.v0[split_axis] + padding, new_panel_rect.v0[split_axis], drop_frame->hover_t);
+                            new_panel_rect.v1[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
+                        } else {
+                            f32 padding = (padded_panel_size[split_axis] * 0.2f);
+                            new_panel_rect = padded_panel_rect;
+                            new_panel_rect.v0[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
+                            new_panel_rect.v1[split_axis] = lerp(new_panel_rect.v1[split_axis] - padding, new_panel_rect.v1[split_axis], drop_frame->hover_t);
                         }
                         
+                        // build visualization frame
                         ui_set_next_rect(new_panel_rect);
-                        ui_set_next_color_background(color(0x50505080));
-                        ui_set_next_color_border(color(0x50505050));
-                        ui_frame_from_key(ui_frame_flag_draw_background | ui_frame_flag_draw_border, { 0 });
+                        ui_set_next_color_background(vis_background_color);
+                        ui_set_next_color_border(vis_border_color);
+                        ui_set_next_rounding(vec4(5.0f));
+                        ui_frame_from_key(vis_panel_flags, { 0 });
                         
                         // perform drop
                         if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
@@ -680,33 +790,29 @@ ui_begin(ui_context_t* context) {
                             if (drop_dir != ui_dir_none) {
                                 // push command
                                 ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
-                                cmd->split_panel = panel;
+                                cmd->src_panel = context->view_drag->parent_panel;
+                                cmd->dst_panel = panel;
                                 cmd->dir = drop_dir;
+                                cmd->view = context->view_drag;
+                            } else {
+                                
+                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_move_view);
+                                cmd->src_panel = context->view_drag->parent_panel;
+                                cmd->dst_panel = panel;
+                                cmd->view = context->view_drag;
+                                
                             }
-                            
                             
                         }
                         
-                        
-                        
-                        
-                        
                     }
                     
-                    
-                    
-                    
-                    
                 }
-                
-                
-                
-                
                 
             }
             
             
-            // build frame
+            // build container frame
             {
                 ui_frame_flags panel_flags = 
                     ui_frame_flag_floating |
@@ -731,6 +837,9 @@ ui_begin(ui_context_t* context) {
                 // empty view panel
                 if (panel->view_first == nullptr) {
                     
+                    //ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                    //cmd->panel = panel;
+                    
                     ui_spacer(ui_size_percent(1.0f));
                     ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
                     ui_row_begin();
@@ -747,7 +856,7 @@ ui_begin(ui_context_t* context) {
                     
                     if (close_button_interaction & ui_interaction_left_clicked) {
                         ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
-                        cmd->panel = panel;
+                        cmd->src_panel = panel;
                     }
                     
                 }
@@ -773,13 +882,15 @@ ui_begin(ui_context_t* context) {
                 ui_push_parent(tab_bar_frame);
                 
                 ui_push_size(ui_size_pixels(120.0f, 0.5f), ui_size_percent(1.0f));
-                ui_push_rounding_00(0.0f);
-                ui_push_rounding_10(0.0f);
+                ui_push_rounding(vec4(0.0f, 4.0f, 0.0f, 4.0f));
                 
                 for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
                     
+                    ui_spacer(ui_size_pixels(4.0f));
+                    
                     ui_set_next_color_background(color(0x242424ff));
-                    ui_set_next_flags(ui_frame_flag_draggable);
+                    ui_set_next_color_border(color(0x323232ff));
+                    ui_set_next_flags(ui_frame_flag_draggable | ui_frame_flag_draw_border);
                     ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
                     
                     if (tab_interaction & ui_interaction_left_clicked) {
@@ -799,8 +910,7 @@ ui_begin(ui_context_t* context) {
                 }
                 
                 
-                ui_pop_rounding_00();
-                ui_pop_rounding_10();
+                ui_pop_rounding();
                 ui_pop_size();
                 
                 ui_pop_parent();
@@ -882,8 +992,8 @@ ui_end(ui_context_t* context) {
             
             b8 is_hovered = ui_key_is_hovered(frame->key);
             b8 is_active = ui_key_equals(context->key_active[os_mouse_button_left], frame->key);
-            frame->hover_t += context->anim_slow_rate * ((f32)is_hovered - frame->hover_t);
-            frame->active_t += context->anim_slow_rate * ((f32)is_active - frame->active_t);
+            frame->hover_t += context->anim_fast_rate * ((f32)is_hovered - frame->hover_t);
+            frame->active_t += context->anim_fast_rate * ((f32)is_active - frame->active_t);
             
         }
         
@@ -891,16 +1001,19 @@ ui_end(ui_context_t* context) {
     
     // hover cursor
     { 
+        
         ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
         ui_frame_t* active_frame = ui_frame_find(context->key_active[os_mouse_button_left]);
+        ui_frame_t* frame = active_frame == nullptr ? hovered_frame : active_frame; 
         
-        //if (hovered_frame != nullptr && (hovered_frame->flags & ui_frame_flag_hover_cursor)) {
-        //}
-        if (!ui_key_equals(context->key_hovered, { 0 })) {
-            ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
-            os_cursor cursor = hovered_frame->hover_cursor;
-            os_set_cursor(cursor);
+        if (frame != nullptr) {
+            os_cursor cursor = frame->hover_cursor;
+            if (frame->flags & ui_frame_flag_hover_cursor) {
+                os_set_cursor(cursor);
+            }
+            
         }
+        
     }
     
     
@@ -1498,6 +1611,14 @@ ui_event_pop(ui_event_t* event) {
         os_event_pop(event->os_event); // take os event if ui event was taken.
     }
     dll_remove(ui_state.event_first, ui_state.event_last, event);
+}
+
+function void
+ui_kill_action() {
+    ui_context_t* context = ui_active();
+    for (i32 i = 0; i < 3; i++) {
+        context->key_active[i] = { 0 };
+    }
 }
 
 //- drag state 
@@ -2136,6 +2257,7 @@ function void
 ui_view_insert(ui_panel_t* panel, ui_view_t* view, ui_view_t* prev) {
     dll_insert(panel->view_first, panel->view_last, prev, view);
     panel->view_focus = view;
+    view->parent_panel = panel;
 }
 
 function void 
@@ -2158,6 +2280,7 @@ ui_view_remove(ui_panel_t* panel, ui_view_t* view) {
     
     // remove from list
     dll_remove(panel->view_first, panel->view_last, view);
+    view->parent_panel == nullptr;
     
 }
 

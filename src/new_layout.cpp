@@ -125,6 +125,9 @@ app_init() {
     ui_view_t* view0 = ui_view_create(context, str("Test"), test_view);
     ui_view_insert(right, view0);
     
+    ui_view_t* view1 = ui_view_create(context, str("Another"), test_view);
+    ui_view_insert(right, view1);
+    
     
     // list state
     list_state.arena = arena_create(megabytes(4));

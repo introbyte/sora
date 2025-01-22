@@ -24,26 +24,26 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
 
 function arena_t*
 arena_create(u64 size) {
-
+    
 	// roundup
 	u64 size_roundup = megabytes(64);
 	size += size_roundup - 1;
 	size -= size % size_roundup;
-
+    
 	// reserve memory
 	void* block = os_mem_reserve(size);
-
+    
 	// initial commit
 	u64 initial_commit_size = arena_commit_size;
 	os_mem_commit(block, initial_commit_size);
-
+    
 	// fill struct
 	arena_t* arena = (arena_t*)block;
 	arena->pos = sizeof(arena_t);
 	arena->commit_pos = initial_commit_size;
 	arena->align = 8;
 	arena->size = size;
-
+    
 	return arena;
 }
 
@@ -54,25 +54,25 @@ arena_release(arena_t* arena) {
 
 function void*
 arena_alloc(arena_t* arena, u64 size) {
-
+    
 	if (arena == nullptr) {
 		printf("[error] arena was not initialized!\n");
 		os_abort(1);
 	}
-
+    
 	void* result = nullptr;
-
+    
 	if (arena->pos + size <= arena->size) {
-
+        
 		u8* base = (u8*)arena;
-
+        
 		// align
 		u64 post_align_pos = (arena->pos + (arena->align - 1));
 		post_align_pos -= post_align_pos % arena->align;
 		u64 align = post_align_pos - arena->pos;
 		result = base + arena->pos + align;
 		arena->pos += size + align;
-
+        
 		// commit
 		if (arena->commit_pos < arena->pos) {
 			u64 size_to_commit = arena->pos - arena->commit_pos;
@@ -81,11 +81,11 @@ arena_alloc(arena_t* arena, u64 size) {
 			os_mem_commit(base + arena->commit_pos, size_to_commit);
 			arena->commit_pos += size_to_commit;
 		}
-
+        
 	} else {
 		printf("[error] arena is full.\n");
 	}
-
+    
 	return result;
 }
 
@@ -98,16 +98,16 @@ arena_calloc(arena_t* arena, u64 size) {
 
 function void
 arena_pop_to(arena_t* arena, u64 pos) {
-
+    
 	// find pos
 	u64 min_pos = sizeof(arena);
 	u64 new_pos = max(min_pos, pos);
 	arena->pos = new_pos;
-
+    
 	// align
 	u64 pos_aligned_to_commit_chunks = arena->pos + arena_commit_size - 1;
 	pos_aligned_to_commit_chunks -= pos_aligned_to_commit_chunks % arena_commit_size;
-
+    
 	// decommit
 	if (pos_aligned_to_commit_chunks + arena_decommit_size <= arena->commit_pos) {
 		u8* base = (u8*)arena;
@@ -115,7 +115,7 @@ arena_pop_to(arena_t* arena, u64 pos) {
 		os_mem_decommit(base + pos_aligned_to_commit_chunks, size_to_decommit);
 		arena->commit_pos -= size_to_decommit;
 	}
-
+    
 }
 
 function void
@@ -192,11 +192,11 @@ char_is_digit(char c) {
 function b8
 char_is_symbol(char c) {
 	return (c == '~' || c == '!' || c == '$' || c == '%' || c == '^' ||
-		c == '&' || c == '*' || c == '-' || c == '=' || c == '+' ||
-		c == '<' || c == '.' || c == '>' || c == '/' || c == '?' ||
-		c == '|' || c == '\\' || c == '{' || c == '}' || c == '(' ||
-		c == ')' || c == '\\' || c == '[' || c == ']' || c == '#' ||
-		c == ',' || c == ';' || c == ':' || c == '@');
+            c == '&' || c == '*' || c == '-' || c == '=' || c == '+' ||
+            c == '<' || c == '.' || c == '>' || c == '/' || c == '?' ||
+            c == '|' || c == '\\' || c == '{' || c == '}' || c == '(' ||
+            c == ')' || c == '\\' || c == '[' || c == ']' || c == '#' ||
+            c == ',' || c == ';' || c == ':' || c == '@');
 }
 
 function b8
@@ -223,17 +223,17 @@ char_to_forward_slash(char c) {
 
 function codepoint_t 
 utf8_decode(u8* data, u32 max) {
-
+    
 	codepoint_t result = { ~((u32)0), 1 };
 	u8 byte = data[0];
 	u8 byte_class = utf8_class[byte >> 3];
-
+    
 	switch (byte_class) {
 		case 1: {
 			result.codepoint = byte;
 			break;
 		}
-
+        
 		case 2: {
 			if (2 <= max) {
 				u8 cont_byte = data[1];
@@ -245,7 +245,7 @@ utf8_decode(u8* data, u32 max) {
 			}
 			break;
 		}
-
+        
 		case 3: {
 			if (3 <= max) {
 				u8 cont_byte[2] = { data[1], data[2] };
@@ -259,7 +259,7 @@ utf8_decode(u8* data, u32 max) {
 			}
 			break;
 		}
-
+        
 		case 4: {
 			if (4 <= max) {
 				u8 cont_byte[3] = { data[1], data[2], data[3] };
@@ -276,7 +276,7 @@ utf8_decode(u8* data, u32 max) {
 			break;
 		}
 	}
-
+    
 	return result;
 }
 
@@ -421,20 +421,20 @@ str_suffix(str_t string, u32 size) {
 function b8
 str_match(str_t a, str_t b, str_match_flags flags = 0) {
 	b8 result = 0;
-
+    
 	if (a.size == b.size || flags & str_match_flag_right_side_sloppy) {
 		result = 1;
 		for (u32 i = 0; i < a.size; i++) {
 			b8 match = (a.data[i] == b.data[i]);
-
+            
 			if (flags & str_match_flag_case_insensitive) {
 				match |= (char_to_lower(a.data[i]) == char_to_lower(b.data[i]));
 			}
-
+            
 			if (flags & str_match_flag_slash_insensitive) {
 				match |= (char_to_forward_slash(a.data[i]) == char_to_forward_slash(b.data[i]));
 			}
-
+            
 			if (match == 0) {
 				result = 0;
 				break;
@@ -465,7 +465,7 @@ str_find_substr(str_t haystack, str_t needle, u32 start_pos = 0, str_match_flags
 
 function str_t 
 str_get_file_name(str_t string) {
-
+    
 	u32 slash_pos = str_find_substr(string, str("/"), 0, str_match_flag_case_insensitive | str_match_flag_find_last);
 	if (slash_pos < string.size) {
 		string.data += slash_pos + 1;
@@ -476,19 +476,19 @@ str_get_file_name(str_t string) {
 	if (period_pos < string.size) {
 		string.size = period_pos;
 	}
-
+    
 	return string;
 }
 
 function str_t 
 str_get_file_extension(str_t string) {
-
+    
 	u32 period_pos = str_find_substr(string, str("."), 0, str_match_flag_find_last);
 	if (period_pos < string.size) {
 		string.data += period_pos + 1;
 		string.size -= period_pos + 1;
 	}
-
+    
 	return string;
 }
 
@@ -541,7 +541,7 @@ str_list_push(arena_t* arena, str_list_t* list, str_t string) {
 function str_list_t
 str_split(arena_t* arena, str_t string, u8* splits, u32 split_count) {
 	str_list_t list = { 0 };
-
+    
 	u8* ptr = (u8*)string.data;
 	u8* opl = (u8*)string.data + string.size;
 	for (; ptr < opl;) {
@@ -559,14 +559,14 @@ str_split(arena_t* arena, str_t string, u8* splits, u32 split_count) {
 				break;
 			}
 		}
-
+        
 		str_t string = str_range(first, ptr);
 		if (string.size > 0) {
 			str_list_push(arena, &list, string);
 		}
 		ptr += 1;
 	}
-
+    
 	return(list);
 }
 
@@ -593,31 +593,31 @@ str16(u16* data, u32 size) {
 
 function str16_t
 str_to_str16(arena_t* arena, str_t string) {
-
+    
 	u32 capacity = string.size * 2;
-
+    
 	u16* string16 = (u16*)arena_alloc(arena, sizeof(u16) * capacity + 1);
-
+    
 	u8* ptr = (u8*)string.data;
 	u8* opl = ptr + string.size;
-
+    
 	u32 size = 0;
 	codepoint_t codepoint;
-
+    
 	for (; ptr < opl;) {
 		codepoint = utf8_decode(ptr, opl - ptr);
 		ptr += codepoint.advance;
 		size += utf16_encode(string16 + size, codepoint);
 	}
-
+    
 	string16[size] = 0;
 	//arena_pop(arena, 2 * (cap - size));
-
+    
 	str16_t result;
 	result.data = string16;
 	result.size = size;
 	return result;
-
+    
 }
 
 // random
@@ -1198,17 +1198,17 @@ vec4_mul(vec4_t a, mat4_t b) {
 	result.y = a.data[0] * b.columns[0].y;
 	result.z = a.data[0] * b.columns[0].z;
 	result.w = a.data[0] * b.columns[0].w;
-
+    
 	result.x += a.data[1] * b.columns[1].x;
 	result.y += a.data[1] * b.columns[1].y;
 	result.z += a.data[1] * b.columns[1].z;
 	result.w += a.data[1] * b.columns[1].w;
-
+    
 	result.x += a.data[2] * b.columns[2].x;
 	result.y += a.data[2] * b.columns[2].y;
 	result.z += a.data[2] * b.columns[2].z;
 	result.w += a.data[2] * b.columns[2].w;
-
+    
 	result.x += a.data[3] * b.columns[3].x;
 	result.y += a.data[3] * b.columns[3].y;
 	result.z += a.data[3] * b.columns[3].z;
@@ -1254,14 +1254,14 @@ vec4_equals(vec4_t a, vec4_t b) {
 inlnfunc f32
 vec4_dot(vec4_t a, vec4_t b) {
 	f32 result;
-
+    
 #if BASE_USE_SIMD
 	// TODO: check
 	//__m128 product = _mm_mul_ps(a.sse, b.sse);
 	//__m128 sum = _mm_hadd_ps(product, product);
 	//sum = _mm_hadd_ps(sum, sum);
 	//result = _mm_cvtss_f32(sum);
-
+    
 	__m128 sseresultone = _mm_mul_ps(a.sse, b.sse);
 	__m128 sseresulttwo = _mm_shuffle_ps(sseresultone, sseresultone, _MM_SHUFFLE(2, 3, 0, 1));
 	sseresultone = _mm_add_ps(sseresultone, sseresulttwo);
@@ -1332,40 +1332,40 @@ quat(vec4_t v) {
 inlnfunc quat_t
 quat_from_axis_angle(vec3_t axis, f32 angle) {
 	quat_t result;
-
+    
 	vec3_t axis_normalized = vec3_normalize(axis);
 	f32 sine_of_rotation = sinf(angle / 2.0f);
-
+    
 	result.xyz = vec3_mul(axis_normalized, sine_of_rotation);
 	result.w = cosf(angle / 2.0f);
-
+    
 	return result;
 }
 
 inlnfunc quat_t
 quat_from_euler_angle(vec3_t euler) {
 	quat_t result = { 0.0f };
-
+    
 	f32 cy = cosf(euler.z * 0.5f);
 	f32 sy = sinf(euler.z * 0.5f);
 	f32 cp = cosf(euler.y * 0.5f);
 	f32 sp = sinf(euler.y * 0.5f);
 	f32 cr = cosf(euler.x * 0.5f);
 	f32 sr = sinf(euler.x * 0.5f);
-
+    
 	result.w = cr * cp * cy + sr * sp * sy;
 	result.x = sr * cp * cy - cr * sp * sy;
 	result.y = cr * sp * cy + sr * cp * sy;
 	result.z = cr * cp * sy - sr * sp * cy;
-
+    
 	return result;
 }
 
 inlnfunc vec3_t
 quat_to_euler_angle(quat_t quat) {
-
+    
 	vec3_t result;
-
+    
 	const f32 xx = quat.x;
 	const f32 yy = quat.y;
 	const f32 zz = quat.z;
@@ -1373,12 +1373,12 @@ quat_to_euler_angle(quat_t quat) {
 	const f32 xsq = xx * xx;
 	const f32 ysq = yy * yy;
 	const f32 zsq = zz * zz;
-
+    
 	return vec3(
-		atan2f(2.0f * (xx * ww - yy * zz), 1.0f - 2.0f * (xsq + zsq)),
-		atan2f(2.0f * (yy * ww + xx * zz), 1.0f - 2.0f * (ysq + zsq)),
-		asinf(2.0f * (xx * yy + zz * ww))
-	);
+                atan2f(2.0f * (xx * ww - yy * zz), 1.0f - 2.0f * (xsq + zsq)),
+                atan2f(2.0f * (yy * ww + xx * zz), 1.0f - 2.0f * (ysq + zsq)),
+                asinf(2.0f * (xx * yy + zz * ww))
+                );
 }
 
 inlnfunc vec3_t
@@ -1425,15 +1425,15 @@ quat_mul(quat_t a, quat_t b) {
 	__m128 sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(0, 0, 0, 0)), _mm_setr_ps(0.0f, -0.0f, 0.0f, -0.0f));
 	__m128 sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(0, 1, 2, 3));
 	__m128 sseresultthree = _mm_mul_ps(sseresulttwo, sseresultone);
-
+    
 	sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(1, 1, 1, 1)), _mm_setr_ps(0.0f, 0.0f, -0.0f, -0.0f));
 	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(1, 0, 3, 2));
 	sseresultthree = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
-
+    
 	sseresultone = _mm_xor_ps(_mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(2, 2, 2, 2)), _mm_setr_ps(-0.0f, 0.0f, 0.0f, -0.0f));
 	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(2, 3, 0, 1));
 	sseresultthree = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
-
+    
 	sseresultone = _mm_shuffle_ps(a.sse, a.sse, _MM_SHUFFLE(3, 3, 3, 3));
 	sseresulttwo = _mm_shuffle_ps(b.sse, b.sse, _MM_SHUFFLE(3, 2, 1, 0));
 	result.sse = _mm_add_ps(sseresultthree, _mm_mul_ps(sseresulttwo, sseresultone));
@@ -1442,17 +1442,17 @@ quat_mul(quat_t a, quat_t b) {
 	result.y = b.data[2] * -a.data[0];
 	result.z = b.data[1] * +a.data[0];
 	result.w = b.data[0] * -a.data[0];
-
+    
 	result.x += b.data[2] * +a.data[1];
 	result.y += b.data[3] * +a.data[1];
 	result.z += b.data[0] * -a.data[1];
 	result.w += b.data[1] * -a.data[1];
-
+    
 	result.x += b.data[1] * -a.data[2];
 	result.y += b.data[0] * +a.data[2];
 	result.z += b.data[3] * +a.data[2];
 	result.w += b.data[2] * -a.data[2];
-
+    
 	result.x += b.data[0] * +a.data[3];
 	result.y += b.data[1] * +a.data[3];
 	result.z += b.data[2] * +a.data[3];
@@ -1493,7 +1493,7 @@ quat_div(quat_t a, f32 b) {
 
 inlnfunc f32
 quat_dot(quat_t a, quat_t b) {
-
+    
 	f32 result;
 #if BASE_USE_SIMD
 	__m128 sseresultone = _mm_mul_ps(a.sse, b.sse);
@@ -1505,7 +1505,7 @@ quat_dot(quat_t a, quat_t b) {
 #else
 	result = (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
 #endif
-
+    
 	return result;
 }
 
@@ -1541,9 +1541,9 @@ quat_negate(quat_t a) {
 
 inlnfunc quat_t
 quat_mix(quat_t a, f32 t_a, quat_t b, f32 t_b) {
-
+    
 	quat_t result;
-
+    
 #if BASE_USE_SIMD
 	__m128 scalar_a = _mm_set1_ps(t_a);
 	__m128 scalar_b = _mm_set1_ps(t_b);
@@ -1566,26 +1566,26 @@ quat_lerp(quat_t a, quat_t b, f32 t) {
 
 inlnfunc quat_t
 quat_slerp(quat_t a, quat_t b, f32 t) {
-
+    
 	quat_t result;
-
+    
 	f32 cos_theta = quat_dot(a, b);
-
+    
 	if (cos_theta < 0.0f) {
 		cos_theta = -cos_theta;
 		b = quat(-b.x, -b.y, -b.z, -b.w);
 	}
-
+    
 	if (cos_theta > 0.9995f) {
 		result = quat_lerp(a, b, t);
 	} else {
 		f32 angle = acosf(cos_theta);
 		f32 mix_a = sinf((1.0f - t) * angle);
 		f32 mix_b = sinf(t * angle);
-
+        
 		result = quat_normalize(quat_mix(a, mix_a, b, mix_b));
 	}
-
+    
 	return result;
 }
 
@@ -1645,7 +1645,7 @@ mat4_transpose(mat4_t m) {
 	result[3][2] = m[2][3];
 	result[3][3] = m[3][3];
 #endif 
-
+    
 	return result;
 }
 
@@ -1672,7 +1672,7 @@ mat4_sub(mat4_t a, mat4_t b) {
 inlnfunc mat4_t 
 mat4_mul(mat4_t a, mat4_t b) {
 	mat4_t result;
-
+    
 	result.columns[0] = vec4_mul(b.columns[0], a);
 	result.columns[1] = vec4_mul(b.columns[1], a);
 	result.columns[2] = vec4_mul(b.columns[2], a);
@@ -1684,7 +1684,7 @@ mat4_mul(mat4_t a, mat4_t b) {
 inlnfunc mat4_t
 mat4_mul(mat4_t a, f32 b) {
 	mat4_t result;
-
+    
 #if BASE_USE_SIMD
 	__m128 scalar = _mm_set1_ps(b);
 	result.columns[0].sse = _mm_mul_ps(a.columns[0].sse, scalar);
@@ -1720,7 +1720,7 @@ mat4_mul(mat4_t a, vec4_t b) {
 inlnfunc mat4_t
 mat4_div(mat4_t a, f32 b) {
 	mat4_t result;
-
+    
 #if BASE_USE_SIMD
 	__m128 scalar = _mm_set1_ps(b);
 	result.columns[0].sse = _mm_div_ps(a.columns[0].sse, scalar);
@@ -1750,64 +1750,64 @@ mat4_div(mat4_t a, f32 b) {
 
 inlnfunc f32
 mat4_det(mat4_t m) {
-
+    
 	vec3_t c01 = vec3_cross(m.columns[0].xyz, m.columns[1].xyz);
 	vec3_t c23 = vec3_cross(m.columns[2].xyz, m.columns[3].xyz);
 	vec3_t b10 = vec3_sub(vec3_mul(m.columns[0].xyz, m.columns[1].w), vec3_mul(m.columns[1].xyz, m.columns[0].w));
 	vec3_t b32 = vec3_sub(vec3_mul(m.columns[2].xyz, m.columns[3].w), vec3_mul(m.columns[3].xyz, m.columns[2].w));
-
+    
 	return vec3_dot(c01, b32) + vec3_dot(c23, b10);
 }
 
 inlnfunc mat4_t 
 mat4_inverse(mat4_t m) {
-
+    
 	vec3_t c01 = vec3_cross(m.columns[0].xyz, m.columns[1].xyz);
 	vec3_t c23 = vec3_cross(m.columns[2].xyz, m.columns[3].xyz);
 	vec3_t b10 = vec3_sub(vec3_mul(m.columns[0].xyz, m.columns[1].w), vec3_mul(m.columns[1].xyz, m.columns[0].w));
 	vec3_t b32 = vec3_sub(vec3_mul(m.columns[2].xyz, m.columns[3].w), vec3_mul(m.columns[3].xyz, m.columns[2].w));
-
+    
 	f32 inv_determinant = 1.0f / (vec3_dot(c01, b32) + vec3_dot(c23, b10));
 	c01 = vec3_mul(c01, inv_determinant);
 	c23 = vec3_mul(c23, inv_determinant);
 	b10 = vec3_mul(b10, inv_determinant);
 	b32 = vec3_mul(b32, inv_determinant);
-
+    
 	mat4_t result;
 	result.columns[0] = vec4(vec3_add(vec3_cross(m.columns[1].xyz, b32), vec3_mul(c23, m.columns[1].w)), -vec3_dot(m.columns[1].xyz, c23));
 	result.columns[1] = vec4(vec3_sub(vec3_cross(b32, m.columns[0].xyz), vec3_mul(c23, m.columns[0].w)), +vec3_dot(m.columns[0].xyz, c23));
 	result.columns[2] = vec4(vec3_add(vec3_cross(m.columns[3].xyz, b10), vec3_mul(c01, m.columns[3].w)), -vec3_dot(m.columns[3].xyz, c01));
 	result.columns[3] = vec4(vec3_sub(vec3_cross(b10, m.columns[2].xyz), vec3_mul(c01, m.columns[2].w)), +vec3_dot(m.columns[2].xyz, c01));
-
+    
 	return mat4_transpose(result);
 }
 
 inlnfunc mat4_t 
 mat4_inv_perspective(mat4_t m) {
-
+    
 	mat4_t result = { 0 };
-
+    
 	result[0][0] = 1.0f / m[0][0];
 	result[1][1] = 1.0f / m[1][1];
 	result[2][2] = 0.0f;
-
+    
 	result[2][3] = 1.0f / m[3][2];
 	result[3][3] = m[2][2] * -result[2][3];
 	result[3][2] = m[2][3];
-
+    
 	return result;
 }
 
 inlnfunc mat4_t
 mat4_from_quat(quat_t q) {
 	mat4_t result;
-
+    
 	quat_t normalizedq = quat_normalize(q);
-
+    
 	f32 xx, yy, zz,
-		xy, xz, yz,
-		wx, wy, wz;
-
+    xy, xz, yz,
+    wx, wy, wz;
+    
 	xx = normalizedq.x * normalizedq.x;
 	yy = normalizedq.y * normalizedq.y;
 	zz = normalizedq.z * normalizedq.z;
@@ -1817,27 +1817,27 @@ mat4_from_quat(quat_t q) {
 	wx = normalizedq.w * normalizedq.x;
 	wy = normalizedq.w * normalizedq.y;
 	wz = normalizedq.w * normalizedq.z;
-
+    
 	result[0][0] = 1.0f - 2.0f * (yy + zz);
 	result[0][1] = 2.0f * (xy + wz);
 	result[0][2] = 2.0f * (xz - wy);
 	result[0][3] = 0.0f;
-
+    
 	result[1][0] = 2.0f * (xy - wz);
 	result[1][1] = 1.0f - 2.0f * (xx + zz);
 	result[1][2] = 2.0f * (yz + wx);
 	result[1][3] = 0.0f;
-
+    
 	result[2][0] = 2.0f * (xz + wy);
 	result[2][1] = 2.0f * (yz - wx);
 	result[2][2] = 1.0f - 2.0f * (xx + yy);
 	result[2][3] = 0.0f;
-
+    
 	result[3][0] = 0.0f;
 	result[3][1] = 0.0f;
 	result[3][2] = 0.0f;
 	result[3][3] = 1.0f;
-
+    
 	return result;
 }
 
@@ -1876,7 +1876,7 @@ mat4_orthographic(f32 left, f32 right, f32 top, f32 bottom, f32 z_near, f32 z_fa
 
 inlnfunc mat4_t
 mat4_perspective(f32 fov, f32 ar, f32 n, f32 f) {
-
+    
 	mat4_t result = {0};
 	
 	f32 theta = tanf(radians(fov) / 2.0f);
@@ -1885,19 +1885,19 @@ mat4_perspective(f32 fov, f32 ar, f32 n, f32 f) {
 	result[2][2] = -(n + f) / (n - f);
 	result[2][3] = 1.0f;
 	result[3][2] = (2.0f * n * f) / (n - f);
-
+    
 	return result;
 }
 
 inlnfunc mat4_t
 mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
-
+    
 	vec3_t f = vec3_normalize(vec3_sub(to, from));
 	vec3_t r = vec3_normalize(vec3_cross(f, up));
 	vec3_t u = vec3_cross(r, f);
-
+    
 	mat4_t v;
-
+    
 	return v;
 }
 
@@ -1981,15 +1981,15 @@ rect_center(rect_t a, rect_t b) {
 	f32 a_height = a.y1 - a.y0;
 	f32 b_width = b.x1 - b.x0;
 	f32 b_height = b.y1 - b.y0;
-
+    
 	f32 a_center_x = a.x0 + a_width / 2.0f;
 	f32 a_center_y = a.y0 + a_height / 2.0f;
-
+    
 	b.x0 = a_center_x - b_width / 2.0f;
 	b.y0 = a_center_y - b_height / 2.0f;
 	b.x1 = b.x0 + b_width;
 	b.y1 = b.y0 + b_height;
-
+    
 	return b;
 }
 
@@ -2026,22 +2026,30 @@ rect_translate(rect_t r, vec2_t a) {
 inlnfunc rect_t
 rect_bbox(vec2_t* points, u32 count) {
 	rect_t result = { f32_max, f32_max, f32_min, f32_min };
-
+    
 	for (i32 i = 0; i < count; i++) {
 		vec2_t p = points[i];
-
+        
 		if (p.x < result.x0) { result.x0 = p.x; }
 		if (p.y < result.y0) { result.y0 = p.y; }
 		if (p.x > result.x1) { result.x1 = p.x; }
 		if (p.y > result.y1) { result.y1 = p.y; }
 	}
-
+    
 	return result;
 }
 
 inlnfunc rect_t
 rect_round(rect_t r) {
 	return { roundf(r.x0), roundf(r.y0), roundf(r.x1), roundf(r.y1) };
+}
+
+inlnfunc rect_t
+rect_lerp(rect_t a, rect_t b, f32 t) {
+    vec4_t v_a = vec4(a.x0, a.y0, a.x1, a.y1);
+    vec4_t v_b = vec4(b.x0, b.y0, b.x1, b.y1);
+    vec4_t v_l = vec4_lerp(v_a, v_b, t);
+    return {v_l.x, v_l.y, v_l.z, v_l.w};
 }
 
 
@@ -2089,28 +2097,28 @@ color_lerp(color_t a, color_t b, f32 t) {
 
 inlnfunc color_t
 color_rgb_to_hsv(color_t rgb) {
-
+    
 	f32 c_max = max(rgb.r, max(rgb.g, rgb.b));
 	f32 c_min = min(rgb.r, min(rgb.g, rgb.b));
 	f32 delta = c_max - c_min;
-
+    
 	f32 h = (
-		(delta == 0.0f) ? 0.0f :
-		(c_max == rgb.r) ? fmodf((rgb.g - rgb.b) / delta + 6.0f, 6.0f) :
-		(c_max == rgb.g) ? (rgb.b - rgb.r) / delta + 2.0f :
-		(c_max == rgb.b) ? (rgb.r - rgb.g) / delta + 4.0f :
-		0.0f
-	);
+             (delta == 0.0f) ? 0.0f :
+             (c_max == rgb.r) ? fmodf((rgb.g - rgb.b) / delta + 6.0f, 6.0f) :
+             (c_max == rgb.g) ? (rgb.b - rgb.r) / delta + 2.0f :
+             (c_max == rgb.b) ? (rgb.r - rgb.g) / delta + 4.0f :
+             0.0f
+             );
 	f32 s = (c_max == 0.0f) ? 0.0f : (delta / c_max);
 	f32 v = c_max;
-
+    
 	color_t hsv_color;
 	hsv_color.h = h / 6.0f;
 	hsv_color.s = s;
 	hsv_color.v = v;
 	hsv_color.a = rgb.a;
 	return hsv_color;
-
+    
 }
 
 inlnfunc color_t
@@ -2119,15 +2127,15 @@ color_hsv_to_rgb(color_t hsv) {
 	f32 h = fmodf(hsv.h * 360.0f, 360.0f);
 	f32 s = hsv.s;
 	f32 v = hsv.v;
-
+    
 	f32 c = v * s;
 	f32 x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
 	f32 m = v - c;
-
+    
 	f32 r = 0.0f;
 	f32 g = 0.0f;
 	f32 b = 0.0f;
-
+    
 	if ((h >= 0.0f && h < 60.0f) || (h >= 360.0f && h < 420.0f)) {
 		r = c;
 		g = x;
@@ -2153,43 +2161,43 @@ color_hsv_to_rgb(color_t hsv) {
 		g = 0.0f;
 		b = x;
 	}
-
+    
 	color_t rgb_color;
 	rgb_color.r = clamp_01(r + m);
 	rgb_color.g = clamp_01(g + m);
 	rgb_color.b = clamp_01(b + m);
 	rgb_color.a = hsv.a;
-
+    
 	return rgb_color;
 }
 
 function color_t 
 color_blend(color_t src, color_t dst, color_blend_mode mode) {
 	color_t result;
-
+    
 	switch (mode) {
 		case color_blend_mode_normal: {
-
+            
 			// background = src
 			// foreground = dst
-
+            
 			//f32 color_a = src.a + dst.a - src.a * dst.a;
-
+            
 			//f32 color_r = 0.0f;
 			//f32 color_g = 0.0f;
 			//f32 color_b = 0.0f;
-
+            
 			//f32 result_a = dst.a + src.a - dst.a * src.a;
 			f32 result_a = dst.a + (1 - dst.a) * src.a;
-
+            
 			result.r = (dst.r * dst.a + src.r * src.a * (1.0f - dst.a)) / result_a;
 			result.g = (dst.g * dst.a + src.g * src.a * (1.0f - dst.a)) / result_a;
 			result.b = (dst.b * dst.a + src.b * src.a * (1.0f - dst.a)) / result_a;
 			result.a = result_a;
-
+            
 			break;
 		}
-
+        
 		case color_blend_mode_mul: {
 			result.r = src.r * dst.r;
 			result.g = src.g * dst.g;
@@ -2197,7 +2205,7 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 			result.a = src.a * dst.a;
 			break;
 		}
-
+        
 		case color_blend_mode_add: {
 			result.r = src.r + dst.r;
 			result.g = src.g + dst.g;
@@ -2205,7 +2213,7 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 			result.a = src.a + dst.a;
 			break;
 		}
-
+        
 		case color_blend_mode_overlay: {
 			/*result.r = (b.r < 0.5f) ? (2.0f * b.r * f.r) : (1.0f - 2.0f * (1.0f - b.r) * (1.0f - f.r));
 			result.g = (b.g < 0.5f) ? (2.0f * b.g * f.g) : (1.0f - 2.0f * (1.0f - b.g) * (1.0f - f.g));
@@ -2213,12 +2221,12 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 			result.a = b.a * (1.0f - f.a) + f.a;*/
 			break;
 		}
-
-
+        
+        
 	}
-
+    
 	return result;
-
+    
 }
 
 inlnfunc u32 
@@ -2235,39 +2243,39 @@ color_to_hex(color_t color) {
 
 function vec3_t
 barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c) {
-
+    
 	vec2_t v0 = vec2_sub(b, a);
 	vec2_t v1 = vec2_sub(c, a);
 	vec2_t v2 = vec2_sub(p, a);
-
+    
 	f32 denom = v0.x * v1.y - v1.x * v0.y;
-
+    
 	f32 v = (v2.x * v1.y - v1.x * v2.y) / denom;
 	f32 w = (v0.x * v2.y - v2.x * v0.y) / denom;
 	f32 u = 1.0f - v - w;
-
+    
 	return vec3(u, v, w);
-
+    
 }
 
 function b8
 tri_contains(vec2_t a, vec2_t b, vec2_t c, vec2_t p) {
-
+    
 	vec2_t v0 = vec2_sub(b, a);
 	vec2_t v1 = vec2_sub(c, a);
 	vec2_t v2 = vec2_sub(p, a);
-
+    
 	f32 d00 = vec2_dot(v0, v0);
 	f32 d01 = vec2_dot(v0, v1);
 	f32 d11 = vec2_dot(v1, v1);
 	f32 d20 = vec2_dot(v2, v0);
 	f32 d21 = vec2_dot(v2, v1);
-
+    
 	f32 denom = d00 * d11 - d01 * d01;
-
+    
 	f32 u = (d11 * d20 - d01 * d21) / denom;
 	f32 v = (d00 * d21 - d01 * d20) / denom;
-
+    
 	return (u >= 0) && (v >= 0) && (u + v <= 1);
 }
 

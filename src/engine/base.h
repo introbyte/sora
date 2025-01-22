@@ -20,20 +20,20 @@
 
 // context
 #if defined(_WIN32)
-	#define OS_BACKEND_WIN32
-	#define GFX_BACKEND_D3D11
-	#define AUD_BACKEND_WASAPI
-	#define FNT_BACKEND_DWRITE
+#define OS_BACKEND_WIN32
+#define GFX_BACKEND_D3D11
+#define AUD_BACKEND_WASAPI
+#define FNT_BACKEND_DWRITE
 #elif defined(__APPLE__) && defined(__MACH__)
-	#define OS_BACKEND_MACOS
-	#define GFX_BACKEND_METAL
-	#define AUD_BACKEND_CORE_AUDIO
-	#define FNT_BACKEND_CORE_TEXT
+#define OS_BACKEND_MACOS
+#define GFX_BACKEND_METAL
+#define AUD_BACKEND_CORE_AUDIO
+#define FNT_BACKEND_CORE_TEXT
 #elif defined(__linux__)
-	#define OS_BACKEND_LINUX
-	#define GFX_BACKEND_OPENGL
-	#define AUD_BACKEND_ALSA
-	#define FNT_BACKEND_FREETYPE
+#define OS_BACKEND_LINUX
+#define GFX_BACKEND_OPENGL
+#define AUD_BACKEND_ALSA
+#define FNT_BACKEND_FREETYPE
 
 #endif
 
@@ -45,7 +45,7 @@
 #include <cmath> // math functions
 
 #if defined(BASE_USE_SIMD)
-	#include <pmmintrin.h> // simd functions
+#include <pmmintrin.h> // simd functions
 #endif 
 
 // defines
@@ -230,62 +230,62 @@ struct codepoint_t {
 
 // vec2
 union vec2_t {
-
+    
 	f32 data[2];
-
+    
 	struct {
 		f32 x, y;
 	};
-
+    
 	inline f32& operator[](i32 index) { return data[index]; }
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
 // ivec2
 union ivec2_t {
-
+    
 	i32 data[2];
-
+    
 	struct {
 		i32 x, y;
 	};
-
+    
 	inline i32& operator[](i32 index) { return data[index]; }
 	inline const i32& operator[](i32 index) const { return data[index]; }
 };
 
 // uvec2
 union uvec2_t {
-
+    
 	u32 data[2];
-
+    
 	struct {
 		u32 x, y;
 	};
-
+    
 	inline u32& operator[](i32 index) { return data[index]; }
 	inline const u32& operator[](i32 index) const { return data[index]; }
 };
 
 // vec3
 union vec3_t {
-
+    
 	f32 data[3];
-
+    
 	struct {
 		f32 x, y, z;
 	};
-
+    
 	struct {
 		vec2_t xy;
 		f32 z;
 	};
-
+    
 	struct {
 		f32 x;
 		vec2_t yz;
 	};
-
+    
 	inline f32& operator[](i32 index) { return data[index]; }
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
@@ -298,56 +298,56 @@ union ivec3_t {
 	struct {
 		i32 x, y, z;
 	};
-
+    
 	inline i32& operator[](i32 index) { return data[index]; }
 	inline const i32& operator[](i32 index) const { return data[index]; }
-
-
+    
+    
 };
 
 // uvec3
 
 union uvec3_t {
-
+    
 	u32 data[3];
-
+    
 	struct {
 		u32 x, y, z;
 	};
-
+    
 	inline u32& operator[](i32 index) { return data[index]; }
 	inline const u32& operator[](i32 index) const { return data[index]; }
-
+    
 };
 
 
 // vec4
 union vec4_t {
-
+    
 	f32 data[4];
 	
 	struct {
 		f32 x, y, z, w;
 	};
-
+    
 	struct {
 		vec2_t xy;
 		f32 z;
 		f32 w;
 	};
-
+    
 	struct {
 		f32 x;
 		vec2_t yz;
 		f32 w;
 	};
-
+    
 	struct {
 		f32 x;
 		f32 y;
 		vec2_t zw;
 	};
-
+    
 	struct {
 		vec3_t xyz;
 		f32 w;
@@ -357,28 +357,28 @@ union vec4_t {
 		f32 x;
 		vec3_t yzw;
 	};
-
+    
 #if BASE_USE_SIMD
 	__m128 sse;
 #endif
-
+    
 	inline f32& operator[](i32 index) { return data[index]; }
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
 union quat_t {
-
+    
 	f32 data[4];
-
+    
 	struct {
 		f32 x, y, z, w;
 	};
-
+    
 	struct {
 		vec3_t xyz;
 		f32 w;
 	};
-
+    
 #if BASE_USE_SIMD
 	__m128 sse;
 #endif
@@ -414,7 +414,7 @@ union quat_t {
 union mat2_t {
 	f32 data[4];
 	vec2_t columns[2];
-
+    
 	inline vec2_t& operator[](i32 index) { return columns[index]; }
 	inline const vec2_t& operator[](i32 index) const { return columns[index]; }
 };
@@ -423,7 +423,7 @@ union mat2_t {
 union mat3_t {
 	f32 data[9];
 	vec3_t columns[3];
-
+    
 	inline vec3_t& operator[](i32 index) { return columns[index]; }
 	inline const vec3_t& operator[](i32 index) const { return columns[index]; }
 };
@@ -431,7 +431,7 @@ union mat3_t {
 union mat4_t {
 	f32 data[16];
 	vec4_t columns[4];
-
+    
 	inline vec4_t& operator[](i32 index) { return columns[index]; }
 	inline const vec4_t& operator[](i32 index) const { return columns[index]; }
 };
@@ -439,29 +439,31 @@ union mat4_t {
 // misc
 
 union rect_t {
-
+    
 	struct {
 		f32 x0, y0;
 		f32 x1, y1;
 	};
-
+    
 	struct {
 		vec2_t v0;
 		vec2_t v1;
 	};
+    
+    vec2_t v[2];
 	
 };
 
 union color_t {
-
+    
 	struct { 
 		f32 r, g, b, a; 
 	};
-
+    
 	struct {
 		f32 h, s, v, a;
 	};
-
+    
 	vec4_t vec;
 };
 
@@ -661,6 +663,7 @@ inlnfunc rect_t rect_translate(rect_t, f32);
 inlnfunc rect_t rect_translate(rect_t, vec2_t);
 inlnfunc rect_t rect_bbox(vec2_t*, u32);
 inlnfunc rect_t rect_round(rect_t);
+inlnfunc rect_t rect_lerp(rect_t a, rect_t b, f32 t);
 
 // quat
 inlnfunc quat_t quat(f32, f32, f32, f32);
