@@ -30,13 +30,66 @@ ui_init() {
     ui_state.event_first = nullptr;
     ui_state.event_last = nullptr;
     
+    // load icon font
+    ui_state.icon_font = font_open(str("res/fonts/icons.ttf"));
+    
+    // event bindings
+    {
+        ui_state.event_bindings[0] =  { os_key_left,      0, ui_event_type_navigate, 0, ui_event_delta_unit_char, {-1,  0 } };
+        ui_state.event_bindings[1] =  { os_key_right,     0, ui_event_type_navigate, 0, ui_event_delta_unit_char, {+1,  0 } };
+        ui_state.event_bindings[2] =  { os_key_up,        0, ui_event_type_navigate, 0, ui_event_delta_unit_char, { 0, -1 } };
+        ui_state.event_bindings[3] =  { os_key_down,      0, ui_event_type_navigate, 0, ui_event_delta_unit_char, { 0, +1 } };
+        
+        ui_state.event_bindings[4] =  { os_key_left,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, {-1,  0 } };
+        ui_state.event_bindings[5] =  { os_key_right,     os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, {+1,  0 } };
+        ui_state.event_bindings[6] =  { os_key_up,        os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, { 0, -1 } };
+        ui_state.event_bindings[7] =  { os_key_down,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_char, { 0, +1 } };
+        
+        ui_state.event_bindings[8] =  { os_key_left,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, {-1,  0 } };
+        ui_state.event_bindings[9] =  { os_key_right,     os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, {+1,  0 } };
+        ui_state.event_bindings[10] = { os_key_up,        os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, { 0, -1 } };
+        ui_state.event_bindings[11] = { os_key_down,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_word, { 0, +1 } };
+        
+        ui_state.event_bindings[12] = { os_key_left,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, {-1,  0 } };
+        ui_state.event_bindings[13] = { os_key_right,     os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, {+1,  0 } };
+        ui_state.event_bindings[14] = { os_key_up,        os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, { 0, -1 } };
+        ui_state.event_bindings[15] = { os_key_down,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_word, { 0, +1 } };
+        
+        ui_state.event_bindings[16] = { os_key_home,      0, ui_event_type_navigate, 0, ui_event_delta_unit_line, { -1, 0 } };
+        ui_state.event_bindings[17] = { os_key_end,       0, ui_event_type_navigate, 0, ui_event_delta_unit_line, { +1, 0 } };
+        ui_state.event_bindings[18] = { os_key_home,      os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_line, { -1, 0 } };
+        ui_state.event_bindings[19] = { os_key_end,       os_modifier_shift, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_line, { +1, 0 } };
+        
+        ui_state.event_bindings[20] = { os_key_home,      os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_whole, { -1, 0 } };
+        ui_state.event_bindings[21] = { os_key_end,       os_modifier_ctrl, ui_event_type_navigate, 0, ui_event_delta_unit_whole, { +1, 0 } };
+        ui_state.event_bindings[22] = { os_key_home,      os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_whole, { -1, 0 } };
+        ui_state.event_bindings[23] = { os_key_end,       os_modifier_shift | os_modifier_ctrl, ui_event_type_navigate, ui_event_flag_keep_mark, ui_event_delta_unit_whole, { +1, 0 } };
+        
+        ui_state.event_bindings[24] = { os_key_delete,    0, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { +1, 0 } };
+        ui_state.event_bindings[25] = { os_key_backspace, 0, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { -1, 0 } };
+        ui_state.event_bindings[26] = { os_key_delete,    os_modifier_shift, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { +1, 0 } };
+        ui_state.event_bindings[27] = { os_key_backspace, os_modifier_shift, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_char, { -1, 0 } };
+        
+        ui_state.event_bindings[28] = { os_key_delete,    os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { +1, 0 } };
+        ui_state.event_bindings[29] = { os_key_backspace, os_modifier_ctrl, ui_event_type_edit, ui_event_flag_delete | ui_event_flag_zero_delta, ui_event_delta_unit_word, { -1, 0 } };
+        
+    }
+    
+    
+    
 }
 
 function void
 ui_release() {
-	arena_clear(ui_state.context_arena);
+	
+    // close icon font
+    font_close(ui_state.icon_font);
+    
+    // release arenas
+    arena_clear(ui_state.context_arena);
 	arena_clear(ui_state.event_arena);
 	arena_clear(ui_state.command_arena);
+    
 }
 
 function void
@@ -83,14 +136,14 @@ ui_update() {
                     ui_event.type = ui_event_type_key_press;
                     
                     // check for bindings
-                    //ui_event_binding_t* binding = ui_event_get_binding(os_event->key, os_event->modifiers);
+                    ui_event_binding_t* binding = ui_event_get_binding(os_event->key, os_event->modifiers);
                     
-                    //if (binding != nullptr) {
-                    //ui_event.type = binding->result_type;
-                    //ui_event.flags = binding->result_flags;
-                    //ui_event.delta_unit = binding->result_delta_unit;
-                    //ui_event.delta = binding->result_delta;
-                    //}
+                    if (binding != nullptr) {
+                        ui_event.type = binding->result_type;
+                        ui_event.flags = binding->result_flags;
+                        ui_event.delta_unit = binding->result_delta_unit;
+                        ui_event.delta = binding->result_delta;
+                    }
                     
                     break;
                 }
@@ -144,8 +197,19 @@ ui_begin(ui_context_t* context) {
         next = command->next;
         if (command->context != context) { continue; }
         
-        b8 taken = false;
         switch (command->type) {
+            
+            case ui_cmd_type_focus_panel: {
+                if (command->src_panel != nullptr) {
+                    context->panel_focused = command->src_panel;
+                    
+                    if (command->view != nullptr) {
+                        context->view_focus = command->view;
+                        command->src_panel->view_focus = command->view;
+                    }
+                }
+                break;
+            }
             
             case ui_cmd_type_close_panel: {
                 
@@ -154,7 +218,7 @@ ui_begin(ui_context_t* context) {
                 ui_panel_t* parent = panel->tree_parent;
                 
                 // skip if last panel so we can't remove all panels
-                if (panel == context->panel_root) { taken = true; break; }
+                if (panel == context->panel_root) { break; }
                 
                 // if no sibling panels
                 if (parent->child_count == 2) {
@@ -182,6 +246,14 @@ ui_begin(ui_context_t* context) {
                     }
                     keep_panel->percent_of_parent = percent_of_parent;
                     
+                    // focus panel
+                    if (context->panel_focused == discard_panel) {
+                        context->panel_focused = keep_panel;
+                        for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
+                            context->panel_focused = grandchild;
+                        }
+                    }
+                    
                     if (grandparent != nullptr && grandparent->split_axis == keep_panel->split_axis && keep_panel->tree_first != nullptr) {
                         ui_panel_remove(keep_panel);
                         ui_panel_t* prev = parent_prev;
@@ -195,18 +267,27 @@ ui_begin(ui_context_t* context) {
                         ui_panel_release(context, keep_panel);
                     }
                 } else {
+                    
                     ui_panel_t* next = nullptr;
                     f32 removed_size_percent = panel->percent_of_parent;
                     if (next == nullptr) { next = panel->tree_prev; }
                     if (next == nullptr) { next = panel->tree_next; }
                     ui_panel_remove(panel);
                     ui_panel_release(context, panel);
+                    
+                    // focus panel
+                    //if (context->panel_focused == discard_panel) {
+                    //context->panel_focused = keep_panel;
+                    //for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
+                    //context->panel_focused = grandchild;
+                    //}
+                    //}
+                    
+                    // set sizes
                     for (ui_panel_t* child = parent->tree_first; child != nullptr; child = child->tree_next) {
                         child->percent_of_parent /= 1.0f - removed_size_percent;
                     }
                 }
-                
-                taken = true;
                 
                 break;
             }
@@ -235,6 +316,7 @@ ui_begin(ui_context_t* context) {
                         }
                     }
                     
+                    context->panel_focused = inserted_panel;
                     new_panel = inserted_panel;
                 } else {
                     // parents split axis is not the same
@@ -266,6 +348,8 @@ ui_begin(ui_context_t* context) {
                     left->percent_of_parent = 0.5f;
                     right->percent_of_parent = 0.5f;
                     
+                    context->panel_focused = new_panel;
+                    
                     // insert both panels
                     ui_panel_insert(new_parent, left);
                     ui_panel_insert(new_parent, right, left);
@@ -275,12 +359,19 @@ ui_begin(ui_context_t* context) {
                 
                 if (command->view != nullptr) {
                     
-                    ui_view_remove(command->src_panel, command->view);
+                    ui_panel_t* from_panel =command->src_panel;
+                    
+                    ui_view_remove(from_panel, command->view);
                     ui_view_insert(new_panel, command->view, new_panel->view_last);
+                    
+                    if (from_panel->view_first == nullptr && from_panel != context->panel_root &&
+                        from_panel != new_panel->tree_prev && from_panel != new_panel->tree_next) {
+                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                        cmd->src_panel = from_panel; 
+                    }
                     
                 }
                 
-                taken = true;
                 break;
             }
             
@@ -293,23 +384,26 @@ ui_begin(ui_context_t* context) {
                 ui_view_remove(from_panel, view);
                 ui_view_insert(to_panel, view, to_panel->view_last);
                 
-                taken = true;
+                if (from_panel->view_first == nullptr) {
+                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                    cmd->src_panel = from_panel; 
+                }
+                
+                
                 break;
             }
             
         }
         
         // pop command
-        if (taken) {
-            ui_cmd_pop(command);
-        }
+        ui_cmd_pop(command);
         
     }
     
     // animation rates
     f32 dt = os_window_get_delta_time(context->window);
-	context->anim_fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
-	context->anim_slow_rate = 1.0f - powf(2.0f, -25.0f * dt);
+    context->anim_fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
+    context->anim_slow_rate = 1.0f - powf(2.0f, -25.0f * dt);
     
     // remove unused animation nodes
     {
@@ -340,9 +434,9 @@ ui_begin(ui_context_t* context) {
     }
     
     
-	// reset stacks
-	ui_context_reset_stacks(context);
-	
+    // reset stacks
+    ui_context_reset_stacks(context);
+    
     // reset popup
     context->popup_updated_this_frame = false;
     
@@ -471,6 +565,9 @@ ui_begin(ui_context_t* context) {
                         ui_set_next_color_border(drop_border_color);
                         ui_key_t drop_key = ui_key_from_stringf({ 0 }, "root_drop_site_%i", side);
                         ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
+                        ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                        data->dir = ui_dir_from_axis_side(split_axis, side);
+                        ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                         ui_frame_interaction(drop_frame);
                         
                         // visualize new panel
@@ -541,9 +638,9 @@ ui_begin(ui_context_t* context) {
                     ui_set_next_color_border(drop_border_color);
                     ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
                     ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
-                    //ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, nullptr);
+                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                     ui_frame_interaction(drop_frame);
-                    
                     
                     // visualize new panel
                     if (ui_key_equals(drop_key, context->key_hovered)) {
@@ -565,7 +662,7 @@ ui_begin(ui_context_t* context) {
                     // perform drop
                     if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
                         
-                        // detemine split panel and directiob
+                        // detemine split panel and direction
                         ui_panel_t* split_panel = child;
                         ui_dir split_dir = (split_axis == ui_axis_x) ? ui_dir_left : ui_dir_up;
                         if (split_panel == nullptr) {
@@ -689,13 +786,15 @@ ui_begin(ui_context_t* context) {
             // skip if not leaf panel
             if (panel->tree_first != nullptr) { continue; }
             
+            b8 panel_is_focused = (context->panel_focused == panel);
+            
             // calculate rect
             rect_t panel_rect = rect_shrink(ui_rect_from_panel(panel, content_rect), 2.0f);
             vec2_t panel_center = rect_center(panel_rect);
             vec2_t panel_size = rect_size(panel_rect);
             
-            rect_t container_rect = panel_rect; container_rect.y0 += 25.0f;
-            rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 26.0f;
+            rect_t container_rect = panel_rect; container_rect.y0 += 23.0f;
+            rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 25.0f;
             
             // build drop sites
             if (ui_drag_is_active() && context->view_drag != nullptr && rect_contains(panel_rect, context->mouse_pos)) {
@@ -741,6 +840,9 @@ ui_begin(ui_context_t* context) {
                     ui_set_next_color_border(drop_border_color);
                     ui_set_next_rounding(vec4(5.0f));
                     drop_sites[i].frame = ui_frame_from_key(drop_site_flags, drop_key);
+                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                    data->dir = drop_dir;
+                    ui_frame_set_custom_draw(drop_sites[i].frame, ui_drop_site_draw_function, data);
                     ui_frame_interaction(drop_sites[i].frame);
                     
                 }
@@ -766,20 +868,22 @@ ui_begin(ui_context_t* context) {
                         if (drop_dir == ui_dir_none) {
                             new_panel_rect = rect_lerp(rect_shrink(padded_panel_rect, vec2_mul(padded_panel_size, 0.1f)), padded_panel_rect, drop_frame->hover_t);
                         } else if (split_side == ui_side_min) {
-                            f32 padding = (padded_panel_size[split_axis] * 0.2f);
+                            f32 padding = (padded_panel_size[split_axis] * 0.1f);
                             new_panel_rect = padded_panel_rect;
                             new_panel_rect.v0[split_axis] = lerp(new_panel_rect.v0[split_axis] + padding, new_panel_rect.v0[split_axis], drop_frame->hover_t);
                             new_panel_rect.v1[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
                         } else {
-                            f32 padding = (padded_panel_size[split_axis] * 0.2f);
+                            f32 padding = (padded_panel_size[split_axis] * 0.1f);
                             new_panel_rect = padded_panel_rect;
                             new_panel_rect.v0[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
                             new_panel_rect.v1[split_axis] = lerp(new_panel_rect.v1[split_axis] - padding, new_panel_rect.v1[split_axis], drop_frame->hover_t);
                         }
                         
                         // build visualization frame
+                        color_t vis_color = color_lerp(color(0x00000000), vis_background_color, drop_frame->hover_t);
+                        
                         ui_set_next_rect(new_panel_rect);
-                        ui_set_next_color_background(vis_background_color);
+                        ui_set_next_color_background(vis_color);
                         ui_set_next_color_border(vis_border_color);
                         ui_set_next_rounding(vec4(5.0f));
                         ui_frame_from_key(vis_panel_flags, { 0 });
@@ -814,12 +918,22 @@ ui_begin(ui_context_t* context) {
             
             // build container frame
             {
+                
                 ui_frame_flags panel_flags = 
                     ui_frame_flag_floating |
                     ui_frame_flag_draw_background |
+                    ui_frame_flag_draw_border |
                     ui_frame_flag_draw_clip;
                 
+                // focused border
+                color_t border_color = color(0x323232ff);
+                if (panel_is_focused) {
+                    border_color = context->color_accent_default_node.v;
+                    border_color.a = 0.25f;
+                }
+                
                 ui_set_next_rect(container_rect);
+                ui_set_next_color_border(border_color);
                 ui_set_next_color_background(color(0x242424ff));
                 
                 ui_key_t panel_key = ui_key_from_stringf({ 0 }, "%p_panel_frame", panel);
@@ -860,8 +974,20 @@ ui_begin(ui_context_t* context) {
                     }
                     
                 }
-                
                 ui_pop_parent();
+                
+                for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
+                    if (!os_handle_equals(event->window, context->window) || event->type != ui_event_type_mouse_press) { continue; }
+                    
+                    if (rect_contains(container_rect, event->position)) {
+                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                        cmd->src_panel = panel;
+                        cmd->view = panel->view_focus;
+                    }
+                    
+                }
+                
+                
             }
             
             // build tab bar
@@ -886,15 +1012,31 @@ ui_begin(ui_context_t* context) {
                 
                 for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
                     
+                    color_t view_background_color = color(0x121212ff);
+                    color_t view_border_color = color(0x242424ff);
+                    
+                    if (view == context->view_focus) {
+                        view_background_color = context->color_accent_default_node.v;
+                        view_background_color.a = 0.25f;
+                        view_border_color = context->color_accent_default_node.v;
+                        view_border_color.a = 0.25f;
+                    } else if (view == panel->view_focus) {
+                        view_background_color = color(0x242424ff);
+                        view_border_color = color(0x323232ff);
+                    }
+                    
+                    
                     ui_spacer(ui_size_pixels(4.0f));
                     
-                    ui_set_next_color_background(color(0x242424ff));
-                    ui_set_next_color_border(color(0x323232ff));
+                    ui_set_next_color_background(view_background_color);
+                    ui_set_next_color_border(view_border_color);
                     ui_set_next_flags(ui_frame_flag_draggable | ui_frame_flag_draw_border);
                     ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
                     
                     if (tab_interaction & ui_interaction_left_clicked) {
-                        panel->view_focus = view; 
+                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                        cmd->src_panel = panel;
+                        cmd->view = view;
                     }
                     
                     if (tab_interaction & ui_interaction_left_dragging) {
@@ -1032,6 +1174,7 @@ ui_end(ui_context_t* context) {
                 draw_rect(rect_translate(rect_grow(frame->rect, frame->shadow_size), 1.0f));
             }
             
+            
             // draw background
             if (frame->flags & ui_frame_flag_draw_background) {
                 
@@ -1094,6 +1237,7 @@ ui_end(ui_context_t* context) {
                 
             }
             
+            
             // custom draw
             if (frame->flags & ui_frame_flag_draw_custom) {
                 if (frame->custom_draw_func != nullptr) {
@@ -1110,6 +1254,7 @@ ui_end(ui_context_t* context) {
             
             
             // pop clipping
+            
             i32 pop_index = 0;
             for (ui_frame_t* f = frame; f != nullptr && pop_index <= rec.pop_count; f = f->tree_parent) {
                 pop_index++;
@@ -1218,6 +1363,7 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
     
     // create root panel
     context->panel_root = ui_panel_create(context, 1.0f, ui_axis_x);
+    context->panel_focused = context->panel_root;
     
 	return context;
 }
@@ -1386,6 +1532,37 @@ ui_string_hash_format(str_t string) {
     return string;
 }
 
+function str_t
+ui_string_replace_range(arena_t* arena, str_t string, ui_text_range_t range, str_t replace) {
+    
+    // get range
+    i32 min = range.min.column;
+    i32 max = range.max.column;
+    
+    // clamp range
+    if (min > string.size) {
+        min = 0;
+    }
+    if (max > string.size) {
+        max = string.size;
+    }
+    
+    // calculate new size
+    u32 old_size = string.size;
+    u32 new_size = old_size - (max - min) + replace.size;
+    
+    u8* new_string_data = (u8*)arena_alloc(arena, sizeof(u8) * new_size);
+    memcpy(new_string_data, string.data, min);
+    memcpy(new_string_data + min + replace.size, string.data + max, string.size - max);
+    if (replace.data != 0) {
+        memcpy(new_string_data + min, replace.data, replace.size);
+    }
+    
+    str_t result = str((char*)new_string_data, new_size);
+    return result;
+    
+}
+
 //- key
 
 function ui_key_t
@@ -1492,6 +1669,99 @@ ui_side_from_dir(ui_dir dir) {
     // ui_dir_down -> ui_side_max;
     return ((dir < 2) ? ui_side_min : ui_side_max);
 }
+
+//- dir 
+
+function ui_dir
+ui_dir_from_axis_side(ui_axis axis, ui_side side) {
+    ui_dir result = (axis == ui_axis_x) ? 
+    (side == ui_side_min) ? ui_dir_left : ui_dir_right :
+    (side == ui_side_min) ? ui_dir_up : ui_dir_down;
+    return result;
+}
+
+
+//- text point
+
+function ui_text_point_t
+ui_text_point(i32 line, i32 column) {
+	return { line, column };
+}
+
+function b8
+ui_text_point_equals(ui_text_point_t a, ui_text_point_t b) {
+	return a.line == b.line && a.column == b.column;
+}
+
+function b8
+ui_text_point_less_than(ui_text_point_t a, ui_text_point_t b) {
+	b8 result = 0;
+	if (a.line < b.line) {
+		result = 1;
+	} else if (a.line == b.line) {
+		result = a.column < b.column;
+	}
+	return result;
+}
+
+function ui_text_point_t
+ui_text_point_min(ui_text_point_t a, ui_text_point_t b) {
+	ui_text_point_t result = b;
+	if (ui_text_point_less_than(a, b)) {
+		result = a;
+	}
+	return result;
+}
+
+function ui_text_point_t
+ui_text_point_max(ui_text_point_t a, ui_text_point_t b) {
+	ui_text_point_t result = a;
+	if (ui_text_point_less_than(a, b)) {
+		result = b;
+	}
+	return result;
+}
+
+//- text range
+
+function ui_text_range_t
+ui_text_range(ui_text_point_t min, ui_text_point_t max) {
+	ui_text_range_t range = { 0 };
+	if (ui_text_point_less_than(min, max)) {
+		range.min = min;
+		range.max = max;
+	} else {
+		range.min = max;
+		range.max = min;
+	}
+	return range;
+}
+
+function ui_text_range_t
+ui_text_range_intersects(ui_text_range_t a, ui_text_range_t b) {
+	ui_text_range_t result = { 0 };
+	result.min = ui_text_point_max(a.min, b.min);
+	result.max = ui_text_point_min(a.max, b.max);
+	if (ui_text_point_less_than(result.max, result.min)) {
+		memset(&result, 0, sizeof(ui_text_range_t));
+	}
+	return result;
+}
+
+function ui_text_range_t
+ui_text_range_union(ui_text_range_t a, ui_text_range_t b) {
+	ui_text_range_t result = { 0 };
+	result.min = ui_text_point_min(a.min, b.min);
+	result.max = ui_text_point_max(a.max, b.max);
+	return result;
+}
+
+function b8
+ui_text_range_contains(ui_text_range_t r, ui_text_point_t pt) {
+	b8 result = ((ui_text_point_less_than(r.min, pt) || ui_text_point_equals(r.min, pt)) && ui_text_point_less_than(pt, r.max));
+	return result;
+}
+
 
 //- text alignment
 
@@ -1620,6 +1890,91 @@ ui_kill_action() {
         context->key_active[i] = { 0 };
     }
 }
+
+function ui_event_binding_t*
+ui_event_get_binding(os_key key, os_modifiers modifiers) {
+    
+    ui_event_binding_t* binding = nullptr;
+    
+    for (i32 i = 0; i < 64; i++) {
+        ui_event_binding_t* b = &ui_state.event_bindings[i];
+        
+        if (key == b->key && modifiers == b->modifiers) {
+            binding = b;
+        }
+    }
+    
+    return binding;
+}
+
+function ui_text_op_t 
+ui_event_to_text_op(ui_event_t* event, str_t string, ui_text_point_t cursor, ui_text_point_t mark) {
+    
+    ui_text_op_t text_op = { 0 };
+    text_op.cursor = cursor;
+    text_op.mark = mark;
+    
+    ivec2_t delta = event->delta;
+    switch (event->delta_unit) {
+        
+        case ui_event_delta_unit_char: {
+            break;
+        }
+        
+        case ui_event_delta_unit_word: {
+            i32 dst_index = str_find_word_index(string, cursor.column, delta.x);
+            delta.x = dst_index - cursor.column;
+            break;
+        }
+        
+        case ui_event_delta_unit_line:
+        case ui_event_delta_unit_page:
+        case ui_event_delta_unit_whole: {
+            i32 dst_column = (delta.x > 0) ? (i32)string.size : 0;
+            delta.x = dst_column - cursor.column;
+            break;
+        }
+    }
+    
+    // zero delta
+    if (!ui_text_point_equals(cursor, mark) && (event->flags & ui_event_flag_zero_delta)) {
+        delta = ivec2(0);
+    }
+    
+    // push next cursor
+    if (ui_text_point_equals(cursor, mark) || !(event->flags & ui_event_flag_zero_delta)) {
+        text_op.cursor.column += delta.x;
+    }
+    
+    // deletion
+    if (event->flags & ui_event_flag_delete) {
+        ui_text_point_t new_pos = ui_text_point_min(text_op.cursor, text_op.mark);
+        text_op.range = ui_text_range(text_op.cursor, text_op.mark);
+        text_op.replace = str("");
+        text_op.cursor = text_op.mark = new_pos;
+    }
+    
+    // update mark
+    if (!(event->flags & ui_event_flag_keep_mark)) {
+        text_op.mark = text_op.cursor;
+    }
+    
+    // insert
+    if (event->character != 0) {
+        text_op.range = ui_text_range(cursor, mark);
+        text_op.replace = str_copy(ui_build_arena(), str((char*)(&event->character), 1));
+        text_op.cursor = text_op.mark = ui_text_point(text_op.range.min.line, text_op.range.min.column + 1);
+    }
+    
+    if (text_op.cursor.column > string.size + 1 || 0 > text_op.cursor.column || event->delta.y != 0) {
+        text_op.flags |= ui_text_op_flag_invalid;
+    }
+    text_op.cursor.column = clamp(text_op.cursor.column, 0, string.size + text_op.replace.size);
+    text_op.mark.column = clamp(text_op.mark.column, 0, string.size + text_op.replace.size);
+    
+    return text_op;
+}
+
 
 //- drag state 
 
@@ -1818,6 +2173,12 @@ function b8*
 ui_data(ui_key_t key, b8 initial) {
     void* data = ui_data_ex(key, ui_data_type_b8, &initial);
     return (b8*)data;
+}
+
+function i32*
+ui_data(ui_key_t key, i32 initial) {
+    void* data = ui_data_ex(key, ui_data_type_i32, &initial);
+    return (i32*)data;
 }
 
 function f32*
@@ -2175,44 +2536,18 @@ ui_frame_interaction(ui_frame_t* frame) {
     if ((frame->flags & ui_frame_flag_interactable) && mouse_in_bounds) {
         
         // if we are dragging
-        if (ui_drag_is_active()) { 
-            
-            if (ui_key_equals(context->key_hovered, { 0 })) {
-                result |= ui_interaction_hovered;
-                context->key_hovered = frame->key;
-                
-            }
-            
-        } else {
-            
-            if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
-                context->key_hovered = frame->key;
-                result |= ui_interaction_hovered;
-            }
-            
-        }
-        
-        
-        // if the frame is draggable we still want to be able to hover over
-        // other widgets.
-        /*if (frame->flags & ui_frame_flag_draggable) {
+        if (ui_drag_is_active() &&  (ui_key_equals(context->key_hovered, { 0 }))) { 
             result |= ui_interaction_hovered;
             context->key_hovered = frame->key;
-        } else {
-            
-            if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
-                (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
-                context->key_hovered = frame->key;
-                result |= ui_interaction_hovered;
-            }
+        } else if ((ui_key_equals(context->key_hovered, {0}) || ui_key_equals(context->key_hovered, frame->key)) &&
+                   (ui_key_equals(context->key_active[os_mouse_button_left], {0}) || ui_key_equals(context->key_active[os_mouse_button_left], frame->key)) &&
+                   (ui_key_equals(context->key_active[os_mouse_button_middle], {0}) || ui_key_equals(context->key_active[os_mouse_button_middle], frame->key)) &&
+                   (ui_key_equals(context->key_active[os_mouse_button_right], {0}) || ui_key_equals(context->key_active[os_mouse_button_right], frame->key))) {
+            context->key_hovered = frame->key;
+            result |= ui_interaction_hovered;
             
         }
-        */
+        
         // mouse over even if not active
         result |= ui_interaction_mouse_over;
     }
@@ -2304,6 +2639,8 @@ ui_panel_create(ui_context_t* context, f32 percent, ui_axis split_axis) {
     panel->percent_of_parent = percent;
     panel->split_axis = split_axis;
     
+    context->panel_count++;
+    
     return panel;
     
 }
@@ -2312,6 +2649,7 @@ function void
 ui_panel_release(ui_context_t* context, ui_panel_t* panel) {
     dll_remove_np(context->panel_first, context->panel_last, panel, list_next, list_prev);
     stack_push_n(context->panel_free, panel, list_next);
+    context->panel_count--;
 }
 
 function void 
@@ -2854,7 +3192,7 @@ ui_button(str_t label) {
         ui_frame_flag_draw_text |
         ui_frame_flag_draw_shadow;
     
-    //ui_set_next_hover_cursor(os_cursor_hand_point);
+    ui_set_next_hover_cursor(os_cursor_hand_point);
     ui_frame_t* frame = ui_frame_from_string(flags, label);
     ui_interaction interaction = ui_frame_interaction(frame);
     
@@ -2934,6 +3272,271 @@ ui_sliderf(f32* value, f32 min, f32 max, char* fmt, ...) {
     return interaction;
 }
 
+function ui_interaction 
+ui_checkbox(b8* value, str_t label) {
+    
+    ui_context_t* context = ui_active();
+    
+    // build button
+    ui_frame_flags button_flags =
+        ui_frame_flag_interactable |
+        ui_frame_flag_hover_cursor; 
+    
+    ui_set_next_hover_cursor(os_cursor_hand_point);
+    ui_key_t button_key = ui_key_from_string(ui_top_seed_key(), label);
+    ui_frame_t* button_frame = ui_frame_from_key(button_flags, button_key);
+    ui_interaction button_interaction = ui_frame_interaction(button_frame);
+    
+    // build icon
+    ui_frame_flags icon_flags =
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_active_effects |
+        ui_frame_flag_draw_text |
+        ui_frame_flag_draw_shadow;
+    
+    ui_set_next_parent(button_frame);
+    ui_set_next_width(ui_top_height());
+    ui_set_next_text_alignment(ui_text_alignment_center);
+    ui_set_next_font(ui_state.icon_font);
+    ui_frame_t* icon_frame = ui_frame_from_key(icon_flags, { 0 });
+    if (*value) {
+        ui_frame_set_display_string(icon_frame, str("!"));
+    }
+    icon_frame->hover_t = button_frame->hover_t;
+    icon_frame->active_t = button_frame->active_t;
+    
+    // do interaction
+    if (button_interaction & ui_interaction_left_clicked) {
+        *value = !*value;
+    }
+    
+    return button_interaction;
+}
+
+function ui_interaction 
+ui_checkboxf(b8* value, char* fmt, ...) {
+    
+    va_list args;
+    va_start(args, fmt);
+    str_t string = str_formatv(ui_build_arena(), fmt, args);
+    va_end(args);
+    
+    ui_interaction interaction = ui_checkbox(value, string);
+    
+    return interaction;
+}
+
+function ui_interaction
+ui_text_edit(str_t label, char* buffer, u32* size, u32 max_size) {
+    
+    ui_context_t* context = ui_active();
+    
+    // create keys
+    ui_key_t container_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_container", label.size, label.data);
+    ui_key_t cursor_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_cursor", label.size, label.data);
+    ui_key_t mark_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_mark", label.size, label.data);
+    
+    b8 frame_focused = ui_key_is_focused(container_key);
+    str_t edit_string = str(buffer, *size);
+    
+    // get cursor and mark
+    i32* cursor_value = ui_data(cursor_key, (i32)0);
+    i32* mark_value = ui_data(cursor_key, (i32)0);
+    
+    // build container frame
+    ui_frame_flags flags =
+        ui_frame_flag_interactable |
+        ui_frame_flag_hover_cursor | 
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_text |
+        ui_frame_flag_draw_shadow;
+    
+    // if focused don't do effects
+    if (frame_focused) {
+        flags &= ~ui_frame_flag_draw_hover_effects;
+    }
+    
+    ui_set_next_hover_cursor(os_cursor_I_beam);
+    ui_frame_t* frame = ui_frame_from_key(flags, container_key);
+    
+    ivec2_t* draw_data = (ivec2_t*)arena_alloc(ui_build_arena(), sizeof(ivec2_t));
+    draw_data->x = *cursor_value;
+    draw_data->y = *mark_value;
+    ui_frame_set_display_string(frame, edit_string);
+    ui_frame_set_custom_draw(frame, ui_text_edit_draw_function, draw_data);
+    
+    // keyboard interaction
+    if (frame_focused) {
+        
+        for (ui_event_t* event = ui_state.event_first, *next = nullptr; event != nullptr; event = next) {
+            next = event->next;
+            
+            // skip if not text input events
+            if (event->type != ui_event_type_edit && event->type != ui_event_type_navigate && event->type != ui_event_type_text) {
+                continue;
+            }
+            
+            // get text op
+            ui_text_point_t cursor = ui_text_point(0, *cursor_value);
+            ui_text_point_t mark = ui_text_point(0, *mark_value);
+            ui_text_op_t text_op = ui_event_to_text_op(event, edit_string, cursor, mark);
+            
+            // skip if invalid
+            if (text_op.flags & ui_text_op_flag_invalid) {
+                continue;
+            }
+            
+            // replace range
+            if (!ui_text_point_equals(text_op.range.min, text_op.range.max) || text_op.replace.size != 0) {
+                str_t new_string = ui_string_replace_range(ui_build_arena(), edit_string, text_op.range, text_op.replace);
+                new_string.size = min(max_size, new_string.size);
+                memcpy(buffer, new_string.data, new_string.size);
+                *size = new_string.size;
+            }
+            
+            // update cursor
+            *cursor_value = text_op.cursor.column;
+            *mark_value = text_op.mark.column;
+            
+            // pop event
+            ui_event_pop(event);
+            
+        }
+        
+        
+        
+        
+    }
+    
+    // mouse interaction
+    ui_interaction interaction = ui_frame_interaction(frame);
+    
+    
+    
+    return 0;
+}
+
+
+function ui_interaction
+ui_float_edit(str_t label, f32* value, f32 delta, f32 min, f32 max) {
+    
+    ui_context_t* context = ui_active();
+    
+    // create keys
+    ui_key_t top_key = ui_top_seed_key();
+    ui_key_t decrement_key = ui_key_from_stringf(top_key, "%.*s_decrement", label.size, label.data);
+    ui_key_t increment_key = ui_key_from_stringf(top_key, "%.*s_increment", label.size, label.data);
+    ui_key_t slider_key = ui_key_from_stringf(top_key, "%.*s_slider", label.size, label.data);
+    
+    // create parent
+    ui_frame_flags ui_parent_flags = 
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_border |
+        ui_frame_flag_draw_shadow;
+    
+    ui_set_next_layout_dir(ui_dir_right);
+    ui_frame_t* parent_frame = ui_frame_from_key(ui_parent_flags, { 0 });
+    
+    // determine if we should show arrows
+    b8 show_arrows = false;
+    ui_key_t last_hovered_key = context->key_hovered_prev;
+    if (ui_key_equals(last_hovered_key, decrement_key) || ui_key_is_active(decrement_key) ||
+        ui_key_equals(last_hovered_key, increment_key) || ui_key_is_active(increment_key) ||
+        ui_key_equals(last_hovered_key, slider_key) || ui_key_is_active(slider_key)) {
+        show_arrows = true;
+    }
+    
+    ui_push_parent(parent_frame);
+    
+    b8 modifier_shift = os_get_modifiers() & os_modifier_shift;
+    f32 adjusted_delta = delta * (modifier_shift ? 10.0f : 1.0f);
+    
+    // decrement and increment flags
+    u32 frame_flags =
+        ui_frame_flag_interactable |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_active_effects;
+    
+    // hide if not hovered
+    if (show_arrows) {
+        flag_set(frame_flags, ui_frame_flag_draw_text);
+    }
+    
+    // decrement
+    ui_set_next_font(ui_state.icon_font);
+    ui_set_next_text_alignment(ui_text_alignment_center);
+    ui_set_next_width(ui_size_pixels(15.0f, 1.0f));
+    ui_set_next_rounding_00(0.0f);
+    ui_set_next_rounding_01(0.0f);
+    ui_set_next_color_background(color(0x00000000));
+    ui_frame_t* decrement_frame = ui_frame_from_key(frame_flags, decrement_key);
+    ui_frame_set_display_string(decrement_frame, str("N"));
+    ui_interaction decrement_interaction = ui_frame_interaction(decrement_frame);
+    
+    if (decrement_interaction & ui_interaction_left_clicked) {
+        *value -= adjusted_delta;
+    }
+    
+    // slider/text_edit
+    ui_frame_flags slider_flags =
+        ui_frame_flag_interactable |
+        ui_frame_flag_draw_background | 
+        ui_frame_flag_draw_hover_effects |
+        ui_frame_flag_draw_active_effects |
+        ui_frame_flag_draw_text |
+        ui_frame_flag_hover_cursor;
+    
+    str_t number_text = str_format(ui_build_arena(), "%.2f", *value);
+    ui_set_next_width(ui_size_percent(1.0f));
+    ui_set_next_height(ui_size_percent(1.0f));
+    ui_set_next_text_alignment(ui_text_alignment_center);
+    ui_set_next_hover_cursor(os_cursor_resize_EW);
+    ui_set_next_rounding(vec4(0.0f));
+    ui_set_next_color_background(color(0x00000000));
+    ui_frame_t* slider_frame = ui_frame_from_key(slider_flags, slider_key);
+    ui_frame_set_display_string(slider_frame, number_text);
+    ui_interaction slider_interaction = ui_frame_interaction(slider_frame);
+    
+    // slider interatcion
+    if (slider_interaction & ui_interaction_left_dragging) {
+        
+        *value = *value + (adjusted_delta * ui_active()->mouse_delta.x);
+        
+        // don't clamp if everything equals 0.0f
+        if (min != max != 0.0f) {
+            *value = clamp(*value, min, max);
+        }
+        
+    }
+    
+    // increment
+    ui_set_next_text_alignment(ui_text_alignment_center);
+    ui_set_next_font(ui_state.icon_font);
+    ui_set_next_width(ui_size_pixels(15.0f, 1.0f));
+    ui_set_next_height(ui_size_percent(1.0f));
+    ui_set_next_rounding_10(0.0f);
+    ui_set_next_rounding_11(0.0f);
+    ui_set_next_color_background(color(0x00000000));
+    ui_frame_t* increment_frame = ui_frame_from_key(frame_flags, increment_key);
+    ui_frame_set_display_string(increment_frame, str("O"));
+    ui_interaction increment_interaction = ui_frame_interaction(increment_frame);
+    
+    if (increment_interaction & ui_interaction_left_clicked) {
+        *value += adjusted_delta;
+    }
+    
+    ui_pop_parent();
+    
+    
+    ui_interaction interaction = 0;
+    return interaction;
+}
+
+
+
 
 function b8
 ui_expander_begin(str_t label) {
@@ -2950,6 +3553,9 @@ ui_expander_begin(str_t label) {
     ui_key_t container_key = ui_key_from_stringf(ui_top_seed_key(), "%.*s_container", label.size, label.data);
     ui_frame_t* container_frame = ui_frame_from_key(container_flags, container_key);
     
+    // get persistent expanded value
+    b8* expanded_value = ui_data(container_key, false);
+    
     // build button
     ui_frame_flags button_flags = 
         ui_frame_flag_interactable |
@@ -2959,12 +3565,24 @@ ui_expander_begin(str_t label) {
     
     ui_set_next_parent(container_frame);
     ui_set_next_color_background(color(0x2d2d2dff));
+    ui_set_next_layout_dir(ui_dir_right);
     ui_key_t button_key = ui_key_from_string(container_key, str("button"));
     ui_frame_t* button_frame = ui_frame_from_key(button_flags, button_key);
     ui_interaction button_interaction = ui_frame_interaction(button_frame);
     
-    // get persistent expanded value
-    b8* expanded_value = ui_data(container_key, false);
+    // build icon
+    ui_set_next_parent(button_frame);
+    ui_set_next_width(ui_size_pixels(15.0f));
+    ui_set_next_height(ui_size_percent(1.0f));
+    ui_set_next_font(ui_state.icon_font);
+    ui_labelf("%c", (*expanded_value) ? icon_down : icon_right);
+    
+    // build label
+    ui_set_next_parent(button_frame);
+    ui_set_next_width(ui_size_percent(1.0f));
+    ui_set_next_height(ui_size_percent(1.0f));
+    ui_label(label);
+    
     
     // do interaction
     if (button_interaction & ui_interaction_left_clicked) {
@@ -2973,8 +3591,6 @@ ui_expander_begin(str_t label) {
     
     if (*expanded_value) {
         ui_push_parent(container_frame);
-        //ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-        //ui_padding_begin(ui_size_pixels(4.0f, 1.0f));
     }
     
     return *expanded_value;
@@ -3003,13 +3619,58 @@ ui_expander_end() {
 function void 
 ui_drop_site_draw_function(ui_frame_t* frame) {
     
-    ui_palette_t* palette = &frame->palette;
+    // get data
+    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)frame->custom_draw_data;
+    ui_axis axis = ui_axis_from_dir(data->dir);
+    ui_side side = ui_side_from_dir(data->dir);
     
-    rect_t inner_rect = rect_shrink(frame->rect, vec2(15.0f, 10.0f));
-    draw_set_next_color(palette->border);
-    draw_set_next_thickness(1.0f);
-    draw_set_next_rounding(frame->rounding);
-    draw_rect(inner_rect);
+    f32 frame_width = rect_width(frame->rect);
+    f32 frame_height = rect_height(frame->rect);
+    
+    // get colors
+    ui_palette_t* palette = &frame->palette;
+    color_t accent_color = palette->accent;
+    accent_color.a = lerp(0.1f, 0.3f, frame->hover_t);
+    
+    // draw
+    switch (data->dir) {
+        case ui_dir_none: {
+            rect_t inner_rect = rect_shrink(frame->rect, 10.0f);
+            
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(inner_rect);
+            
+            // border
+            draw_set_next_color(palette->border);
+            draw_set_next_thickness(1.0f);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(inner_rect);
+            
+            break;
+        }
+        
+        case ui_dir_down:
+        case ui_dir_up: {
+            
+            rect_t top_rect = rect_shrink(rect_cut_top(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
+            rect_t bottom_rect = rect_shrink(rect_cut_bottom(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
+            
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(top_rect);
+            
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(bottom_rect);
+            
+            
+            break;
+        }
+        
+        
+    }
+    
     
 }
 
@@ -3051,6 +3712,55 @@ ui_slider_draw_function(ui_frame_t* frame) {
     draw_pop_font();
     
 }
+
+
+function void 
+ui_text_edit_draw_function(ui_frame_t* frame) {
+    
+    ui_context_t* context = ui_active();
+    
+    // get data
+    ivec2_t* data = (ivec2_t*)frame->custom_draw_data;
+    i32 cursor = (*data).x;
+    i32 mark = (*data).y;
+    
+    if (ui_key_is_focused(frame->key)) {
+        
+        // get offsets
+        f32 cursor_offset = ui_text_offset_from_index(frame->font, frame->font_size, frame->label, cursor);
+        f32 mark_offset = ui_text_offset_from_index(frame->font, frame->font_size, frame->label, mark);
+        vec2_t text_start = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
+        
+        // draw cursor
+        draw_set_next_color(frame->palette.accent);
+        
+        rect_t cursor_rect = rect(
+                                  frame->rect.x0 + text_start.x + cursor_offset - 1.0f,
+                                  frame->rect.y0 + 2.0f,
+                                  frame->rect.x0 + text_start.x + cursor_offset + 1.0f,
+                                  frame->rect.y1 - 2.0f
+                                  );
+        draw_rect(cursor_rect);
+        
+        // draw mark
+        color_t mark_color = frame->palette.accent;
+        mark_color.a = 0.3f;
+        draw_set_next_color(mark_color);
+        rect_t mark_rect = rect(
+                                frame->rect.x0 + text_start.x + cursor_offset,
+                                frame->rect.y0 + 2.0f,
+                                frame->rect.x0 + text_start.x + mark_offset + 2.0f,
+                                frame->rect.y1 - 2.0f
+                                );
+        draw_rect(mark_rect);
+        
+    }
+    
+}
+
+
+
+
 
 
 //- stacks
@@ -4683,6 +5393,5 @@ ui_set_next_color(ui_color var, color_t color) {
     }
     return result;
 }
-
 
 #endif // UI_CPP

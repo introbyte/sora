@@ -128,7 +128,6 @@ app_init() {
     ui_view_t* view1 = ui_view_create(context, str("Another"), test_view);
     ui_view_insert(right, view1);
     
-    
     // list state
     list_state.arena = arena_create(megabytes(4));
     for (i32 i = 0; i < 6; i++) {
@@ -210,9 +209,9 @@ console_view() {
     ui_push_size(ui_size_percent(1.0f), ui_size_pixels(20.0f, 1.0f));
     
     
-    ui_labelf("drag_state: %u", context->drag_state);
     ui_labelf("mouse_pos_x: %.0f", context->mouse_pos.x);
     ui_labelf("mouse_pos_y: %.0f", context->mouse_pos.y);
+    ui_labelf("panel_count: %u", context->panel_count);
     
     // label
     ui_labelf("Hello, This is a label!");
@@ -240,6 +239,19 @@ console_view() {
     persist f32 value = 0.5f;
     ui_slider(&value, 0.0f, 1.0f, str("slider"));
     
+    ui_spacer();
+    
+    persist b8 checkbox_value = true;
+    ui_checkbox(&checkbox_value, str("checkbox label"));
+    ui_spacer();
+    
+    persist char buffer[256] = "Hello, World!";
+    persist u32 size = 13;
+    ui_text_edit(str("text_edit"), buffer, &size, 256);
+    ui_spacer();
+    
+    persist f32 float_edit_value = 10.0f;
+    ui_float_edit(str("float edit"), &float_edit_value);
     ui_spacer();
     
     // expander

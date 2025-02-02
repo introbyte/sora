@@ -11,6 +11,10 @@
 // [x] - tooltips
 // [x] - popups contexts
 // [ ] - investigate animating layout 
+// [x] - fix panel and view focus
+//     [ ] - animate focus
+// [ ] - add text edit widget
+// [ ] - add float edit widget
 //
 
 //- enums
@@ -87,6 +91,13 @@ enum {
 	ui_event_flag_pick_side = (1 << 4),
 	ui_event_flag_zero_delta = (1 << 5),
 };
+
+typedef u32 ui_text_op_flags;
+enum {
+	ui_text_op_flag_invalid = (1 << 0),
+	ui_text_op_flag_copy = (1 << 1),
+};
+
 
 enum ui_event_delta_unit {
 	ui_event_delta_unit_null,
@@ -218,10 +229,106 @@ enum ui_cmd_type {
     ui_cmd_type_none,
     ui_cmd_type_close_panel,
     ui_cmd_type_split_panel,
+    ui_cmd_type_focus_panel,
     ui_cmd_type_move_view,
 };
 
-
+enum ui_icon {
+	icon_user = ' ',
+	icon_checkmark = '!',
+	icon_cancel = '"',
+	icon_plus = '#',
+	icon_minus = '$',
+	icon_help = '%',
+	icon_info = '&',
+	icon_home = '\'',
+	icon_lock = '(',
+	icon_lock_open = ')',
+	icon_eye = '*',
+	icon_eye_off = '+',
+	icon_tag = ',',
+	icon_tags = '-',
+	icon_bookmark = '.',
+	icon_bookmark_empty = '/',
+	icon_flag = '0',
+	icon_flag_empty = '1',
+	icon_reply = '2',
+	icon_reply_all = '3',
+	icon_forward = '4',
+	icon_pencil = '5',
+	icon_repeat = '6',
+	icon_attention = '7',
+	icon_trash = '8',
+	icon_document = '9',
+	icon_document_text = ':',
+	icon_folder = ';',
+	icon_folder_open = '<',
+	icon_box = '=',
+	icon_menu = '>',
+	icon_cog = '?',
+	icon_cog_alt = '@',
+	icon_wrench = 'A',
+	icon_sliders = 'B',
+	icon_block = 'C',
+	icon_resize_full = 'D',
+	icon_resize_full_alt = 'E',
+	icon_resize_small = 'F',
+	icon_resize_vertical = 'G',
+	icon_resize_horizontal = 'H',
+	icon_move = 'I',
+	icon_zoom_in = 'J',
+	icon_zoom_out = 'K',
+	icon_down = 'L',
+	icon_up = 'M',
+	icon_left = 'N',
+	icon_right = 'O',
+	icon_down_open = 'P',
+	icon_left_open = 'Q',
+	icon_right_open = 'R',
+	icon_up_open = 'S',
+	icon_arrow_cw = 'T',
+	icon_arrow_ccw = 'U',
+	icon_arrows_cw = 'V',
+	icon_shuffle = 'W',
+	icon_play = 'X',
+	icon_stop = 'Y',
+	icon_pause = 'Z',
+	icon_to_end = '[',
+	icon_to_end_alt = '\\',
+	icon_to_start = ']',
+	icon_to_start_alt = '^',
+	icon_fast_foward = '_',
+	icon_fast_backward = '`',
+	icon_desktop = 'a',
+	icon_align_left = 'b',
+	icon_align_center = 'c',
+	icon_align_right = 'd',
+	icon_align_justify = 'e',
+	icon_list = 'f',
+	icon_indent_left = 'g',
+	icon_indent_right = 'h',
+	icon_list_bullet = 'i',
+	icon_ellipsis = 'j',
+	icon_ellipsis_vertical = 'k',
+	icon_off = 'l',
+	icon_circle_fill = 'm',
+	icon_circle = 'n',
+	icon_sort = 'o',
+	icon_sort_down = 'p',
+	icon_sort_up = 'q',
+	icon_sort_up_alt = 'r',
+	icon_sort_down_alt = 's',
+	icon_sort_name_up = 't',
+	icon_sort_name_down = 'u',
+	icon_sort_number_up = 'v',
+	icon_sort_number_down = 'w',
+	icon_sitemap = 'x',
+	icon_cube = 'y',
+	icon_cubes = 'z',
+	icon_database = '{',
+	icon_eyecropper = '|',
+	icon_brush = '}',
+};
 
 //- typedefs
 
@@ -294,6 +401,39 @@ struct ui_event_t {
     vec2_t scroll;
     ivec2_t delta;
 };
+
+struct ui_event_binding_t {
+    os_key key;
+    os_modifiers modifiers;
+    
+    ui_event_type result_type;
+    ui_event_flags result_flags;
+    ui_event_delta_unit result_delta_unit;
+    ivec2_t result_delta;
+};
+
+// text point
+
+struct ui_text_point_t {
+	i32 line;
+	i32 column;
+};
+
+struct ui_text_range_t {
+	ui_text_point_t min;
+	ui_text_point_t max;
+};
+
+struct ui_text_op_t {
+	ui_text_op_flags flags;
+	str_t replace;
+	str_t copy;
+	ui_text_range_t range;
+	ui_text_point_t cursor;
+	ui_text_point_t mark;
+};
+
+
 
 // frames
 struct ui_frame_t {
@@ -412,6 +552,10 @@ struct ui_panel_rec_t {
 struct ui_panel_rect_t {
     ui_panel_rect_t* next;
     rect_t rect;
+};
+
+struct ui_drop_site_draw_data_t {
+    ui_dir dir;
 };
 
 // animation
@@ -594,12 +738,15 @@ struct ui_context_t {
     ui_view_t* view_last;
     ui_view_t* view_free;
     ui_view_t* view_drag;
+    ui_view_t* view_focus;
     
     // panel list
     ui_panel_t* panel_first;
     ui_panel_t* panel_last;
     ui_panel_t* panel_free;
     ui_panel_t* panel_root;
+    ui_panel_t* panel_focused;
+    u32 panel_count;
     
     // animation cache
     ui_anim_node_t* anim_node_first;
@@ -769,6 +916,12 @@ struct ui_state_t {
     ui_event_t* event_last;
     u32 click_counter[3];
 	u64 last_click_time[3];
+    
+    // bindings
+    ui_event_binding_t event_bindings[64];
+    
+    font_handle_t icon_font;
+    
 };
 
 //- globals
@@ -796,6 +949,7 @@ function void ui_context_reset_stacks(ui_context_t* context);
 function u64 ui_string_hash(u64 seed, str_t string);
 function str_t ui_string_display_format(str_t string);
 function str_t ui_string_hash_format(str_t string);
+function str_t ui_string_replace_range(arena_t* arena, str_t string, ui_text_range_t range, str_t replace);
 
 // key
 function ui_key_t ui_key_from_string(ui_key_t seed, str_t string);
@@ -818,6 +972,21 @@ function ui_axis ui_axis_from_dir(ui_dir dir);
 // side
 function ui_side ui_side_from_dir(ui_dir dir);
 
+// dir
+function ui_dir ui_dir_from_axis_side(ui_axis axis, ui_side side);
+
+// text point
+function b8 ui_text_point_equals(ui_text_point_t a, ui_text_point_t b);
+function b8 ui_text_point_less_than(ui_text_point_t a, ui_text_point_t b);
+function ui_text_point_t ui_text_point_min(ui_text_point_t a, ui_text_point_t b);
+function ui_text_point_t ui_text_point_max(ui_text_point_t a, ui_text_point_t b);
+
+// text range
+function ui_text_range_t ui_text_range(ui_text_point_t min, ui_text_point_t max);
+function ui_text_range_t ui_text_range_intersects(ui_text_range_t a, ui_text_range_t b);
+function ui_text_range_t ui_text_range_union(ui_text_range_t a, ui_text_range_t b);
+function b8 ui_text_range_contains(ui_text_range_t r, ui_text_point_t pt);
+
 // text alignment
 function vec2_t ui_text_align(font_handle_t font, f32 font_size, str_t text, rect_t rect, ui_text_alignment alignment);
 function vec2_t ui_text_size(font_handle_t font, f32 font_size, str_t text);
@@ -832,7 +1001,8 @@ function void ui_cmd_pop(ui_cmd_t* command);
 function void ui_event_push(ui_event_t* event);
 function void ui_event_pop(ui_event_t* event);
 function void ui_kill_action();
-
+function ui_event_binding_t* ui_event_get_binding(os_key key, os_modifiers modifiers);
+function ui_text_op_t ui_event_to_text_op(ui_event_t* event, str_t string, ui_text_point_t cursor, ui_text_point_t mark);
 // drag state
 function void ui_drag_store_data(void* data, u32 size);
 function void* ui_drag_get_data();
@@ -843,8 +1013,6 @@ function void ui_drag_begin();
 function b8 ui_drag_drop();
 function void ui_drag_kill();
 
-
-
 // animation
 function ui_anim_params_t ui_anim_params_create(f32 initial, f32 target, f32 rate = ui_active()->anim_fast_rate);
 function f32 ui_anim_ex(ui_key_t key, ui_anim_params_t params);
@@ -853,6 +1021,7 @@ function f32 ui_anim(ui_key_t key, f32 initial, f32 target);
 // data
 function void* ui_data_ex(ui_key_t key, ui_data_type type, void* initial);
 function b8* ui_data(ui_key_t key, b8 initial);
+function i32* ui_data(ui_key_t key, i32 initial);
 function f32* ui_data(ui_key_t key, f32 initial);
 
 
@@ -914,18 +1083,22 @@ function ui_interaction ui_button(str_t label);
 function ui_interaction ui_buttonf(char* fmt, ...);
 function ui_interaction ui_slider(f32* value, f32 min, f32 max, str_t label);
 function ui_interaction ui_sliderf(f32* value, f32 min, f32 max, char* fmt, ...);
+function ui_interaction ui_checkbox(b8* value, str_t label);
+function ui_interaction ui_checkboxf(b8* value, char* fmt, ...);
+
+function ui_interaction ui_text_edit(str_t label, char* buffer, u32* size, u32 max_size);
+function ui_interaction ui_float_edit(str_t label, f32* value, f32 delta = 0.01f, f32 min = 0.0f, f32 max = 0.0f);
 
 
 function b8 ui_expander_begin(str_t label);
 function b8 ui_expanderf_begin(char* fmt, ...);
 function void ui_expander_end();
 
-
 // custom draw functions
 
 function void ui_drop_site_draw_function(ui_frame_t* frame);
-
 function void ui_slider_draw_function(ui_frame_t* frame);
+function void ui_text_edit_draw_function(ui_frame_t* frame);
 
 // stacks
 

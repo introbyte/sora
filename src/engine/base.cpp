@@ -522,6 +522,24 @@ str_scan(str_t string, char* fmt, ...) {
 	va_end(args);
 }
 
+function u32 
+str_find_word_index(str_t string, u32 start_index, i32 dir) {
+    
+    u32 result = start_index;
+    
+    if (dir > 0) {
+        while (result < string.size && !char_is_whitespace(string.data[result])) { result++; }
+        while (result < string.size && char_is_whitespace(string.data[result])) { result++; }
+    } else {
+        result--;
+        while (result > 0 && char_is_whitespace(string.data[result])) { result--; }
+        while (result > 0 && !char_is_whitespace(string.data[result - 1])) { result--; }
+    }
+    
+    return result;
+    
+}
+
 // str list
 
 function void
@@ -2050,6 +2068,26 @@ rect_lerp(rect_t a, rect_t b, f32 t) {
     vec4_t v_b = vec4(b.x0, b.y0, b.x1, b.y1);
     vec4_t v_l = vec4_lerp(v_a, v_b, t);
     return {v_l.x, v_l.y, v_l.z, v_l.w};
+}
+
+inlnfunc rect_t
+rect_cut_top(rect_t r, f32 a) {
+    return { r.x0, r.y0, r.x1, min(r.y1, r.y0 + a) };
+}
+
+inlnfunc rect_t
+rect_cut_bottom(rect_t r, f32 a) {
+    return { r.x0, max(r.y0, r.y1 - a), r.x1, r.y1 };
+}
+
+inlnfunc rect_t
+rect_cut_left(rect_t r, f32 a) {
+    return { r.x0, r.y0, min(r.x1, r.x0 + a), r.y1 };
+}
+
+inlnfunc rect_t
+rect_cut_right(rect_t r, f32 a) {
+    return { max(r.x0, r.x1 - a), r.y0, r.x1, r.y1 };
 }
 
 

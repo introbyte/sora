@@ -529,6 +529,8 @@ function str_t str_get_file_name(str_t string);
 function str_t str_get_file_extension(str_t string);
 function str_t str_formatv(arena_t* arena, char* fmt, va_list args);
 function str_t str_format(arena_t* arena, char* fmt, ...);
+function void str_scan(str_t string, char* fmt, ...);
+function u32 str_find_word_index(str_t string, u32 start_index, i32 dir);
 
 // str list
 function void str_list_push_node(str_list_t* list, str_node_t* node);

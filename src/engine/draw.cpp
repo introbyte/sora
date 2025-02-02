@@ -3,72 +3,6 @@
 #ifndef DRAW_CPP
 #define DRAW_CPP
 
-// defines
-#define draw_default_init(name, value) \
-draw_state.name##_default_node.v = value; \
-
-#define draw_stack_reset(name) \
-draw_state.name##_stack.top = &draw_state.name##_default_node; draw_state.name##_stack.free = 0; draw_state.name##_stack.auto_pop = 0; \
-
-#define draw_stack_top_impl(name, type) \
-function type \
-draw_top_##name() { \
-return draw_state.name##_stack.top->v; \
-} \
-
-#define draw_stack_push_impl(name, type) \
-function type \
-draw_push_##name(type v) { \
-draw_##name##_node_t* node = draw_state.name##_stack.free; \
-if (node != 0) { \
-stack_pop(draw_state.name##_stack.free); \
-} else { \
-node = (draw_##name##_node_t*)arena_alloc(draw_state.batch_arena, sizeof(draw_##name##_node_t)); \
-} \
-type old_value = draw_state.name##_stack.top->v; \
-node->v = v; \
-stack_push(draw_state.name##_stack.top, node); \
-draw_state.name##_stack.auto_pop = 0; \
-return old_value; \
-} \
-
-#define draw_stack_pop_impl(name, type) \
-function type \
-draw_pop_##name() { \
-draw_##name##_node_t* popped = draw_state.name##_stack.top; \
-if (popped != 0) { \
-stack_pop(draw_state.name##_stack.top); \
-stack_push(draw_state.name##_stack.free, popped); \
-draw_state.name##_stack.auto_pop = 0; \
-} \
-return popped->v; \
-} \
-
-#define draw_stack_set_next_impl(name, type) \
-function type \
-draw_set_next_##name(type v) { \
-draw_##name##_node_t* node = draw_state.name##_stack.free; \
-if (node != 0) { \
-stack_pop(draw_state.name##_stack.free); \
-} else { \
-node = (draw_##name##_node_t*)arena_alloc(draw_state.batch_arena, sizeof(draw_##name##_node_t)); \
-} \
-type old_value = draw_state.name##_stack.top->v; \
-node->v = v; \
-stack_push(draw_state.name##_stack.top, node); \
-draw_state.name##_stack.auto_pop = 1; \
-return old_value; \
-} \
-
-#define draw_stack_auto_pop_impl(name) \
-if (draw_state.name##_stack.auto_pop) { draw_pop_##name(); draw_state.name##_stack.auto_pop = 0; }
-
-#define draw_stack_impl(name, type)\
-draw_stack_top_impl(name, type)\
-draw_stack_push_impl(name, type)\
-draw_stack_pop_impl(name, type)\
-draw_stack_set_next_impl(name, type)\
-
 // functions
 
 function void 
@@ -581,25 +515,21 @@ draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1) {
 
 function void
 draw_auto_pop_stacks() {
-	draw_stack_auto_pop_impl(color0);
-	draw_stack_auto_pop_impl(color1);
-	draw_stack_auto_pop_impl(color2);
-	draw_stack_auto_pop_impl(color3);
     
-	draw_stack_auto_pop_impl(radius0);
-	draw_stack_auto_pop_impl(radius1);
-	draw_stack_auto_pop_impl(radius2);
-	draw_stack_auto_pop_impl(radius3);
-    
-	draw_stack_auto_pop_impl(thickness);
-	draw_stack_auto_pop_impl(softness);
-    
-	draw_stack_auto_pop_impl(font);
-	draw_stack_auto_pop_impl(font_size);
-    
-	draw_stack_auto_pop_impl(clip_mask);
-    
-	draw_stack_auto_pop_impl(texture);
+    if (draw_state.color0_stack.auto_pop) { draw_pop_color0(); draw_state.color0_stack.auto_pop = 0; }
+    if (draw_state.color1_stack.auto_pop) { draw_pop_color1(); draw_state.color1_stack.auto_pop = 0; }
+    if (draw_state.color2_stack.auto_pop) { draw_pop_color2(); draw_state.color2_stack.auto_pop = 0; }
+    if (draw_state.color3_stack.auto_pop) { draw_pop_color3(); draw_state.color3_stack.auto_pop = 0; }
+    if (draw_state.radius0_stack.auto_pop) { draw_pop_radius0(); draw_state.radius0_stack.auto_pop = 0; }
+    if (draw_state.radius1_stack.auto_pop) { draw_pop_radius1(); draw_state.radius1_stack.auto_pop = 0; }
+    if (draw_state.radius2_stack.auto_pop) { draw_pop_radius2(); draw_state.radius2_stack.auto_pop = 0; }
+    if (draw_state.radius3_stack.auto_pop) { draw_pop_radius3(); draw_state.radius3_stack.auto_pop = 0; }
+    if (draw_state.thickness_stack.auto_pop) { draw_pop_thickness(); draw_state.thickness_stack.auto_pop = 0; }
+    if (draw_state.softness_stack.auto_pop) { draw_pop_softness(); draw_state.softness_stack.auto_pop = 0; }
+    if (draw_state.font_stack.auto_pop) { draw_pop_font(); draw_state.font_stack.auto_pop = 0; }
+    if (draw_state.font_size_stack.auto_pop) { draw_pop_font_size(); draw_state.font_size_stack.auto_pop = 0; }
+    if (draw_state.clip_mask_stack.auto_pop) { draw_pop_clip_mask(); draw_state.clip_mask_stack.auto_pop = 0; }
+    if (draw_state.texture_stack.auto_pop) { draw_pop_texture(); draw_state.texture_stack.auto_pop = 0; }
     
 }
 
