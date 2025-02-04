@@ -567,31 +567,141 @@ os_file_get_info(os_handle_t file) {
 	
 	HANDLE handle = (HANDLE)file.data[0];
     
-	// get info
-	u32 high_bits = 0;
-	u32 low_bits = GetFileSize(handle, (DWORD*)&high_bits);
-	FILETIME last_write_time = { 0 };
-	GetFileTime(handle, 0, 0, &last_write_time);
+	os_file_info_t result = { 0 };
+    BY_HANDLE_FILE_INFORMATION file_info;
+    GetFileInformationByHandle(handle, &file_info);
     
-	// fill info
-	os_file_info_t info = { 0 };
-	info.size = (u64)low_bits | (((u64)high_bits) << 32);
-	info.last_modified = ((u64)last_write_time.dwLowDateTime) | (((u64)last_write_time.dwHighDateTime) << 32);
+    result.flags = os_w32_file_flags_from_attributes(file_info.dwFileAttributes);
+	result.size = ((u64)file_info.nFileSizeLow) | (((u64)file_info.nFileSizeHigh) << 32);
+	result.creation_time = ((u64)file_info.ftCreationTime.dwLowDateTime) | (((u64)file_info.ftCreationTime.dwHighDateTime) << 32);
+	result.last_access_time = ((u64)file_info.ftLastAccessTime.dwLowDateTime) | (((u64)file_info.ftLastAccessTime.dwHighDateTime) << 32);
+	result.last_write_time = ((u64)file_info.ftLastWriteTime.dwLowDateTime) | (((u64)file_info.ftLastWriteTime.dwHighDateTime) << 32);
     
-	return info;
+	return result;
 }
 
 function os_file_info_t
 os_file_get_info(str_t filepath) {
-	WIN32_FILE_ATTRIBUTE_DATA file_info;
-	GetFileAttributesExA((char*)filepath.data, GetFileExInfoStandard, &file_info);
-	os_file_info_t info = { 0 };
-	info.last_modified = ((u64)file_info.ftLastWriteTime.dwLowDateTime) | (((u64)file_info.ftLastWriteTime.dwHighDateTime) << 32);
-	info.size = (u64)file_info.nFileSizeLow | (((u64)file_info.nFileSizeHigh) << 32);
-	return info;
+    os_handle_t handle = os_file_open(filepath);
+    os_file_info_t result = os_file_get_info(handle); 
+    os_file_close(handle);
+	return result;
 }
 
 
+// file iterator
+
+function os_handle_t
+os_file_iter_begin(str_t filepath, os_file_iter_flags flags) {
+    
+    temp_t scratch = scratch_begin();
+    
+    // get entity
+	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_file_iter);
+    
+    // set flags
+    entity->file_iter.flags = flags;
+    
+    // convert path to wide
+    str_t search_path = str_format(scratch.arena, "%.*s\\*", filepath.size, filepath.data);
+    str16_t wide_path = str16_from_str(scratch.arena, search_path);
+    
+    // find first file
+    entity->file_iter.handle = FindFirstFileW((WCHAR*)wide_path.data, &entity->file_iter.find_data);
+    
+    scratch_end(scratch);
+    
+    os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function void
+os_file_iter_end(os_handle_t iter) {
+    
+    // get entity
+    os_w32_entity_t* entity = (os_w32_entity_t*)(iter.data[0]);
+    
+    // close file
+    if (entity->file_iter.handle != 0) {
+        FindClose(entity->file_iter.handle);
+    }
+    
+}
+
+function b8 
+os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info) {
+    
+    temp_t scratch = scratch_begin();
+    
+    // get entity
+    os_w32_entity_t* entity = (os_w32_entity_t*)(iter.data[0]);
+    os_file_iter_flags flags = entity->file_iter.flags;
+    
+    b8 result = false;
+    
+    if (!(flags & os_file_iter_flag_done) && entity->file_iter.handle != INVALID_HANDLE_VALUE) {
+        
+        do {
+            
+            // check is usable
+            b8 usable_file = true;
+            
+            WCHAR *file_name = entity->file_iter.find_data.cFileName;
+            DWORD attributes = entity->file_iter.find_data.dwFileAttributes;
+            
+            if (file_name[0] == '.'){
+                if (flags & os_file_iter_flag_skip_hidden_files) {
+                    usable_file = false;
+                } else if (file_name[1] == 0) {
+                    usable_file = false;
+                } else if (file_name[1] == '.' && file_name[2] == 0) {
+                    usable_file = false;
+                }
+            }
+            
+            // skip folders and files
+            b8 is_folder = attributes & FILE_ATTRIBUTE_DIRECTORY;
+            
+            if (is_folder){
+                if (flags & os_file_iter_flag_skip_folders){
+                    usable_file = false;
+                }
+            } else{
+                if (flags & os_file_iter_flag_skip_files ){
+                    usable_file = false;
+                }
+            }
+            
+            // emit if usable
+            if (usable_file){
+                
+                str16_t wide_path = str16((u16*)file_name);
+                
+                file_info->flags = os_w32_file_flags_from_attributes(attributes);
+                file_info->name = str_from_str16(arena, wide_path);
+                file_info->size = (u32)entity->file_iter.find_data.nFileSizeLow | (((u32)entity->file_iter.find_data.nFileSizeHigh)<<32);
+                result = true;
+                
+                if (!FindNextFileW(entity->file_iter.handle, &entity->file_iter.find_data)){
+                    entity->file_iter.flags |= os_file_iter_flag_done;
+                }
+                
+                break;
+                
+            }
+        } while(FindNextFileW(entity->file_iter.handle, &entity->file_iter.find_data));
+        
+    }
+    
+    // complete
+    if (!result) {
+        entity->file_iter.flags |= os_file_iter_flag_done;
+    }
+    
+    scratch_end(scratch);
+    
+    return result;
+}
 
 // thread functions
 
@@ -857,6 +967,21 @@ os_w32_entity_release(os_w32_entity_t* entity) {
 	}
 	LeaveCriticalSection(&os_state.entity_mutex);
 }
+
+// file
+
+function os_file_flags 
+os_w32_file_flags_from_attributes(DWORD attributes) {
+    
+    os_file_flags flags = 0;
+    
+    if (attributes & FILE_ATTRIBUTE_READONLY) { flags |= os_file_flag_is_read_only; }
+    if (attributes & FILE_ATTRIBUTE_HIDDEN) { flags |= os_file_flag_is_hidden; }
+    if (attributes & FILE_ATTRIBUTE_DIRECTORY) { flags |= os_file_flag_is_folder; }
+    
+    return flags;
+}
+
 
 // time
 function u32 

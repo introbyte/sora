@@ -17,66 +17,105 @@
 
 // project
 #include "projects/ui/ui.h"
+#include "projects/graphs/force_graph.h"
+
 #include "projects/ui/ui.cpp"
+#include "projects/graphs/force_graph.cpp"
 
-// struct
+// file iter queue
 
-struct list_item_t {
-    list_item_t* next;
-    list_item_t* prev;
+struct file_iter_node_t {
+    file_iter_node_t* next;
+    file_iter_node_t* prev;
     
-    str_t label;
-    ui_frame_t* frame;
+    str_t path;
+    fg_node_t* node;
 };
 
-struct list_state_t {
+struct file_iter_queue_t {
+    file_iter_node_t* first;
+    file_iter_node_t* last;
+};
+
+function file_iter_node_t* 
+file_iter_queue_push(arena_t* arena, file_iter_queue_t* queue, str_t path, fg_node_t* node) {
+    
+    file_iter_node_t* file_iter_node = (file_iter_node_t*)arena_alloc(arena, sizeof(file_iter_node_t));
+    queue_push(queue->first, queue->last, file_iter_node);
+    
+    file_iter_node->path = path;
+    file_iter_node->node = node;
+    
+    return file_iter_node;
+}
+
+function file_iter_node_t* 
+file_iter_queue_pop(file_iter_queue_t* queue) {
+    file_iter_node_t* first_node = queue->first;
+    queue_pop(queue->first, queue->last);
+    return first_node;
+}
+
+function b8
+file_iter_queue_is_empty(file_iter_queue_t* queue) {
+    return (queue->first == nullptr);
+}
+
+// file graph
+
+struct file_graph_node_t {
+    file_graph_node_t* next;
+    file_graph_node_t* prev;
+    file_graph_node_t* parent;
+    
+    str_t filepath;
+    b8 is_folder;
+    fg_node_t* fg_node;
+};
+
+struct file_graph_state_t {
     arena_t* arena;
+    fg_state_t* fg_state;
     
-    list_item_t* first;
-    list_item_t* last;
-    list_item_t* free;
+    file_graph_node_t* first; 
+    file_graph_node_t* last;
+    file_graph_node_t* free;
 };
 
-global list_state_t list_state;
-
-function list_item_t* 
-list_item_create(str_t label) {
+function file_graph_state_t* 
+file_graph_create() {
     
-    list_item_t* item = list_state.free;
-    if (item != nullptr) {
-        stack_pop(list_state.free, item);
-    } else {
-        item = (list_item_t*)arena_alloc(list_state.arena, sizeof(list_item_t));
-    }
-    memset(item, 0, sizeof(list_item_t));
+    arena_t* arena = arena_create(megabytes(64));
+    file_graph_state_t* state = (file_graph_state_t*)arena_alloc(arena, sizeof(file_graph_state_t));
     
-    item->label = label;
+    state->arena = arena;
+    state->fg_state = fg_create();
+    state->first = nullptr;
+    state->last = nullptr;
+    state->free = nullptr;
     
-    return item ;
+    return state;
 }
 
 function void 
-list_item_release(list_item_t* item) {
-    stack_push(list_state.free, item);
+file_graph_release(file_graph_state_t* state) {
+    fg_release(state->fg_state);
+    arena_release(state->arena);
+}
+
+function file_graph_node_t*
+file_graph_node_create(file_graph_state_t* state, str_t filepath,  ) {
+    
+    
+    
 }
 
 function void 
-list_item_insert(list_item_t* item, list_item_t* prev = nullptr) {
-    dll_insert(list_state.first,list_state.last, prev, item);
+file_graph_node_release(file_graph_state_t* state, file_graph_node_t* node) {
+    fg_node_release(node->fg_node);
+    dll_remove(state->first, state->last, node);
+    stack_push(state->free, node);
 }
-
-function void 
-list_item_remove(list_item_t* item) {
-    dll_remove(list_state.first, list_state.last, item);
-}
-
-
-
-
-
-
-
-
 
 // globals
 
@@ -86,6 +125,8 @@ global gfx_handle_t renderer;
 global ui_context_t* context;
 global b8 quit = false;
 
+global arena_t* arena;
+global fg_state_t* fg_state;
 
 // functions
 
@@ -94,8 +135,10 @@ function void app_release();
 function void app_frame();
 function void app_render();
 
+function void widget_view();
 function void console_view();
-function void test_view();
+function void node_graph_view();
+function void force_graph_view();
 
 // implementation
 
@@ -105,35 +148,81 @@ function void
 app_init() {
     
 	// open window and create renderer
-	window = os_window_open(str("new ui layout"), 1440, 720);
+	window = os_window_open(str("new ui layout"), 1440, 960);
 	renderer = gfx_renderer_create(window, color(0x131313ff));
 	context = ui_context_create(window, renderer);
+    arena = arena_create(megabytes(256));
     
 	// set frame function
 	os_window_set_frame_function(window, app_frame);
     
     // create panels
-    ui_panel_t* left = ui_panel_create(context, 0.35f, ui_axis_y);
-    ui_panel_t* right = ui_panel_create(context, 0.65f, ui_axis_y);
-    ui_panel_insert(context->panel_root, left);
-    ui_panel_insert(context->panel_root, right, left);
+    ui_panel_t* top = ui_panel_create(context, 0.7f, ui_axis_x);
+    ui_panel_t* bottom = ui_panel_create(context, 0.3f, ui_axis_x);
+    ui_panel_t* left = ui_panel_create(context, 0.25f, ui_axis_y);
+    ui_panel_t* right = ui_panel_create(context, 0.75f, ui_axis_y);
+    
+    context->panel_root->split_axis = ui_axis_y;
+    ui_panel_insert(context->panel_root, top);
+    ui_panel_insert(context->panel_root, bottom, top);
+    ui_panel_insert(top, left);
+    ui_panel_insert(top, right, left);
     
     // insert view
-    ui_view_t* view = ui_view_create(context, str("Tab"), console_view);
-    ui_view_insert(left, view);
+    ui_view_t* view0 = ui_view_create(context, str("Widgets"), widget_view);
+    ui_view_t* view1 = ui_view_create(context, str("Node Graph"), node_graph_view);
+    ui_view_t* view2 = ui_view_create(context, str("Force Graph"), force_graph_view);
+    ui_view_t* view3 = ui_view_create(context, str("Console"), console_view);
     
-    ui_view_t* view0 = ui_view_create(context, str("Test"), test_view);
-    ui_view_insert(right, view0);
-    
-    ui_view_t* view1 = ui_view_create(context, str("Another"), test_view);
+    ui_view_insert(left, view0);
     ui_view_insert(right, view1);
+    ui_view_insert(right, view2);
+    ui_view_insert(bottom, view3);
     
-    // list state
-    list_state.arena = arena_create(megabytes(4));
-    for (i32 i = 0; i < 6; i++) {
-        str_t formatted_string = str_format(list_state.arena, "item %u", i);
-        list_item_t* item = list_item_create(formatted_string);
-        list_item_insert(item, list_state.last);
+    // force graph
+    fg_state = fg_create();
+    
+    // create file graph
+    {
+        temp_t scratch = scratch_begin();
+        str_t filepath = str("src");
+        file_iter_queue_t queue = { 0 };
+        
+        // start with root folder
+        vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+        fg_node_t* node = fg_node_create(fg_state, pos, 15.0f, filepath.data);
+        file_iter_queue_push(scratch.arena, &queue, filepath, node);
+        
+        while (!file_iter_queue_is_empty(&queue)) {
+            
+            // iterate through files
+            os_handle_t file_iter = os_file_iter_begin(queue.first->path);
+            for (os_file_info_t file_info = { 0 }; os_file_iter_next(arena, file_iter, &file_info);) {
+                
+                b8 is_folder = file_info.flags & os_file_flag_is_folder;
+                fg_node_t* new_node = nullptr;
+                
+                // push new file iter to queue if folder
+                if (is_folder) {
+                    vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+                    new_node = fg_node_create(fg_state, pos, 11.0f, file_info.name.data);
+                    str_t new_file_path = str_format(scratch.arena, "%.*s\\%.*s", queue.first->path.size, queue.first->path.data, file_info.name.size, file_info.name.data);
+                    file_iter_queue_push(scratch.arena, &queue, new_file_path, new_node);
+                } else {
+                    vec2_t pos = vec2(random_f32_range(50.0f, 500.0f), random_f32_range(50.0f, 500.0f));
+                    new_node = fg_node_create(fg_state, pos, 7.0f, file_info.name.data);
+                }
+                
+                // link
+                fg_link_create(fg_state, queue.first->node, new_node, is_folder ? 125.0f : 75.0f);
+                
+            }
+            
+            os_file_iter_end(file_iter);
+            file_iter_queue_pop(&queue);
+            
+        }
+        scratch_end(scratch);
     }
     
     
@@ -142,6 +231,8 @@ app_init() {
 function void
 app_release() {
 	
+    fg_release(fg_state);
+    
 	// release renderer and window
 	ui_context_release(context);
 	gfx_renderer_release(renderer);
@@ -166,7 +257,11 @@ app_frame() {
 		quit = true;
 	}
     
-	// render
+    // update force graph
+    f32 dt = os_window_get_delta_time(window);
+    fg_update(fg_state, dt);
+    
+    // render
 	if (!gfx_handle_equals(renderer, { 0 })) {
 		temp_t scratch = scratch_begin();
         
@@ -194,7 +289,7 @@ app_render() {
 }
 
 function void
-console_view() {
+widget_view() {
     
     // build popup
     ui_key_t popup_key = ui_key_from_stringf({ 0 }, "test popup");
@@ -279,10 +374,143 @@ console_view() {
 }
 
 function void
-test_view() {
+node_graph_view() {
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+    ui_padding_begin(2.0f);
+    
+    ui_padding_end();
     
 }
 
+function void 
+force_graph_view() {
+    
+    persist vec2_t view_offset = vec2(0.0f, 0.0f);
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+    ui_padding_begin(2.0f);
+    
+    ui_frame_flags background_flags = 
+        ui_frame_flag_interactable |
+        ui_frame_flag_draw_background |
+        ui_frame_flag_draw_clip |
+        ui_frame_flag_view_scroll |
+        ui_frame_flag_draw_custom;
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+    ui_set_next_color_background(color(0x131313ff));
+    ui_key_t background_key = ui_key_from_stringf({ 0 }, "force_graph_background");
+    ui_frame_t* background_frame = ui_frame_from_key(background_flags, background_key);
+    background_frame->view_offset = view_offset;
+    ui_push_parent(background_frame);
+    
+	// draw nodes
+	for (fg_node_t* node = fg_state->node_first; node != nullptr; node = node->next) {
+        
+		ui_frame_flags node_flags = 
+			ui_frame_flag_interactable | 
+			ui_frame_flag_draw_custom | 
+			ui_frame_flag_floating;
+		
+		f32 node_size = node->size;
+		ui_set_next_rect(rect(node->pos.x - node_size, node->pos.y - node_size, node->pos.x + node_size, node->pos.y + node_size));
+		ui_key_t node_key = ui_key_from_stringf(background_key, "%p_frame", node);
+		ui_frame_t* node_frame = ui_frame_from_key(node_flags, node_key);
+		node->frame = node_frame;
+		ui_frame_set_custom_draw(node_frame, fg_node_custom_draw, nullptr);
+        
+		ui_interaction node_interaction = ui_frame_interaction(node_frame);
+        
+		if (node_interaction & ui_interaction_left_dragging) {
+			fg_state->node_active = node;
+			vec2_t mouse_delta = os_window_get_mouse_delta(window);
+			node->pos.x += mouse_delta.x;// - background_frame->rect.x0 + background_frame->view_offset.x;
+			node->pos.y += mouse_delta.y;// - background_frame->rect.y0 + background_frame->view_offset.y;
+		}
+        
+        if (node_interaction & ui_interaction_hovered) {
+            ui_tooltip_begin();
+            ui_set_next_size(ui_size_text(0.0f), ui_size_text(0.0f));
+            char* name = (char*)node->data;
+            ui_labelf("%s", name);
+            ui_tooltip_end();
+        }
+        
+	}
+    
+    // draw connections
+	for (fg_link_t* link = fg_state->link_first; link != nullptr; link = link->next) {
+        
+		// calculate points
+		vec2_t from = vec2(0.0f);
+		vec2_t to = vec2(0.0f);
+		if (link->from->frame != nullptr && link->to->frame != nullptr) {
+			from = rect_center(link->from->frame->rect);
+			to = rect_center(link->to->frame->rect);
+		}
+        
+		// calculate bounding rect
+		vec2_t points[2] = { from, to };
+		rect_t link_rect = rect_grow(rect_bbox(points, 2), 2.0f);
+        
+		ui_set_next_rect(link_rect);
+		ui_key_t node_key = ui_key_from_stringf(background_key, "%p_frame", link);
+		ui_frame_t* link_frame = ui_frame_from_key(ui_frame_flag_draw_custom | ui_frame_flag_floating, node_key);
+		fg_link_draw_data_t* data = (fg_link_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(fg_link_draw_data_t));
+		ui_frame_set_custom_draw(link_frame, fg_link_custom_draw, data);
+        
+		data->from = from;
+		data->to = to;
+	}
+    
+    
+    ui_pop_parent();
+    
+    ui_interaction interaction = ui_frame_interaction(background_frame);
+    if (interaction & ui_interaction_middle_dragging) {
+        vec2_t mouse_delta = os_window_get_mouse_delta(window);
+		view_offset.x -= mouse_delta.x;
+		view_offset.y -= mouse_delta.y;
+		os_set_cursor(os_cursor_resize_all);
+    }
+    
+    ui_padding_end();
+    
+}
+
+function void
+console_view() {
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+    ui_set_next_layout_dir(ui_dir_up);
+    ui_padding_begin(8.0f);
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_pixels(20.0f));
+    ui_buttonf("text box goes here...");
+    ui_spacer(ui_size_pixels(8.0f));
+    
+    ui_set_next_size(ui_size_percent(1.0f), ui_size_percent(1.0f));
+    ui_set_next_color_background(color(0x131313ff));
+    ui_set_next_layout_dir(ui_dir_up);
+    ui_frame_t* container_frame = ui_frame_from_key(ui_frame_flag_draw_background | ui_frame_flag_draw_clip, { 0 });
+    
+    ui_push_parent(container_frame);
+    ui_push_size(ui_size_percent(1.0f), ui_size_pixels(20.0f));
+    
+    for (i32 i = 0; i < 4; i++) {
+        ui_labelf("[info] this is an info message.");
+    }
+    
+    ui_set_next_color_text(color(0xd35654ff));
+    ui_labelf("[error] this is an error message!");
+    
+    ui_pop_size();
+    ui_pop_parent();
+    
+    ui_padding_end();
+    
+}
 
 
 // entry point

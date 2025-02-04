@@ -609,13 +609,40 @@ str16(u16* data, u32 size) {
 	return result;
 }
 
+// string conversions
+
+function str_t
+str_from_str16(arena_t* arena, str16_t string) {
+    
+    u64 capacity = string.size;
+    
+    u8 *data = (u8*)arena_alloc(arena, sizeof(u8) * (capacity + 1));
+    u16 *ptr = string.data;
+    u16 *opl = ptr + string.size;
+    
+    u64 size = 0;
+    codepoint_t codepoint;
+    
+    for(;ptr < opl;) {
+        codepoint = utf16_decode(ptr, opl - ptr);
+        ptr += codepoint.advance;
+        size += utf8_encode(data + size, codepoint);
+    }
+    data[size] = 0;
+    
+    str_t result;
+    result.data = data;
+    result.size = size;
+    
+    return result;
+}
+
 function str16_t
-str_to_str16(arena_t* arena, str_t string) {
+str16_from_str(arena_t* arena, str_t string) {
     
 	u32 capacity = string.size * 2;
     
-	u16* string16 = (u16*)arena_alloc(arena, sizeof(u16) * capacity + 1);
-    
+	u16* data = (u16*)arena_alloc(arena, sizeof(u16) * capacity + 1);
 	u8* ptr = (u8*)string.data;
 	u8* opl = ptr + string.size;
     
@@ -625,14 +652,12 @@ str_to_str16(arena_t* arena, str_t string) {
 	for (; ptr < opl;) {
 		codepoint = utf8_decode(ptr, opl - ptr);
 		ptr += codepoint.advance;
-		size += utf16_encode(string16 + size, codepoint);
+		size += utf16_encode(data + size, codepoint);
 	}
-    
-	string16[size] = 0;
-	//arena_pop(arena, 2 * (cap - size));
+	data[size] = 0;
     
 	str16_t result;
-	result.data = string16;
+	result.data = data;
 	result.size = size;
 	return result;
     

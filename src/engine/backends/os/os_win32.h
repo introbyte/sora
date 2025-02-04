@@ -21,13 +21,14 @@ enum os_w32_entity_type {
 	os_w32_entity_type_mutex,
 	os_w32_entity_type_rw_mutex,
 	os_w32_entity_type_condition_variable,
+	os_w32_entity_type_file_iter,
 };
 
 // structs
 
 struct os_w32_entity_t {
 	os_w32_entity_t* next;
-
+    
 	os_w32_entity_type type;
 	union {
 		struct {
@@ -39,18 +40,23 @@ struct os_w32_entity_t {
 		CRITICAL_SECTION mutex;
 		SRWLOCK rw_mutex;
 		CONDITION_VARIABLE cv;
+        struct {
+            os_file_iter_flags flags;
+            HANDLE handle;
+            WIN32_FIND_DATAW find_data;
+        } file_iter;
 	};
 };
 
 struct os_w32_window_t {
-
+    
 	// window list 
 	os_w32_window_t* next;
 	os_w32_window_t* prev;
-
+    
 	// flags
 	os_window_flags flags;
-
+    
 	// win32
 	HWND handle;
 	
@@ -60,23 +66,23 @@ struct os_w32_window_t {
 	b8 composition_enabled;
 	b8 maximized;
 	b8 is_moving;
-
+    
 	os_frame_function_t* frame_func;
-
+    
 	// sizing
 	WINDOWPLACEMENT last_window_placement; // for fullscreen
-
+    
 	// custom title bar client area
 	arena_t* title_bar_arena;
 	os_title_bar_client_area_t* title_bar_client_area_first;
 	os_title_bar_client_area_t* title_bar_client_area_last;
-
+    
 	// time
 	LARGE_INTEGER tick_current;
 	LARGE_INTEGER tick_previous;
 	f64 delta_time;
 	f64 elasped_time;
-
+    
 	// input state
 	vec2_t mouse_pos;
 	vec2_t mouse_pos_last;
@@ -84,7 +90,7 @@ struct os_w32_window_t {
 };
 
 struct os_w32_state_t {
-
+    
 	// arenas
 	arena_t* window_arena;
 	arena_t* entity_arena;
@@ -93,25 +99,25 @@ struct os_w32_state_t {
 	// entities
 	os_w32_entity_t* entity_free;
 	CRITICAL_SECTION entity_mutex;
-
+    
 	// window list
 	os_w32_window_t* window_first;
 	os_w32_window_t* window_last;
 	os_w32_window_t* window_free;
-
+    
 	// event list
 	os_event_list_t event_list;
-
+    
 	// time
 	LARGE_INTEGER time_frequency;
 	UINT blink_time;
 	UINT double_click_time;
-
+    
 	// cursor
 	HCURSOR cursors[os_cursor_count];
-
+    
 	b8 new_borderless_window = false; // TODO: not sure if needed
-
+    
 };
 
 // globals
@@ -129,6 +135,9 @@ function HWND             os_w32_hwnd_from_window(os_w32_window_t* window);
 // entities
 function os_w32_entity_t* os_w32_entity_create(os_w32_entity_type type);
 function void os_w32_entity_release(os_w32_entity_t* entity);
+
+// files
+function os_file_flags os_w32_file_flags_from_attributes(DWORD attributes);
 
 // time
 function u32 os_w32_sleep_ms_from_endt_us(u64 endt_us);

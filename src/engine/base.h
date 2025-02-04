@@ -109,7 +109,7 @@
 #define flag_has(flags, mask) ((flags) & (mask) != 0)
 
 // stack
-#define stack_push_n(f, n, next) ((n)->next = (f), (f) = (n))
+#define stack_push_n(f, n, next) (((n)==0) ? 0 : ((n)->next = (f), (f) = (n)))
 #define stack_pop_n(f, next) (((f) == 0) ? 0 : ((f) = (f)->next))
 
 #define stack_push(f, n) stack_push_n(f, n, next)
@@ -118,7 +118,7 @@
 // queue
 #define queue_push_n(f, l, n, next) (((f) == 0) ? ((f)=(l)=(n), ((n)->next = 0)) : ((l)->next=(n),(l)=(n), ((n)->next = 0)))
 #define queue_push_front_n(f, l, n, next) (((f)==0) ? ((f)=(l)=(n),((n)->next = 0)) : ((n)->next=(f),(f)=(n)))
-#define queue_pop_n(f, l, next) ((f)==(l) ? (((f) = 0),((l) = 0)) : (f)=(f)->next))
+#define queue_pop_n(f, l, next) (((f) == 0) ? 0 : ((f)==(l) ? (((f) = 0),((l) = 0)) : (f)=(f)->next))
 
 #define queue_push(f, l, n) queue_push_n(f, l, n, next)
 #define queue_push_front(f, l, n) queue_push_front_n(f, l, n, next)
@@ -540,7 +540,10 @@ function str_list_t str_split(arena_t* arena, str_t string, u8* splits, u32 spli
 // str16
 function str16_t str16(u16* data);
 function str16_t str16(u16* data, u32 size);
-function str16_t str_to_str16(arena_t* arena, str_t string);
+
+// str conversions
+function str_t str_from_str16(arena_t* arena, str16_t string);
+function str16_t str16_from_str(arena_t* arena, str_t string);
 
 // random
 

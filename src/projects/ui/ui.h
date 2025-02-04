@@ -13,6 +13,7 @@
 // [ ] - investigate animating layout 
 // [x] - fix panel and view focus
 //     [ ] - animate focus
+// [ ] - fix drop site visuals
 // [ ] - add text edit widget
 // [ ] - add float edit widget
 //

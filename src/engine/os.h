@@ -178,6 +178,22 @@ enum {
 	os_sys_color_inactive_border,
 };
 
+typedef u32 os_file_flags;
+enum {
+    os_file_flag_is_read_only = (1 << 0),
+    os_file_flag_is_hidden = (1 << 1),
+    os_file_flag_is_folder = (1 << 2),
+};
+
+typedef u32 os_file_iter_flags;
+enum {
+    os_file_iter_flag_skip_folders = (1 << 0),
+    os_file_iter_flag_skip_files = (1 << 1),
+    os_file_iter_flag_skip_hidden_files = (1 << 2),
+    os_file_iter_flag_recursive = (1 << 3),
+    os_file_iter_flag_done = (1 << 31),
+};
+
 // structs
 
 struct os_handle_t {
@@ -191,11 +207,11 @@ struct os_title_bar_client_area_t {
 };
 
 struct os_event_t {
-
+    
 	// event list
 	os_event_t* next;
 	os_event_t* prev;
-
+    
 	os_event_type type;
 	os_handle_t window;
 	os_key key;
@@ -213,8 +229,12 @@ struct os_event_list_t {
 };
 
 struct os_file_info_t {
-	u32 size;
-	u32 last_modified;
+    str_t name;
+    os_file_flags flags;
+	u64 size;
+    u64 creation_time;
+    u64 last_access_time;
+	u64 last_write_time;
 };
 
 struct os_system_info_t {
@@ -270,14 +290,14 @@ function void         os_window_restore(os_handle_t window);
 function void         os_window_fullscreen(os_handle_t window);
 function void         os_window_set_title(os_handle_t window, str_t title);
 function u32          os_window_get_dpi(os_handle_t window);
-					  
+
 function b8           os_window_is_maximized(os_handle_t window);
 function b8           os_window_is_minimized(os_handle_t window);
 function b8           os_window_is_fullscreen(os_handle_t window);
-					  
+
 function void         os_window_clear_title_bar_client_area(os_handle_t window);
 function void         os_window_add_title_bar_client_area(os_handle_t window, rect_t area);
-			          
+
 function void         os_window_set_frame_function(os_handle_t window, os_frame_function_t* func);
 
 function vec2_t       os_window_get_cursor_pos(os_handle_t window);
@@ -305,6 +325,11 @@ function str_t        os_file_read_all(arena_t* arena, os_handle_t file);
 // file info (implemented per backend)
 function os_file_info_t os_file_get_info(os_handle_t file);
 function os_file_info_t os_file_get_info(str_t filepath);
+
+// file iterator (implemented per backend)
+function os_handle_t os_file_iter_begin(str_t filepath, os_file_iter_flags flags = 0);
+function void os_file_iter_end(os_handle_t iter);
+function b8 os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info);
 
 // threads (implemented per backend)
 function os_handle_t  os_thread_create(os_thread_function_t* thread_func, str_t name);

@@ -190,6 +190,27 @@ ui_begin(ui_context_t* context) {
             context->drag_state = ui_drag_state_dropping;
         }
         
+        if (event->type == ui_event_type_mouse_press) {
+            
+            // find which panel we clicked on 
+            for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
+                
+                // skip if not leaf panel
+                if (panel->tree_first != nullptr) { continue; }
+                
+                if (rect_contains(panel->frame->rect, event->position)) {
+                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                    cmd->src_panel = panel;
+                    cmd->view = panel->view_focus;
+                    
+                }
+                
+                
+                
+            }
+            
+        }
+        
     }
     
     // process commands
@@ -200,6 +221,7 @@ ui_begin(ui_context_t* context) {
         switch (command->type) {
             
             case ui_cmd_type_focus_panel: {
+                
                 if (command->src_panel != nullptr) {
                     context->panel_focused = command->src_panel;
                     
@@ -370,6 +392,7 @@ ui_begin(ui_context_t* context) {
                         cmd->src_panel = from_panel; 
                     }
                     
+                    context->view_focus = new_panel->view_first;
                 }
                 
                 break;
@@ -389,6 +412,8 @@ ui_begin(ui_context_t* context) {
                     cmd->src_panel = from_panel; 
                 }
                 
+                context->panel_focused = to_panel;
+                context->view_focus = view;
                 
                 break;
             }
@@ -975,18 +1000,6 @@ ui_begin(ui_context_t* context) {
                     
                 }
                 ui_pop_parent();
-                
-                for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
-                    if (!os_handle_equals(event->window, context->window) || event->type != ui_event_type_mouse_press) { continue; }
-                    
-                    if (rect_contains(container_rect, event->position)) {
-                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
-                        cmd->src_panel = panel;
-                        cmd->view = panel->view_focus;
-                    }
-                    
-                }
-                
                 
             }
             
