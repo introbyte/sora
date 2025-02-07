@@ -179,7 +179,7 @@ ui_begin(ui_context_t* context) {
     
 	// set active context
 	ui_state.context_active = context;
-    context->frame_mrc = nullptr;
+    context->frame_mrc = nullptr; // most recently created
     
     // handle inputs
     for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
@@ -544,7 +544,7 @@ ui_begin(ui_context_t* context) {
     color_t vis_background_color = color(0x50505080);
     color_t vis_border_color = color(0x80808080);
     
-    f32 drop_site_major_size = 50.0f;
+    f32 drop_site_major_size = 40.0f;
     f32 drop_site_minor_size = 30.0f;
     
     f32 vis_major_size = 50.0f;
@@ -588,10 +588,13 @@ ui_begin(ui_context_t* context) {
                         ui_set_next_rect(drop_rect);
                         ui_set_next_color_background(drop_background_color);
                         ui_set_next_color_border(drop_border_color);
+                        ui_set_next_rounding(vec4(5.0f));
                         ui_key_t drop_key = ui_key_from_stringf({ 0 }, "root_drop_site_%i", side);
                         ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
                         ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                        data->dir = ui_dir_from_axis_side(split_axis, side);
+                        data->type = ui_drop_site_type_edge;
+                        data->axis = !split_axis;
+                        data->side = side;
                         ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                         ui_frame_interaction(drop_frame);
                         
@@ -650,32 +653,74 @@ ui_begin(ui_context_t* context) {
                     rect_t child_rect = ui_rect_from_panel_child(panel, child, panel_rect);
                     vec2_t child_rect_center = rect_center(child_rect);
                     
-                    rect_t drop_rect = rect(child_rect_center, child_rect_center);
-                    drop_rect.v0[split_axis] = child_rect.v0[split_axis] - drop_site_minor_size;
-                    drop_rect.v1[split_axis] = child_rect.v0[split_axis] + drop_site_minor_size;
-                    drop_rect.v0[!split_axis] -= drop_site_major_size;
-                    drop_rect.v1[!split_axis] += drop_site_major_size;
+                    // determine if edge or split
+                    rect_t drop_rect;
+                    ui_drop_site_type drop_type;
+                    ui_side drop_side = 0;
+                    if (child != panel->tree_first && child != nullptr) {
+                        drop_type = ui_drop_site_type_split;
+                        drop_rect = rect(child_rect_center, child_rect_center);
+                        drop_rect.v0[split_axis] = child_rect.v0[split_axis] - drop_site_minor_size * 1.5f;
+                        drop_rect.v1[split_axis] = child_rect.v0[split_axis] + drop_site_minor_size * 1.5f;
+                        drop_rect.v0[!split_axis] -= drop_site_major_size;
+                        drop_rect.v1[!split_axis] += drop_site_major_size;
+                    } else {
+                        drop_type = ui_drop_site_type_edge;
+                        drop_rect = rect(child_rect_center, child_rect_center);
+                        if (child == panel->tree_first) {
+                            drop_rect.v0[split_axis] = child_rect.v0[split_axis] + 10.0f;
+                            drop_rect.v1[split_axis] = child_rect.v0[split_axis] + 10.0f + drop_site_minor_size * 2.0f;
+                            drop_side = ui_side_min;
+                        } else {
+                            drop_rect.v0[split_axis] = child_rect.v0[split_axis] - 10.0f - drop_site_minor_size * 2.0f;
+                            drop_rect.v1[split_axis] = child_rect.v0[split_axis] - 10.0f;
+                            drop_side = ui_side_max;
+                        }
+                        drop_rect.v0[!split_axis] -= drop_site_major_size;
+                        drop_rect.v1[!split_axis] += drop_site_major_size;
+                    }
                     
                     // build drop frame
                     ui_set_next_rect(drop_rect);
                     ui_set_next_rounding(vec4(5.0f));
-                    ui_set_next_color_background(drop_background_color);
+                    ui_set_next_color_background( drop_background_color);
                     ui_set_next_color_border(drop_border_color);
                     ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
                     ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
-                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                     ui_frame_interaction(drop_frame);
+                    
+                    // set draw data
+                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                    data->type = drop_type;
+                    data->axis = split_axis;
+                    data->side = drop_side;
+                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                     
                     // visualize new panel
                     if (ui_key_equals(drop_key, context->key_hovered)) {
                         
                         // calculate rect
                         rect_t new_panel_rect = drop_rect;
-                        new_panel_rect.v0[split_axis] -= vis_major_size* drop_frame->hover_t;
-                        new_panel_rect.v1[split_axis] += vis_major_size* drop_frame->hover_t;
-                        new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
-                        new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
+                        
+                        if (drop_type == ui_drop_site_type_split) {
+                            new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
+                            new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
+                            new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
+                            new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
+                        } else {
+                            
+                            if (child == panel->tree_first) {
+                                new_panel_rect.v0[split_axis] -= 5.0f;
+                                new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
+                            } else {
+                                new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
+                                new_panel_rect.v1[split_axis] += 5.0f;
+                            }
+                            
+                            new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
+                            new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
+                        }
+                        
                         
                         //build visualization frame
                         ui_set_next_rect(new_panel_rect);
@@ -825,11 +870,11 @@ ui_begin(ui_context_t* context) {
             if (ui_drag_is_active() && context->view_drag != nullptr && rect_contains(panel_rect, context->mouse_pos)) {
                 
                 // calculate drop rects
-                rect_t drop_rect_center = rect(vec2_sub(panel_center, 40.0f), vec2_add(panel_center, 40.0f));
-                rect_t drop_rect_up = rect_translate(drop_rect_center, vec2(0.0f, -100.0f));
-                rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +100.0f));
-                rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-100.0f, 0.0f));
-                rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+100.0f, 0.0f));
+                rect_t drop_rect_center = rect(vec2_sub(panel_center, drop_site_major_size), vec2_add(panel_center, drop_site_major_size));
+                rect_t drop_rect_up = rect_translate(drop_rect_center, vec2(0.0f, -(drop_site_major_size * 2.25f)));
+                rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +(drop_site_major_size * 2.25f)));
+                rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-(drop_site_major_size * 2.25f), 0.0f));
+                rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+(drop_site_major_size * 2.25f), 0.0f));
                 
                 struct ui_drop_site_t {
                     ui_key_t key;
@@ -853,6 +898,7 @@ ui_begin(ui_context_t* context) {
                     ui_dir drop_dir = drop_sites[i].split_dir;
                     rect_t drop_rect = drop_sites[i].rect;
                     ui_axis split_axis = ui_axis_from_dir(drop_dir);
+                    ui_side split_side = ui_side_from_dir(drop_dir);
                     
                     // skip if not in same axis as split axis
                     if (drop_dir != ui_dir_none && split_axis == panel->tree_parent->split_axis) {
@@ -865,10 +911,20 @@ ui_begin(ui_context_t* context) {
                     ui_set_next_color_border(drop_border_color);
                     ui_set_next_rounding(vec4(5.0f));
                     drop_sites[i].frame = ui_frame_from_key(drop_site_flags, drop_key);
-                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                    data->dir = drop_dir;
-                    ui_frame_set_custom_draw(drop_sites[i].frame, ui_drop_site_draw_function, data);
                     ui_frame_interaction(drop_sites[i].frame);
+                    
+                    // set draw data
+                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                    ui_frame_set_custom_draw(drop_sites[i].frame, ui_drop_site_draw_function, data);
+                    
+                    if (drop_dir == ui_dir_none) {
+                        data->type = ui_drop_site_type_center;
+                    } else {
+                        data->type = ui_drop_site_type_edge;
+                        data->axis = split_axis;
+                        data->side = split_side;
+                    }
+                    
                     
                 }
                 
@@ -1052,14 +1108,12 @@ ui_begin(ui_context_t* context) {
                         cmd->view = view;
                     }
                     
-                    if (tab_interaction & ui_interaction_left_dragging) {
+                    vec2_t mouse_pos = context->mouse_pos;
+                    b8 drag_check = !rect_contains(tab_bar_rect, mouse_pos);
+                    
+                    if ((tab_interaction & ui_interaction_left_dragging) && !ui_drag_is_active() && drag_check) {
                         ui_drag_begin();
-                        
-                        vec2_t mouse_pos = context->mouse_pos;
-                        
-                        if (!rect_contains(tab_bar_rect, mouse_pos)) {
-                            context->view_drag = view;
-                        }
+                        context->view_drag = view;
                     }
                     
                 }
@@ -1342,6 +1396,7 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 	context->window = window;
 	context->renderer = renderer;
     context->build_index = 0;
+    context->drag_state = ui_drag_state_none;
     
 	// initialize stack
 	context->parent_default_node.v = nullptr;
@@ -2634,7 +2689,6 @@ ui_view_remove(ui_panel_t* panel, ui_view_t* view) {
 
 //- panels
 
-
 function ui_panel_t*
 ui_panel_create(ui_context_t* context, f32 percent, ui_axis split_axis) {
     
@@ -2764,8 +2818,6 @@ ui_rect_from_panel(ui_panel_t* panel, rect_t root_rect) {
     
     return result;
 }
-
-
 
 
 //- layout
@@ -3634,8 +3686,9 @@ ui_drop_site_draw_function(ui_frame_t* frame) {
     
     // get data
     ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)frame->custom_draw_data;
-    ui_axis axis = ui_axis_from_dir(data->dir);
-    ui_side side = ui_side_from_dir(data->dir);
+    ui_drop_site_type type = data->type;
+    ui_axis axis = data->axis;
+    ui_side side = data->side;
     
     f32 frame_width = rect_width(frame->rect);
     f32 frame_height = rect_height(frame->rect);
@@ -3646,10 +3699,97 @@ ui_drop_site_draw_function(ui_frame_t* frame) {
     accent_color.a = lerp(0.1f, 0.3f, frame->hover_t);
     
     // draw
-    switch (data->dir) {
-        case ui_dir_none: {
-            rect_t inner_rect = rect_shrink(frame->rect, 10.0f);
+    switch (type) {
+        
+        case ui_drop_site_type_edge: {
             
+            rect_t min_rect;
+            rect_t max_rect;
+            
+            if (axis == ui_axis_x) {
+                f32 half_width = roundf(frame_width * 0.5f);
+                min_rect = rect_cut_left(frame->rect, half_width + 2.5f);
+                max_rect = rect_cut_right(frame->rect, half_width + 2.5f);
+            } else {
+                f32 half_height = roundf(frame_height * 0.5f);
+                min_rect = rect_cut_top(frame->rect, half_height + 2.5f);
+                max_rect = rect_cut_bottom(frame->rect, half_height + 2.5f);
+            }
+            
+            // pad rects
+            min_rect = rect_shrink(min_rect, 5.0f);
+            max_rect = rect_shrink(max_rect, 5.0f);
+            
+            // side
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(side == ui_side_min ? min_rect : max_rect);
+            
+            // borders
+            draw_push_color(palette->border);
+            draw_push_thickness(1.0f);
+            draw_push_rounding(frame->rounding);
+            
+            draw_rect(min_rect);
+            draw_rect(max_rect);
+            
+            draw_pop_rounding();
+            draw_pop_thickness();
+            draw_pop_color();
+            
+            break;
+        }
+        
+        case ui_drop_site_type_split: {
+            
+            // calculate rects
+            rect_t min_rect;
+            rect_t mid_rect;
+            rect_t max_rect;
+            
+            if (axis == ui_axis_x) {
+                f32 quarter_width = roundf(frame_width * 0.25f);
+                min_rect = rect_cut_left(frame->rect, quarter_width + 5.0f);
+                max_rect = rect_cut_right(frame->rect, quarter_width + 5.0f);
+                mid_rect = rect(min_rect.x1 - 5.0f, min_rect.y0, max_rect.x0 + 5.0f, max_rect.y1);
+            } else {
+                f32 quarter_height = roundf(frame_height * 0.25f);
+                min_rect = rect_cut_top(frame->rect, quarter_height + 5.0f);
+                max_rect = rect_cut_bottom(frame->rect, quarter_height + 5.0f);
+                mid_rect = rect(min_rect.x0, min_rect.y1 - 5.0f, max_rect.x1, max_rect.y0 + 5.0f);
+            }
+            
+            // pad rects
+            min_rect = rect_shrink(min_rect, 5.0f);
+            mid_rect = rect_shrink(mid_rect, 5.0f);
+            max_rect = rect_shrink(max_rect, 5.0f);
+            
+            // middle
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(mid_rect);
+            
+            // borders
+            draw_push_color(palette->border);
+            draw_push_thickness(1.0f);
+            draw_push_rounding(frame->rounding);
+            
+            draw_rect(min_rect);
+            draw_rect(mid_rect);
+            draw_rect(max_rect);
+            
+            draw_pop_rounding();
+            draw_pop_thickness();
+            draw_pop_color();
+            
+            break;
+        }
+        
+        case ui_drop_site_type_center: {
+            
+            rect_t inner_rect = rect_shrink(frame->rect, 5.0f);
+            
+            // inner
             draw_set_next_color(accent_color);
             draw_set_next_rounding(frame->rounding);
             draw_rect(inner_rect);
@@ -3663,24 +3803,64 @@ ui_drop_site_draw_function(ui_frame_t* frame) {
             break;
         }
         
-        case ui_dir_down:
-        case ui_dir_up: {
+        
+        
+        /*
+        case ui_dir_none: {
+            rect_t inner_rect = rect_shrink(frame->rect, 5.0f);
             
-            rect_t top_rect = rect_shrink(rect_cut_top(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
-            rect_t bottom_rect = rect_shrink(rect_cut_bottom(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
-            
+            // inner
             draw_set_next_color(accent_color);
             draw_set_next_rounding(frame->rounding);
-            draw_rect(top_rect);
+            draw_rect(inner_rect);
             
-            draw_set_next_color(accent_color);
+            // border
+            draw_set_next_color(palette->border);
+            draw_set_next_thickness(1.0f);
             draw_set_next_rounding(frame->rounding);
-            draw_rect(bottom_rect);
-            
+            draw_rect(inner_rect);
             
             break;
         }
         
+        case ui_dir_left:
+        case ui_dir_right:
+        case ui_dir_down:
+        case ui_dir_up: {
+            
+            rect_t min_rect;
+            rect_t max_rect;
+            
+            if (axis == ui_axis_x) {
+                min_rect = rect_shrink(rect_cut_left(frame->rect, roundf(frame_width * 0.5f)), 5.0f);
+                max_rect = rect_shrink(rect_cut_right(frame->rect, roundf(frame_width * 0.5f)), 5.0f);
+                min_rect.x1 += 2.5f;
+                max_rect.x0 -= 2.5f;
+            } else {
+                min_rect = rect_shrink(rect_cut_top(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
+                max_rect = rect_shrink(rect_cut_bottom(frame->rect, roundf(frame_height * 0.5f)), 5.0f);
+                min_rect.y1 += 2.5f;
+                max_rect.y0 -= 2.5f;
+            }
+            
+            // inner
+            draw_set_next_color(accent_color);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(side == ui_side_min ? min_rect: max_rect);
+            
+            // borders
+            draw_set_next_color(palette->border);
+            draw_set_next_thickness(1.0f);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(min_rect);
+            
+            draw_set_next_color(palette->border);
+            draw_set_next_thickness(1.0f);
+            draw_set_next_rounding(frame->rounding);
+            draw_rect(max_rect);
+            
+            break;
+        }*/
         
     }
     

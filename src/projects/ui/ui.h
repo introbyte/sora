@@ -132,6 +132,12 @@ enum ui_drag_state {
     ui_drag_state_count,
 };
 
+enum ui_drop_site_type {
+    ui_drop_site_type_center,
+    ui_drop_site_type_edge,
+    ui_drop_site_type_split,
+};
+
 typedef u64 ui_frame_flags;
 enum {
 	ui_frame_flag_none = (0 << 0),
@@ -556,7 +562,9 @@ struct ui_panel_rect_t {
 };
 
 struct ui_drop_site_draw_data_t {
-    ui_dir dir;
+    ui_drop_site_type type;
+    ui_axis axis;
+    ui_side side;
 };
 
 // animation
