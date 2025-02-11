@@ -214,8 +214,8 @@ ui_begin(ui_context_t* context) {
     }
     
     // process commands
-    for (ui_cmd_t* command = ui_state.command_first, *next = nullptr; command != nullptr; command = next) {
-        next = command->next;
+    for (ui_cmd_t* command = ui_state.command_first, *cmd_next = nullptr; command != nullptr; command = cmd_next) {
+        cmd_next = command->next;
         if (command->context != context) { continue; }
         
         switch (command->type) {
@@ -279,7 +279,7 @@ ui_begin(ui_context_t* context) {
                     if (grandparent != nullptr && grandparent->split_axis == keep_panel->split_axis && keep_panel->tree_first != nullptr) {
                         ui_panel_remove(keep_panel);
                         ui_panel_t* prev = parent_prev;
-                        for (ui_panel_t* child = keep_panel->tree_first, *next = 0; child != nullptr; child = next) {
+                        for (ui_panel_t* child = keep_panel->tree_first, *next = nullptr; child != nullptr; child = next) {
                             next = child->tree_next;
                             ui_panel_remove(child);
                             ui_panel_insert(grandparent, child, prev);
@@ -1081,6 +1081,9 @@ ui_begin(ui_context_t* context) {
                 
                 for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
                     
+                    // set view content rect
+                    view->content_rect = container_rect;
+                    
                     color_t view_background_color = color(0x121212ff);
                     color_t view_border_color = color(0x242424ff);
                     
@@ -1199,10 +1202,15 @@ ui_end(ui_context_t* context) {
         // animate frames
         for (ui_frame_t* frame = context->frame_first; frame != nullptr; frame = frame->list_next) {
             
+            // animate hover and active
             b8 is_hovered = ui_key_is_hovered(frame->key);
             b8 is_active = ui_key_equals(context->key_active[os_mouse_button_left], frame->key);
             frame->hover_t += context->anim_fast_rate * ((f32)is_hovered - frame->hover_t);
             frame->active_t += context->anim_fast_rate * ((f32)is_active - frame->active_t);
+            
+            // animate view offset
+            frame->view_offset_prev = frame->view_offset;
+            frame->view_offset = vec2_add(frame->view_offset, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), context->anim_fast_rate));
             
         }
         
@@ -1237,8 +1245,9 @@ ui_end(ui_context_t* context) {
             if (frame->flags & ui_frame_flag_draw_shadow) {
                 draw_set_next_color(palette->shadow);
                 draw_set_next_rounding(frame->rounding);
-                draw_set_next_softness(frame->shadow_size);
-                draw_rect(rect_translate(rect_grow(frame->rect, frame->shadow_size), 1.0f));
+                f32 shadow_size = max(frame->shadow_size, 0.0f);
+                draw_set_next_softness(shadow_size);
+                draw_rect(rect_translate(rect_grow(frame->rect, shadow_size), roundf(frame->shadow_size * 0.5f)));
             }
             
             
@@ -1257,6 +1266,9 @@ ui_end(ui_context_t* context) {
                     background_color = color_lerp(background_color, color_blend(background_color, palette->active), frame->active_t);
                 }
                 
+                if (!gfx_handle_equals(frame->texture, {0})) {
+                    draw_set_next_texture(frame->texture);
+                }
                 draw_set_next_color(background_color);
                 draw_set_next_rounding(frame->rounding);
                 draw_rect(frame->rect);
@@ -2436,6 +2448,8 @@ ui_frame_rec_depth_first(ui_frame_t* frame) {
 function ui_interaction 
 ui_frame_interaction(ui_frame_t* frame) {
     
+    if (frame == nullptr) { return 0; }
+    
     ui_context_t* context = ui_active();
     ui_interaction result = ui_interaction_none;
     
@@ -2802,7 +2816,7 @@ ui_rect_from_panel(ui_panel_t* panel, rect_t root_rect) {
     
     // go from highest ancestor and calculate rect
     rect_t parent_rect = root_rect;
-    for (i32 ancestor_index = ancestor_count - 1; ancestor_index >= 0 && ancestor_index < ancestor_count; ancestor_index--) {
+    for (ancestor_index = ancestor_count - 1; ancestor_index >= 0 && ancestor_index < ancestor_count; ancestor_index--) {
         
         ui_panel_t* ancestor = ancestors[ancestor_index];
         
@@ -2882,7 +2896,7 @@ ui_layout_solve_upward_dependent(ui_frame_t* frame, ui_axis axis) {
         // find a parent that has a strict size
         ui_frame_t* parent = nullptr;
         for (ui_frame_t* p = frame->tree_parent; p != nullptr; p = p->tree_parent) {
-            if (p->flags & (ui_frame_flag_fixed_width << axis) ||
+            if (p->flags & (ui_frame_flag_fixed_width << axis)||
                 p->size_wanted[axis].type == ui_size_type_pixel ||
                 p->size_wanted[axis].type == ui_size_type_percent) {
                 parent = p;
@@ -4020,12 +4034,14 @@ function ui_frame_t*
 ui_pop_parent() {
     ui_context_t* context = ui_active();
     ui_parent_node_t* popped = context->parent_stack.top;
+    ui_frame_t* result = nullptr;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->parent_stack.top);
         stack_push(context->parent_stack.free, popped);
         context->parent_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_frame_t*
@@ -4069,12 +4085,14 @@ function ui_frame_flags
 ui_pop_flags() {
     ui_context_t* context = ui_active();
     ui_flags_node_t* popped = context->flags_stack.top;
+    ui_frame_flags result = 0;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->flags_stack.top);
         stack_push(context->flags_stack.free, popped);
         context->flags_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_frame_flags
@@ -4118,12 +4136,14 @@ function ui_key_t
 ui_pop_seed_key() {
     ui_context_t* context = ui_active();
     ui_seed_key_node_t* popped = context->seed_key_stack.top;
+    ui_key_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->seed_key_stack.top);
         stack_push(context->seed_key_stack.free, popped);
         context->seed_key_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_key_t
@@ -4170,12 +4190,14 @@ function f32
 ui_pop_fixed_x() {
     ui_context_t* context = ui_active();
     ui_fixed_x_node_t* popped = context->fixed_x_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->fixed_x_stack.top);
         stack_push(context->fixed_x_stack.free, popped);
         context->fixed_x_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4221,12 +4243,14 @@ function f32
 ui_pop_fixed_y() {
     ui_context_t* context = ui_active();
     ui_fixed_y_node_t* popped = context->fixed_y_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->fixed_y_stack.top);
         stack_push(context->fixed_y_stack.free, popped);
         context->fixed_y_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4271,12 +4295,14 @@ function f32
 ui_pop_fixed_width() {
     ui_context_t* context = ui_active();
     ui_fixed_width_node_t* popped = context->fixed_width_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->fixed_width_stack.top);
         stack_push(context->fixed_width_stack.free, popped);
         context->fixed_width_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4321,12 +4347,14 @@ function f32
 ui_pop_fixed_height() {
     ui_context_t* context = ui_active();
     ui_fixed_height_node_t* popped = context->fixed_height_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->fixed_height_stack.top);
         stack_push(context->fixed_height_stack.free, popped);
         context->fixed_height_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4371,12 +4399,14 @@ function ui_size_t
 ui_pop_width() {
     ui_context_t* context = ui_active();
     ui_width_node_t* popped = context->width_stack.top;
+    ui_size_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->width_stack.top);
         stack_push(context->width_stack.free, popped);
         context->width_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_size_t
@@ -4420,12 +4450,14 @@ function ui_size_t
 ui_pop_height() {
     ui_context_t* context = ui_active();
     ui_height_node_t* popped = context->height_stack.top;
+    ui_size_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->height_stack.top);
         stack_push(context->height_stack.free, popped);
         context->height_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_size_t
@@ -4469,12 +4501,14 @@ function f32
 ui_pop_padding() {
     ui_context_t* context = ui_active();
     ui_padding_node_t* popped = context->padding_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->padding_stack.top);
         stack_push(context->padding_stack.free, popped);
         context->padding_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4519,12 +4553,14 @@ function ui_dir
 ui_pop_layout_dir() {
     ui_context_t* context = ui_active();
     ui_layout_dir_node_t* popped = context->layout_dir_stack.top;
+    ui_dir result = 0;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->layout_dir_stack.top);
         stack_push(context->layout_dir_stack.free, popped);
         context->layout_dir_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_dir
@@ -4570,12 +4606,14 @@ function ui_text_alignment
 ui_pop_text_alignment() {
     ui_context_t* context = ui_active();
     ui_text_alignment_node_t* popped = context->text_alignment_stack.top;
+    ui_text_alignment result = (ui_text_alignment)0;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->text_alignment_stack.top);
         stack_push(context->text_alignment_stack.free, popped);
         context->text_alignment_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function ui_text_alignment
@@ -4621,12 +4659,14 @@ function f32
 ui_pop_rounding_00() {
     ui_context_t* context = ui_active();
     ui_rounding_00_node_t* popped = context->rounding_00_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->rounding_00_stack.top);
         stack_push(context->rounding_00_stack.free, popped);
         context->rounding_00_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4670,12 +4710,14 @@ function f32
 ui_pop_rounding_01() {
     ui_context_t* context = ui_active();
     ui_rounding_01_node_t* popped = context->rounding_01_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->rounding_01_stack.top);
         stack_push(context->rounding_01_stack.free, popped);
         context->rounding_01_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4719,12 +4761,14 @@ function f32
 ui_pop_rounding_10() {
     ui_context_t* context = ui_active();
     ui_rounding_10_node_t* popped = context->rounding_10_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->rounding_10_stack.top);
         stack_push(context->rounding_10_stack.free, popped);
         context->rounding_10_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4768,12 +4812,14 @@ function f32
 ui_pop_rounding_11() {
     ui_context_t* context = ui_active();
     ui_rounding_11_node_t* popped = context->rounding_11_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->rounding_11_stack.top);
         stack_push(context->rounding_11_stack.free, popped);
         context->rounding_11_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4817,12 +4863,14 @@ function f32
 ui_pop_border_size() {
     ui_context_t* context = ui_active();
     ui_border_size_node_t* popped = context->border_size_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->border_size_stack.top);
         stack_push(context->border_size_stack.free, popped);
         context->border_size_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4866,12 +4914,14 @@ function f32
 ui_pop_shadow_size() {
     ui_context_t* context = ui_active();
     ui_shadow_size_node_t* popped = context->shadow_size_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->shadow_size_stack.top);
         stack_push(context->shadow_size_stack.free, popped);
         context->shadow_size_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -4915,12 +4965,14 @@ function gfx_handle_t
 ui_pop_texture() {
     ui_context_t* context = ui_active();
     ui_texture_node_t* popped = context->texture_stack.top;
+    gfx_handle_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->texture_stack.top);
         stack_push(context->texture_stack.free, popped);
         context->texture_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function gfx_handle_t
@@ -4964,12 +5016,14 @@ function font_handle_t
 ui_pop_font() {
     ui_context_t* context = ui_active();
     ui_font_node_t* popped = context->font_stack.top;
+    font_handle_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->font_stack.top);
         stack_push(context->font_stack.free, popped);
         context->font_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function font_handle_t
@@ -5013,12 +5067,14 @@ function f32
 ui_pop_font_size() {
     ui_context_t* context = ui_active();
     ui_font_size_node_t* popped = context->font_size_stack.top;
+    f32 result = 0.0f;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->font_size_stack.top);
         stack_push(context->font_size_stack.free, popped);
         context->font_size_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function f32
@@ -5065,12 +5121,14 @@ function color_t
 ui_pop_color_background() {
     ui_context_t* context = ui_active();
     ui_color_background_node_t* popped = context->color_background_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_background_stack.top);
         stack_push(context->color_background_stack.free, popped);
         context->color_background_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5115,12 +5173,14 @@ function color_t
 ui_pop_color_text() {
     ui_context_t* context = ui_active();
     ui_color_text_node_t* popped = context->color_text_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_text_stack.top);
         stack_push(context->color_text_stack.free, popped);
         context->color_text_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5164,12 +5224,14 @@ function color_t
 ui_pop_color_border() {
     ui_context_t* context = ui_active();
     ui_color_border_node_t* popped = context->color_border_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_border_stack.top);
         stack_push(context->color_border_stack.free, popped);
         context->color_border_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5215,12 +5277,14 @@ function color_t
 ui_pop_color_shadow() {
     ui_context_t* context = ui_active();
     ui_color_shadow_node_t* popped = context->color_shadow_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_shadow_stack.top);
         stack_push(context->color_shadow_stack.free, popped);
         context->color_shadow_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5266,12 +5330,14 @@ function color_t
 ui_pop_color_hover() {
     ui_context_t* context = ui_active();
     ui_color_hover_node_t* popped = context->color_hover_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_hover_stack.top);
         stack_push(context->color_hover_stack.free, popped);
         context->color_hover_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5317,12 +5383,14 @@ function color_t
 ui_pop_color_active() {
     ui_context_t* context = ui_active();
     ui_color_active_node_t* popped = context->color_active_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_active_stack.top);
         stack_push(context->color_active_stack.free, popped);
         context->color_active_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5366,12 +5434,14 @@ function color_t
 ui_pop_color_accent() {
     ui_context_t* context = ui_active();
     ui_color_accent_node_t* popped = context->color_accent_stack.top;
+    color_t result = { 0 };
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->color_accent_stack.top);
         stack_push(context->color_accent_stack.free, popped);
         context->color_accent_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function color_t
@@ -5415,12 +5485,14 @@ function os_cursor
 ui_pop_hover_cursor() {
     ui_context_t* context = ui_active();
     ui_hover_cursor_node_t* popped = context->hover_cursor_stack.top;
+    os_cursor result = (os_cursor)0;
     if (popped != nullptr) {
+        result = popped->v;
         stack_pop(context->hover_cursor_stack.top);
         stack_push(context->hover_cursor_stack.free, popped);
         context->hover_cursor_stack.auto_pop = false;
     }
-    return popped->v;
+    return result;
 }
 
 function os_cursor

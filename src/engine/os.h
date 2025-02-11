@@ -238,28 +238,21 @@ struct os_file_info_t {
 };
 
 struct os_system_info_t {
-	// TODO: fill out all the system info we might want.
 	u32 logical_processor_count;
-	str_t machine_name;
-};
-
-struct os_process_info_t {
-	// TODO: fill out all the process info we might want.
-	u32 pid;
 };
 
 // functions
 
 // state (implemented per backends)
-function void         os_init();
-function void         os_release();
-function void         os_update();
-function void         os_abort(u32 exit_code);
-function void         os_sleep(u32 ms);
-function u64          os_time_microseconds();
-function b8           os_any_window_exist();
-function void         os_set_cursor(os_cursor cursor);
-
+function void             os_init();
+function void             os_release();
+function void             os_update();
+function void             os_abort(u32 exit_code);
+function void             os_sleep(u32 ms);
+function u64              os_time_microseconds();
+function b8               os_any_window_exist();
+function void             os_set_cursor(os_cursor cursor);
+function os_system_info_t os_get_system_info();
 
 function os_modifiers os_get_modifiers();
 function b8           os_key_is_down(os_key key);

@@ -12,11 +12,11 @@ enum {
 	camera_mode_clamp_pitch = (1 << 2),
 	camera_mode_clamp_yaw = (1 << 3),
 	camera_mode_clamp_roll = (1 << 4),
-
+    
 	camera_mode_free = 0,
 	camera_mode_first_person = camera_mode_disable_roll | camera_mode_disable_move_in_world_plane | camera_mode_clamp_pitch,
 	camera_mode_orbit = camera_mode_clamp_roll | camera_mode_clamp_pitch
-
+        
 };
 
 // struct
@@ -33,24 +33,24 @@ struct camera_constants_t {
 };
 
 struct camera_t {
-
+    
 	// context
 	os_handle_t window;
 	gfx_handle_t renderer;
-
+    
 	camera_mode mode;
 	camera_constants_t constants;
-
+    
 	// position
 	vec3_t target_position;
 	vec3_t position;
-
+    
 	// orientation
 	quat_t target_orientation;
 	quat_t orientation;
-
+    
 	f32 target_fov;
-
+    
 	f32 fov;
 	f32 z_near;
 	f32 z_far;
@@ -60,15 +60,14 @@ struct camera_t {
 	f32 max_yaw;
 	f32 min_roll;
 	f32 max_roll;
-
+    
 	b8 fps_lock;
-	vec2_t last_mouse_pos;
 };
 
 // functions
 
-function camera_t* camera_create(arena_t*, os_handle_t, gfx_handle_t, f32, f32, f32);
-function void camera_release(camera_t*);
-function void camera_update(camera_t*);
+function camera_t* camera_create(arena_t* arena, os_handle_t window, gfx_handle_t renderer, f32 fov, f32 near, f32 far);
+function void camera_release(camera_t* camera);
+function void camera_update(camera_t* camera, uvec2_t size);
 
 #endif // CAMERA_H

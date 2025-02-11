@@ -13,10 +13,11 @@
 // [ ] - investigate animating layout 
 // [x] - fix panel and view focus
 //     [ ] - animate focus
-// [ ] - fix drop site visuals
+// [x] - fix drop site visuals
 // [ ] - add text edit widget
 // [ ] - add float edit widget
-//
+// [ ] - fix double and triple clik bug.
+// [ ] - something in here causes programs to break in release 
 
 //- enums
 
@@ -30,8 +31,8 @@ enum ui_size_type {
 
 typedef u32 ui_axis;
 enum {
-	ui_axis_x,
-	ui_axis_y,
+	ui_axis_x = 0,
+	ui_axis_y = 1,
 	ui_axis_count,
 };
 
@@ -440,8 +441,6 @@ struct ui_text_op_t {
 	ui_text_point_t mark;
 };
 
-
-
 // frames
 struct ui_frame_t {
     
@@ -473,6 +472,7 @@ struct ui_frame_t {
     vec2_t view_bounds;
     vec2_t view_offset;
     vec2_t view_offset_target;
+    vec2_t view_offset_prev;
     rect_t rect;
     
     // appearance
@@ -514,6 +514,7 @@ struct ui_view_t {
     ui_view_t* prev;
     
     ui_panel_t* parent_panel;
+    rect_t content_rect;
     
     // info
     str_t label;

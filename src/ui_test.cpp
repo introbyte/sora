@@ -1,4 +1,4 @@
-// new_layout.cpp
+// ui_test.cpp
 
 // includes
 
@@ -8,12 +8,14 @@
 #include "engine/gfx.h"
 #include "engine/font.h"
 #include "engine/draw.h"
+#include "engine/task.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
+#include "engine/task.cpp"
 
 // project
 #include "projects/ui/ui.h"
@@ -150,8 +152,6 @@ function void console_view();
 function void node_graph_view();
 function void force_graph_view();
 function void editor_view();
-
-// implementation
 
 // app
 
@@ -546,6 +546,7 @@ app_entry_point(i32 argc, char** argv) {
     
 	// init layers
 	os_init();
+    task_init(8);
 	gfx_init();
 	font_init();
 	draw_init();
@@ -567,6 +568,7 @@ app_entry_point(i32 argc, char** argv) {
 	draw_release();
 	font_release();
 	gfx_release();
+    task_release();
 	os_release();
     
 	printf("[info] successfully closed.\n");

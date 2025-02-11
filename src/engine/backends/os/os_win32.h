@@ -96,6 +96,9 @@ struct os_w32_state_t {
 	arena_t* entity_arena;
 	arena_t* event_list_arena;
 	
+    // system info
+    os_system_info_t system_info;
+    
 	// entities
 	os_w32_entity_t* entity_free;
 	CRITICAL_SECTION entity_mutex;

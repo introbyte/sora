@@ -31,7 +31,7 @@ fg_create() {
 	state->link_strength = 2.0f;
 	state->repulsive_strength = 5000.0f;
 	state->damping = 0.99f;
-	state->iterations = 10;
+	state->iterations = 50;
     
 	return state;
 }

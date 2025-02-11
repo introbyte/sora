@@ -317,15 +317,12 @@ function b8 gfx_texture_format_is_depth(gfx_texture_format format);
 
 // per backend includes
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "vendor/stb_image.h"
-
 #ifdef GFX_BACKEND_D3D11
-	#include "backends/gfx/gfx_d3d11.h"
+#include "backends/gfx/gfx_d3d11.h"
 #elif defined(GFX_BACKEND_OPENGL)
-	#include "backends/gfx/gfx_opengl.h"
+#include "backends/gfx/gfx_opengl.h"
 #elif defined(GFX_BACKEND_METAL)
-	#include "backends/gfx/gfx_metal.h"
+#include "backends/gfx/gfx_metal.h"
 #endif 
 
 #endif // GFX_H 

@@ -85,7 +85,8 @@ draw_begin(gfx_handle_t renderer) {
 	
 	// clear batch arena
 	arena_clear(draw_state.batch_arena);
-	draw_state.batch_first = draw_state.batch_last = nullptr;
+	draw_state.batch_first = nullptr;
+    draw_state.batch_last = nullptr;
     
 	// update pipeline and constant buffer
 	uvec2_t renderer_size = gfx_renderer_get_size(renderer);
@@ -516,20 +517,20 @@ draw_bezier(vec2_t p0, vec2_t p1, vec2_t c0, vec2_t c1) {
 function void
 draw_auto_pop_stacks() {
     
-    if (draw_state.color0_stack.auto_pop) { draw_pop_color0(); draw_state.color0_stack.auto_pop = 0; }
-    if (draw_state.color1_stack.auto_pop) { draw_pop_color1(); draw_state.color1_stack.auto_pop = 0; }
-    if (draw_state.color2_stack.auto_pop) { draw_pop_color2(); draw_state.color2_stack.auto_pop = 0; }
-    if (draw_state.color3_stack.auto_pop) { draw_pop_color3(); draw_state.color3_stack.auto_pop = 0; }
-    if (draw_state.radius0_stack.auto_pop) { draw_pop_radius0(); draw_state.radius0_stack.auto_pop = 0; }
-    if (draw_state.radius1_stack.auto_pop) { draw_pop_radius1(); draw_state.radius1_stack.auto_pop = 0; }
-    if (draw_state.radius2_stack.auto_pop) { draw_pop_radius2(); draw_state.radius2_stack.auto_pop = 0; }
-    if (draw_state.radius3_stack.auto_pop) { draw_pop_radius3(); draw_state.radius3_stack.auto_pop = 0; }
-    if (draw_state.thickness_stack.auto_pop) { draw_pop_thickness(); draw_state.thickness_stack.auto_pop = 0; }
-    if (draw_state.softness_stack.auto_pop) { draw_pop_softness(); draw_state.softness_stack.auto_pop = 0; }
-    if (draw_state.font_stack.auto_pop) { draw_pop_font(); draw_state.font_stack.auto_pop = 0; }
-    if (draw_state.font_size_stack.auto_pop) { draw_pop_font_size(); draw_state.font_size_stack.auto_pop = 0; }
-    if (draw_state.clip_mask_stack.auto_pop) { draw_pop_clip_mask(); draw_state.clip_mask_stack.auto_pop = 0; }
-    if (draw_state.texture_stack.auto_pop) { draw_pop_texture(); draw_state.texture_stack.auto_pop = 0; }
+    if (draw_state.color0_stack.auto_pop) { draw_pop_color0(); draw_state.color0_stack.auto_pop = false; }
+    if (draw_state.color1_stack.auto_pop) { draw_pop_color1(); draw_state.color1_stack.auto_pop = false; }
+    if (draw_state.color2_stack.auto_pop) { draw_pop_color2(); draw_state.color2_stack.auto_pop = false; }
+    if (draw_state.color3_stack.auto_pop) { draw_pop_color3(); draw_state.color3_stack.auto_pop = false; }
+    if (draw_state.radius0_stack.auto_pop) { draw_pop_radius0(); draw_state.radius0_stack.auto_pop = false; }
+    if (draw_state.radius1_stack.auto_pop) { draw_pop_radius1(); draw_state.radius1_stack.auto_pop = false; }
+    if (draw_state.radius2_stack.auto_pop) { draw_pop_radius2(); draw_state.radius2_stack.auto_pop = false; }
+    if (draw_state.radius3_stack.auto_pop) { draw_pop_radius3(); draw_state.radius3_stack.auto_pop = false; }
+    if (draw_state.thickness_stack.auto_pop) { draw_pop_thickness(); draw_state.thickness_stack.auto_pop = false; }
+    if (draw_state.softness_stack.auto_pop) { draw_pop_softness(); draw_state.softness_stack.auto_pop = false; }
+    if (draw_state.font_stack.auto_pop) { draw_pop_font(); draw_state.font_stack.auto_pop = false; }
+    if (draw_state.font_size_stack.auto_pop) { draw_pop_font_size(); draw_state.font_size_stack.auto_pop = false; }
+    if (draw_state.clip_mask_stack.auto_pop) { draw_pop_clip_mask(); draw_state.clip_mask_stack.auto_pop = false; }
+    if (draw_state.texture_stack.auto_pop) { draw_pop_texture(); draw_state.texture_stack.auto_pop = false; }
     
 }
 
@@ -556,12 +557,14 @@ draw_push_color0(color_t v) {
 function color_t 
 draw_pop_color0() {
 	draw_color0_node_t* popped = draw_state.color0_stack.top; 
+    color_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.color0_stack.top); 
 		stack_push(draw_state.color0_stack.free, popped);
 		draw_state.color0_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function color_t 
@@ -603,12 +606,14 @@ draw_push_color1(color_t v) {
 function color_t 
 draw_pop_color1() {
 	draw_color1_node_t* popped = draw_state.color1_stack.top; 
+	color_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.color1_stack.top); 
 		stack_push(draw_state.color1_stack.free, popped);
 		draw_state.color1_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function color_t 
@@ -650,12 +655,14 @@ draw_push_color2(color_t v) {
 function color_t 
 draw_pop_color2() {
 	draw_color2_node_t* popped = draw_state.color2_stack.top; 
+	color_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.color2_stack.top); 
 		stack_push(draw_state.color2_stack.free, popped);
 		draw_state.color2_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function color_t 
@@ -696,12 +703,14 @@ draw_push_color3(color_t v) {
 function color_t 
 draw_pop_color3() {
 	draw_color3_node_t* popped = draw_state.color3_stack.top; 
+	color_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.color3_stack.top); 
 		stack_push(draw_state.color3_stack.free, popped);
 		draw_state.color3_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function color_t 
@@ -743,12 +752,14 @@ draw_push_radius0(f32 v) {
 function f32 
 draw_pop_radius0() {
 	draw_radius0_node_t* popped = draw_state.radius0_stack.top; 
+    f32 result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.radius0_stack.top); 
 		stack_push(draw_state.radius0_stack.free, popped);
 		draw_state.radius0_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -791,12 +802,14 @@ draw_push_radius1(f32 v) {
 function f32 
 draw_pop_radius1() {
 	draw_radius1_node_t* popped = draw_state.radius1_stack.top; 
+    f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.radius1_stack.top); 
 		stack_push(draw_state.radius1_stack.free, popped);
 		draw_state.radius1_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -839,12 +852,14 @@ draw_push_radius2(f32 v) {
 function f32 
 draw_pop_radius2() {
 	draw_radius2_node_t* popped = draw_state.radius2_stack.top; 
+    f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.radius2_stack.top); 
 		stack_push(draw_state.radius2_stack.free, popped);
 		draw_state.radius2_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -887,12 +902,14 @@ draw_push_radius3(f32 v) {
 function f32 
 draw_pop_radius3() {
 	draw_radius3_node_t* popped = draw_state.radius3_stack.top; 
+    f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.radius3_stack.top); 
 		stack_push(draw_state.radius3_stack.free, popped);
 		draw_state.radius3_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -938,12 +955,14 @@ draw_push_thickness(f32 v) {
 function f32 
 draw_pop_thickness() {
 	draw_thickness_node_t* popped = draw_state.thickness_stack.top; 
+	f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.thickness_stack.top); 
 		stack_push(draw_state.thickness_stack.free, popped);
 		draw_state.thickness_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -986,12 +1005,14 @@ draw_push_softness(f32 v) {
 function f32 
 draw_pop_softness() {
 	draw_softness_node_t* popped = draw_state.softness_stack.top; 
+	f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.softness_stack.top); 
 		stack_push(draw_state.softness_stack.free, popped);
 		draw_state.softness_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -1034,12 +1055,14 @@ draw_push_font(font_handle_t v) {
 function font_handle_t 
 draw_pop_font() {
 	draw_font_node_t* popped = draw_state.font_stack.top; 
+    font_handle_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.font_stack.top); 
 		stack_push(draw_state.font_stack.free, popped);
 		draw_state.font_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function font_handle_t 
@@ -1082,12 +1105,14 @@ draw_push_font_size(f32 v) {
 function f32 
 draw_pop_font_size() {
 	draw_font_size_node_t* popped = draw_state.font_size_stack.top; 
+	f32 result = 0.0f;
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.font_size_stack.top); 
 		stack_push(draw_state.font_size_stack.free, popped);
 		draw_state.font_size_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function f32 
@@ -1131,12 +1156,14 @@ draw_push_clip_mask(rect_t v) {
 function rect_t 
 draw_pop_clip_mask() {
 	draw_clip_mask_node_t* popped = draw_state.clip_mask_stack.top; 
+    rect_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.clip_mask_stack.top); 
 		stack_push(draw_state.clip_mask_stack.free, popped);
 		draw_state.clip_mask_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function rect_t 
@@ -1179,12 +1206,14 @@ draw_push_texture(gfx_handle_t v) {
 function gfx_handle_t 
 draw_pop_texture() {
 	draw_texture_node_t* popped = draw_state.texture_stack.top; 
+    gfx_handle_t result = { 0 };
 	if (popped != 0) {
+        result = popped->v;
 		stack_pop(draw_state.texture_stack.top); 
 		stack_push(draw_state.texture_stack.free, popped);
 		draw_state.texture_stack.auto_pop = false;
 	} 
-	return popped->v;
+	return result;
 }
 
 function gfx_handle_t 

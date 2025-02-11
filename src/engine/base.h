@@ -18,23 +18,31 @@
 
 // includes
 
-// context
-#if defined(_WIN32)
-#define OS_BACKEND_WIN32
-#define GFX_BACKEND_D3D11
-#define AUD_BACKEND_WASAPI
-#define FNT_BACKEND_DWRITE
-#elif defined(__APPLE__) && defined(__MACH__)
-#define OS_BACKEND_MACOS
-#define GFX_BACKEND_METAL
-#define AUD_BACKEND_CORE_AUDIO
-#define FNT_BACKEND_CORE_TEXT
-#elif defined(__linux__)
-#define OS_BACKEND_LINUX
-#define GFX_BACKEND_OPENGL
-#define AUD_BACKEND_ALSA
-#define FNT_BACKEND_FREETYPE
+// compiler context
+#if defined(__clang__)
+#define COMPILER_CLANG 1
+#elif defined(_MSC_VER)
+#define COMPILER_MSVC 1
+#elif defined(__GNUC__) || defined(__GNUG__)
+#define COMPILER_GCC 1
+#endif
 
+// os context
+#if defined(_WIN32)
+#define OS_BACKEND_WIN32 1
+#define GFX_BACKEND_D3D11 1
+#define AUD_BACKEND_WASAPI 1
+#define FNT_BACKEND_DWRITE 1
+#elif defined(__APPLE__) && defined(__MACH__)
+#define OS_BACKEND_MACOS 1
+#define GFX_BACKEND_METAL 1
+#define AUD_BACKEND_CORE_AUDIO 1
+#define FNT_BACKEND_CORE_TEXT 1
+#elif defined(__linux__) 
+#define OS_BACKEND_LINUX 1
+#define GFX_BACKEND_OPENGL 1
+#define AUD_BACKEND_ALSA 1
+#define FNT_BACKEND_FREETYPE 1
 #endif
 
 #define BASE_USE_SIMD 1
@@ -137,7 +145,6 @@
 
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 
-
 // typedefs
 
 typedef unsigned char u8;
@@ -156,6 +163,27 @@ typedef double f64;
 typedef const char* cstr;
 
 typedef bool b8;
+
+// atmomics
+
+#if COMPILER_MSVC
+
+#define atomic_u64_inc(x) InterlockedIncrement64((volatile __int64*)(x))
+#define atomic_u64_dec(x) InterlockedDecrement64((volatile __int64*)(x))
+#define atomic_u64_assign(x, c) InterlockedExchange64((volatile __int64*)(x), (c))
+#define atomic_u64_add(x, c) InterlockedAdd64((volatile __int64*)(x), (c))
+#define atomic_u64_cond_assign(x, k, c) InterlockedCompareExchange64((volatile __int64*)(x), (k), (c))
+
+#define atomic_u32_inc(x) InterlockedIncrement((volatile LONG*)(x))
+#define atomic_u32_dec(x) InterlockedDecrement((volatile LONG*)(x))
+#define atomic_u32_assign(x, c) InterlockedExchange((volatile LONG*)(x), (c))
+#define atomic_u32_add(x, c) InterlockedAdd((volatile LONG*)(x), (c))
+#define atomic_u32_cond_assign(x, k, c) InterlockedCompareExchange((volatile LONG*)(x), (k), (c))
+
+#elif COMPILER_CLANG || COMPILER_GCC
+// not supported yet
+#endif 
+
 
 // enums
 

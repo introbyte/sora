@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 	return app_entry_point(argc, argv);
 }
 #elif defined(BUILD_RELEASE)
-int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
 	global_scratch_arena = arena_create(gigabytes(2));
 	return app_entry_point(__argc, __argv);
 }
@@ -54,37 +54,38 @@ arena_release(arena_t* arena) {
 
 function void*
 arena_alloc(arena_t* arena, u64 size) {
+    void* result = nullptr;
     
 	if (arena == nullptr) {
 		printf("[error] arena was not initialized!\n");
 		os_abort(1);
-	}
-    
-	void* result = nullptr;
-    
-	if (arena->pos + size <= arena->size) {
-        
-		u8* base = (u8*)arena;
-        
-		// align
-		u64 post_align_pos = (arena->pos + (arena->align - 1));
-		post_align_pos -= post_align_pos % arena->align;
-		u64 align = post_align_pos - arena->pos;
-		result = base + arena->pos + align;
-		arena->pos += size + align;
-        
-		// commit
-		if (arena->commit_pos < arena->pos) {
-			u64 size_to_commit = arena->pos - arena->commit_pos;
-			size_to_commit += arena_commit_size - 1;
-			size_to_commit -= size_to_commit % arena_commit_size;
-			os_mem_commit(base + arena->commit_pos, size_to_commit);
-			arena->commit_pos += size_to_commit;
-		}
-        
 	} else {
-		printf("[error] arena is full.\n");
-	}
+        
+        if (arena->pos + size <= arena->size) {
+            
+            u8* base = (u8*)arena;
+            
+            // align
+            u64 post_align_pos = (arena->pos + (arena->align - 1));
+            post_align_pos -= post_align_pos % arena->align;
+            u64 align = post_align_pos - arena->pos;
+            result = base + arena->pos + align;
+            arena->pos += size + align;
+            
+            // commit
+            if (arena->commit_pos < arena->pos) {
+                u64 size_to_commit = arena->pos - arena->commit_pos;
+                size_to_commit += arena_commit_size - 1;
+                size_to_commit -= size_to_commit % arena_commit_size;
+                os_mem_commit(base + arena->commit_pos, size_to_commit);
+                arena->commit_pos += size_to_commit;
+            }
+            
+        } else {
+            printf("[error] arena is full.\n");
+        }
+        
+    }
     
 	return result;
 }
@@ -578,9 +579,9 @@ str_split(arena_t* arena, str_t string, u8* splits, u32 split_count) {
 			}
 		}
         
-		str_t string = str_range(first, ptr);
-		if (string.size > 0) {
-			str_list_push(arena, &list, string);
+		str_t sub_string = str_range(first, ptr);
+		if (sub_string.size > 0) {
+			str_list_push(arena, &list, sub_string);
 		}
 		ptr += 1;
 	}
@@ -1913,7 +1914,7 @@ mat4_scale(vec3_t scale) {
 
 inlnfunc mat4_t
 mat4_orthographic(f32 left, f32 right, f32 top, f32 bottom, f32 z_near, f32 z_far) {
-	mat4_t r;
+	mat4_t r = { 0 };
 	return r;
 }
 
@@ -1939,7 +1940,7 @@ mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
 	vec3_t r = vec3_normalize(vec3_cross(f, up));
 	vec3_t u = vec3_cross(r, f);
     
-	mat4_t v;
+	mat4_t v = { 0 };
     
 	return v;
 }
@@ -2236,7 +2237,7 @@ color_hsv_to_rgb(color_t hsv) {
 
 function color_t 
 color_blend(color_t src, color_t dst, color_blend_mode mode) {
-	color_t result;
+	color_t result = { 0 };
     
 	switch (mode) {
 		case color_blend_mode_normal: {
@@ -2284,7 +2285,6 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 			result.a = b.a * (1.0f - f.a) + f.a;*/
 			break;
 		}
-        
         
 	}
     

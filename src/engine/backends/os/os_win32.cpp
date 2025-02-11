@@ -29,6 +29,11 @@ os_init() {
 	os_state.window_last = nullptr;
 	os_state.window_free = nullptr;
     
+    // system info
+    SYSTEM_INFO w32_system_info = { 0 };
+    GetSystemInfo(&w32_system_info);
+    os_state.system_info.logical_processor_count = (u32)w32_system_info.dwNumberOfProcessors;
+    
 	// time
 	timeBeginPeriod(1);
 	QueryPerformanceFrequency(&os_state.time_frequency);
@@ -146,13 +151,21 @@ os_set_cursor(os_cursor cursor) {
 	}
 }
 
+function os_system_info_t 
+os_get_system_info() {
+    return os_state.system_info;
+}
+
+
 function color_t
 os_get_sys_color(os_sys_color id) {
 	
+    // TODO: this is kinda hacky.
+    
 	DWORD result_color;
     
 	if (id == os_sys_color_accent) {
-		DWORD size;
+		DWORD size = 0;
 		RegGetValueA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\DWM", "AccentColor", RRF_RT_REG_DWORD, nullptr, &result_color, &size);
 		printf("%x\n", result_color);
 	} else {
@@ -194,7 +207,11 @@ os_key_is_down(os_key key) {
 
 function b8
 os_mouse_is_down(os_mouse_button button) {
-    
+    b8 down = false;
+	if (GetKeyState(button) & 0x8000) {
+		down = true;
+	}
+	return down;
 }
 
 // window functions
@@ -258,16 +275,19 @@ os_window_close(os_handle_t handle) {
     
 	os_w32_window_t* window = os_w32_window_from_handle(handle);
     
-	// remove from list and push to free list
-	dll_remove(os_state.window_first, os_state.window_last, window);
-	stack_push(os_state.window_free, window);
-    
-	// release arena if needed
-	if (window->title_bar_arena != nullptr) { arena_release(window->title_bar_arena); }
-    
-	// destroy window
-	if (window->handle != nullptr) { DestroyWindow(window->handle);  }
-    
+    if (window != nullptr) {
+        
+        // remove from list and push to free list
+        dll_remove(os_state.window_first, os_state.window_last, window);
+        stack_push(os_state.window_free, window);
+        
+        // release arena if needed
+        if (window->title_bar_arena != nullptr) { arena_release(window->title_bar_arena); }
+        
+        // destroy window
+        if (window->handle != nullptr) { DestroyWindow(window->handle);  }
+        
+    }
 }
 
 function void 
@@ -462,7 +482,10 @@ os_mem_commit(void* ptr, u64 size) {
 
 function void
 os_mem_decommit(void* ptr, u64 size) {
+# pragma warning( push )
+# pragma warning( disable : 6250 )
 	VirtualFree(ptr, size, MEM_DECOMMIT);
+# pragma warning( pop )
 }
 
 
@@ -509,7 +532,7 @@ os_file_read_range(arena_t* arena, os_handle_t file, u32 start, u32 length) {
 	
 	HANDLE handle = (HANDLE)file.data[0];
     
-	str_t result;
+	str_t result = { 0 };
 	LARGE_INTEGER off_li = { 0 };
 	off_li.QuadPart = start;
     
@@ -536,6 +559,7 @@ os_file_read_range(arena_t* arena, os_handle_t file, u32 start, u32 length) {
 			}
 		}
 	}
+    
 	return result;
     
 }
@@ -713,7 +737,15 @@ os_thread_create(os_thread_function_t* thread_function, str_t name = str("")) {
     
 	entity->thread.func = thread_function;
 	entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.thread_id);
-	
+    
+    // set name
+    if (entity->thread.handle != 0) {
+        temp_t scratch = scratch_begin();
+        str16_t thread_wide = str16_from_str(scratch.arena, name);
+        SetThreadDescription(entity->thread.handle, (WCHAR*)thread_wide.data);
+        scratch_end(scratch);
+    }
+    
 	os_handle_t handle = { (u64)entity };
 	return handle;
 }
@@ -750,9 +782,10 @@ os_thread_set_name(os_handle_t thread, str_t name) {
 	os_w32_entity_t* entity = (os_w32_entity_t*)(thread.data[0]);
     
 	if (entity != nullptr) {
-		// TODO: get scratch arena here
-		//str16_t thread_wide = str_to_str16(os_state.scratch_arena, name);
-		//SetThreadDescription(entity->thread.handle, (WCHAR*)thread_wide.data);
+        temp_t scratch = scratch_begin();
+		str16_t thread_wide = str16_from_str(scratch.arena, name);
+		SetThreadDescription(entity->thread.handle, (WCHAR*)thread_wide.data);
+        scratch_end(scratch);
 	}
 }
 
