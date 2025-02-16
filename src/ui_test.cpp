@@ -8,20 +8,19 @@
 #include "engine/gfx.h"
 #include "engine/font.h"
 #include "engine/draw.h"
-#include "engine/task.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
 #include "engine/gfx.cpp"
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
-#include "engine/task.cpp"
+
 
 // project
-#include "projects/ui/ui.h"
+#include "engine/ui.h"
 #include "projects/graphs/force_graph.h"
 
-#include "projects/ui/ui.cpp"
+#include "engine/ui.cpp"
 #include "projects/graphs/force_graph.cpp"
 
 // file iter queue
@@ -546,7 +545,7 @@ app_entry_point(i32 argc, char** argv) {
     
 	// init layers
 	os_init();
-    task_init(8);
+   
 	gfx_init();
 	font_init();
 	draw_init();
@@ -568,7 +567,7 @@ app_entry_point(i32 argc, char** argv) {
 	draw_release();
 	font_release();
 	gfx_release();
-    task_release();
+    
 	os_release();
     
 	printf("[info] successfully closed.\n");

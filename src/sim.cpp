@@ -21,10 +21,10 @@
 #include "engine/ui.cpp"
 
 #include "projects/render/render_graph.h"
-#include "projects/graphs/node_graph.h"
+//#include "projects/graphs/node_graph.h"
 
 #include "projects/render/render_graph.cpp"
-#include "projects/graphs/node_graph.cpp"
+//#include "projects/graphs/node_graph.cpp"
 
 
 #include "utils/mesh.h"
@@ -57,7 +57,7 @@ global mat4_t view_proj;
 global rg_graph_t* render_graph;
 global rg_pass_t* scene_pass;
 
-global ng_graph_t* node_graph;
+//global ng_graph_t* node_graph;
 
 // assets
 global gfx_handle_t shader;
@@ -125,12 +125,12 @@ app_init() {
     rg_graph_build(render_graph);
     
     // create node graph
-    node_graph = ng_graph_create();
+    /*node_graph = ng_graph_create();
     for (rg_pass_list_node_t* node = render_graph->execute_last; node != nullptr; node = node->prev) {
         rg_pass_t* pass = node->pass;
         vec2_t pos = vec2(random_f32_range(50.0f, 200.0f), random_f32_range(50.0f, 400.0f));
         ng_node_create(node_graph, pass->label, pos);
-    }
+    }*/
     
     // create camera
     //camera = camera_create(arena, window, renderer, 75.0f, 0.01f, 100.0f);
@@ -246,7 +246,7 @@ render_graph_view() {
     ui_push_parent(background_frame);
     ui_push_rounding(vec4(4.0f));
     
-    for (ng_node_t* node = node_graph->node_first; node != nullptr; node = node->next) {
+    /*for (ng_node_t* node = node_graph->node_first; node != nullptr; node = node->next) {
         
         // build container
         ui_frame_flags container_flags =
@@ -304,7 +304,7 @@ render_graph_view() {
             node->pos.y += mouse_delta.y;
         }
         
-    }
+    }*/
     
     ui_pop_rounding();
     ui_pop_parent();
@@ -414,7 +414,7 @@ scene_pass_setup(rg_pass_t* pass) {
     
     gfx_render_target_desc_t desc = { 0 };
     desc.size = uvec2(585, 691);
-    desc.sample_count = 8;
+    desc.sample_count = 1;
     desc.flags = 0;
     desc.format = gfx_texture_format_rgba8;
     
@@ -439,7 +439,6 @@ scene_pass_execute(rg_pass_t* pass) {
         gfx_render_target_resize(render_target, viewport_size);
     }
     
-    
     // set view projection
     f32 et = os_window_get_elapsed_time(window);
     mat4_t view = mat4_translate(vec3(10.0f * sinf(et), 0.5f, 10.0f * cosf(et)));
@@ -452,8 +451,8 @@ scene_pass_execute(rg_pass_t* pass) {
     pipeline.scissor = rect(0.0f, 0.0f, (f32)viewport_size.x, (f32)viewport_size.y);
     
     // draw
-    gfx_set_render_target(render_target);
     gfx_render_target_clear(render_target, color(0x010509ff));
+    gfx_set_render_target(render_target);
     draw_3d_begin();
     draw_3d_set_constants(&view_proj, sizeof(mat4_t), 0);
     

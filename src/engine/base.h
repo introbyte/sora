@@ -30,7 +30,8 @@
 // os context
 #if defined(_WIN32)
 #define OS_BACKEND_WIN32 1
-#define GFX_BACKEND_D3D11 1
+#define GFX_BACKEND_OPENGL 1
+//#define GFX_BACKEND_D3D11 1
 #define AUD_BACKEND_WASAPI 1
 #define FNT_BACKEND_DWRITE 1
 #elif defined(__APPLE__) && defined(__MACH__)
@@ -559,6 +560,8 @@ function str_t str_formatv(arena_t* arena, char* fmt, va_list args);
 function str_t str_format(arena_t* arena, char* fmt, ...);
 function void str_scan(str_t string, char* fmt, ...);
 function u32 str_find_word_index(str_t string, u32 start_index, i32 dir);
+function u64 str_hash(u64 seed, str_t string);
+
 
 // str list
 function void str_list_push_node(str_list_t* list, str_node_t* node);

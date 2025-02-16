@@ -3,10 +3,32 @@
 #ifndef NODE_GRAPH_CPP
 #define NODE_GRAPH_CPP
 
+//- key functions
 
-// implementation
+function ng_key_t 
+ng_key_from_string(ng_key_t seed, str_t string) {
+    ng_key_t key = { 0 };
+    u64 hash = str_hash(seed.data[0], string);
+    key.data[0] = hash;
+    return key;
+}
 
-// node state
+function ng_key_t
+ng_key_from_stringf(ng_key_t seed, char* fmt, ...) {
+    temp_t scratch = scratch_begin();
+    
+    va_list args;
+    va_start(args, fmt);
+    str_t string = str_formatv(scratch.arena, fmt, args);
+    va_end(args);
+    
+    ng_key_t result = ng_key_from_string(seed, string);
+    
+    scratch_end(scratch);
+    return result;
+}
+
+//- node graph
 
 function ng_graph_t*
 ng_graph_create() {
@@ -23,12 +45,10 @@ ng_graph_create() {
 	graph->node_first = nullptr;
 	graph->node_last = nullptr;
 	graph->node_free = nullptr;
-	graph->node_count = 0;
     
 	graph->link_first = nullptr;
 	graph->link_last = nullptr;
 	graph->link_free = nullptr;
-	graph->link_count = 0;
     
 	return graph;
 }
@@ -53,7 +73,6 @@ ng_node_create(ng_graph_t* graph, str_t label, vec2_t pos) {
 	}
 	memset(node, 0, sizeof(ng_node_t));
 	dll_push_back(graph->node_first, graph->node_last, node);
-	graph->node_count++;
     
 	// fill struct
 	node->label = label;
@@ -69,7 +88,6 @@ ng_node_release(ng_graph_t* graph, ng_node_t* node) {
 	// remove from list and push to free list
 	dll_remove(graph->node_first, graph->node_last, node);
 	stack_push(graph->node_free, node);
-	graph->node_count--;
 }
 
 function void
@@ -82,17 +100,17 @@ ng_node_bring_to_front(ng_graph_t* graph, ng_node_t* node) {
 
 // connection
 
-function ng_link_t*
+function ng_edge_t*
 ng_link_create(ng_graph_t* graph, ng_node_t* from, ng_node_t* to) {
     
 	// grab from free list of allocate one.
-	ng_link_t* connection = graph->link_free;
+	ng_edge_t* connection = graph->link_free;
 	if (connection != nullptr) {
 		stack_pop(graph->link_free);
 	} else {
-		connection = (ng_link_t*)arena_alloc(graph->arena, sizeof(ng_link_t));
+		connection = (ng_edge_t*)arena_alloc(graph->arena, sizeof(ng_edge_t));
 	}
-	memset(connection, 0, sizeof(ng_link_t));
+	memset(connection, 0, sizeof(ng_edge_t));
 	dll_push_back(graph->link_first, graph->link_last, connection);
 	graph->link_count++;
     
@@ -104,7 +122,7 @@ ng_link_create(ng_graph_t* graph, ng_node_t* from, ng_node_t* to) {
 }
 
 function void
-ng_link_release(ng_graph_t* graph, ng_link_t* connection) {
+ng_link_release(ng_graph_t* graph, ng_edge_t* connection) {
 	dll_remove(graph->link_first, graph->link_last, connection);
 	stack_push(graph->link_free, connection);
 	graph->link_count--;

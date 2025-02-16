@@ -177,21 +177,21 @@ font_dwrite_init() {
     
 	// create dwrite factory
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&font_dwrite_state.dwrite_factory);
-	gfx_assert(hr, "failed to create dwrite factory.");
+	//gfx_assert(hr, "failed to create dwrite factory.");
     
 	// create rendering params
 	hr = font_dwrite_state.dwrite_factory->CreateRenderingParams(&font_dwrite_state.rendering_params);
-	gfx_assert(hr, "failed to create dwrite rendering params.");
+	//gfx_assert(hr, "failed to create dwrite rendering params.");
     
 	f32 gamma = font_dwrite_state.rendering_params->GetGamma();
 	f32 enhanced_contrast = font_dwrite_state.rendering_params->GetEnhancedContrast();
 	f32 clear_type_level = font_dwrite_state.rendering_params->GetClearTypeLevel();
 	hr = font_dwrite_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_GDI_NATURAL, &font_dwrite_state.rendering_params);
-	gfx_assert(hr, "failed to create custom dwrite rendering params.");
+	//gfx_assert(hr, "failed to create custom dwrite rendering params.");
     
 	// create gdi interop
 	hr = font_dwrite_state.dwrite_factory->GetGdiInterop(&font_dwrite_state.gdi_interop);
-	gfx_assert(hr, "failed to create gdi interop.");
+	//gfx_assert(hr, "failed to create gdi interop.");
 	
 }
 

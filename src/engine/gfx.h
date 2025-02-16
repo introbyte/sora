@@ -28,6 +28,16 @@
 
 // enums
 
+enum gfx_resource_type {
+	gfx_resource_type_null,
+	gfx_resource_type_buffer,
+	gfx_resource_type_texture,
+	gfx_resource_type_shader,
+	gfx_resource_type_compute_shader,
+	gfx_resource_type_render_target,
+	gfx_resource_type_count,
+};
+
 enum gfx_usage {
 	gfx_usage_null,
 	gfx_usage_static,
@@ -317,8 +327,10 @@ function b8 gfx_texture_format_is_depth(gfx_texture_format format);
 
 // per backend includes
 
-#ifdef GFX_BACKEND_D3D11
+#if defined(GFX_BACKEND_D3D11)
 #include "backends/gfx/gfx_d3d11.h"
+#elif defined(GFX_BACKEND_D3D12)
+#include "backends/gfx/gfx_d3d12.h"
 #elif defined(GFX_BACKEND_OPENGL)
 #include "backends/gfx/gfx_opengl.h"
 #elif defined(GFX_BACKEND_METAL)

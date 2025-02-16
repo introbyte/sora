@@ -589,6 +589,17 @@ str_split(arena_t* arena, str_t string, u8* splits, u32 split_count) {
 	return(list);
 }
 
+function u64
+str_hash(u64 seed, str_t string) {
+    u64 result = seed;
+    if (string.size != 0) {
+        for (u64 i = 0; i < string.size; i += 1) {
+            result = ((result << 5) + result) + string.data[i];
+        }
+    }
+    return result;
+}
+
 
 // str16 functions
 

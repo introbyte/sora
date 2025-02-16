@@ -29,8 +29,8 @@ struct task_counter_t {
 };
 
 struct task_fiber_t {
-    
-}
+
+};
 
 struct task_queue_t {
     task_queue_t* next;

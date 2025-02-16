@@ -6,7 +6,6 @@
 // include libs
 #pragma comment(lib, "d3d11")
 #pragma comment(lib, "d3dcompiler")
-#pragma comment(lib, "dwrite")
 
 // implementation
 
@@ -589,8 +588,8 @@ gfx_blit(gfx_handle_t dst, gfx_handle_t src) {
 	// figure out dst resource
 	gfx_d3d11_resource_t* resource_dst = (gfx_d3d11_resource_t*)(dst.data[0]);
 	switch (resource_dst->type) {
-		case gfx_d3d11_resource_type_texture: { texture_dst = dst; break; }
-		case gfx_d3d11_resource_type_render_target: {
+		case gfx_resource_type_texture: { texture_dst = dst; break; }
+		case gfx_resource_type_render_target: {
 			texture_dst = resource_dst->render_target.color_texture;
 			break;
 		}
@@ -599,8 +598,8 @@ gfx_blit(gfx_handle_t dst, gfx_handle_t src) {
 	// figure out src resource
 	gfx_d3d11_resource_t* resource_src = (gfx_d3d11_resource_t*)(src.data[0]);
 	switch (resource_src->type) {
-		case gfx_d3d11_resource_type_texture: { texture_src = src; break; }
-		case gfx_d3d11_resource_type_render_target: {
+		case gfx_resource_type_texture: { texture_src = src; break; }
+		case gfx_resource_type_render_target: {
 			texture_src = resource_src->render_target.color_texture;
 			break;
 		}
@@ -783,7 +782,7 @@ function gfx_handle_t
 gfx_buffer_create_ex(gfx_buffer_desc_t desc, void* data) {
     
 	// get from resource pool or create one
-	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_buffer);
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_resource_type_buffer);
     
 	// fill description
 	resource->buffer_desc = desc;
@@ -849,7 +848,7 @@ gfx_buffer_fill(gfx_handle_t buffer, void* data, u32 size) {
 function gfx_handle_t
 gfx_texture_create_ex(gfx_texture_desc_t desc, void* data) {
     
-	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_texture);
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_resource_type_texture);
     HRESULT hr = 0;
 	
 	// fill description
@@ -1173,7 +1172,7 @@ function gfx_handle_t
 gfx_shader_create_ex(str_t src, gfx_shader_desc_t desc) {
     
 	// get from resource pool or create
-	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_shader);
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_resource_type_shader);
     
 	// fill description
 	resource->shader_desc= desc;
@@ -1353,7 +1352,7 @@ function gfx_handle_t
 gfx_compute_shader_create_ex(str_t src, gfx_compute_shader_desc_t desc) {
     
 	// get from resource pool or create
-	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_compute_shader);
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_resource_type_compute_shader);
     
 	// fill description
 	resource->compute_shader_desc = desc;
@@ -1485,7 +1484,7 @@ function gfx_handle_t
 gfx_render_target_create_ex(gfx_render_target_desc_t desc) {
     
 	// get a resource and fill desc
-	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_d3d11_resource_type_render_target);
+	gfx_d3d11_resource_t* resource = gfx_d3d11_resource_create(gfx_resource_type_render_target);
 	resource->render_target_desc = desc;
 	
 	// create handle
@@ -1679,7 +1678,7 @@ gfx_d3d11_handle_from_renderer(gfx_d3d11_renderer_t* renderer) {
 // resource functions
 
 function gfx_d3d11_resource_t* 
-gfx_d3d11_resource_create(gfx_d3d11_resource_type type) {
+gfx_d3d11_resource_create(gfx_resource_type type) {
     
 	// grab from free list of allocate one
 	gfx_d3d11_resource_t* resource = gfx_state.resource_free;
