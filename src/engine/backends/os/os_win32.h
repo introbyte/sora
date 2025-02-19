@@ -4,6 +4,8 @@
 #define OS_WIN32_H
 
 // includes
+#define WIN32_LEAN_AND_MEAN 1
+#define NOMINMAX
 #include <windows.h>
 #include <timeapi.h>
 #include <dwmapi.h>

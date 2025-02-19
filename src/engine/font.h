@@ -22,9 +22,9 @@ struct font_metrics_t {
 struct font_glyph_t {
 	font_glyph_t* next;
 	font_glyph_t* prev;
-
+    
 	u32 hash;
-
+    
 	rect_t pos;
 	rect_t uv;
 	f32 advance;
@@ -41,21 +41,21 @@ struct font_atlas_node_t {
 	font_atlas_node_t* parent;
 	font_atlas_node_t* children[4];
 	u32 child_count;
-
+    
 	vec2_t max_free_size[4];
 	b8 taken;
 };
 
 struct font_state_t {
-
+    
 	// arena
 	arena_t* atlas_arena;
 	arena_t* glyph_arena;
-
+    
 	// glyph list
 	font_glyph_t* glyph_first;
 	font_glyph_t* glyph_last;
-
+    
 	// atlas
 	vec2_t root_size;
 	font_atlas_node_t* root;
@@ -86,6 +86,7 @@ function font_raster_t  font_glyph_raster(arena_t* arena, font_handle_t font, f3
 function font_glyph_t* font_get_glyph(font_handle_t font, f32 size, u32 codepoint);
 function f32           font_text_get_width(font_handle_t font, f32 size, str_t string);
 function f32           font_text_get_height(font_handle_t font, f32 size, str_t string);
+function vec2_t font_align(str_t text, font_handle_t font, f32 size, rect_t rect);
 
 function str_t font_text_truncate(arena_t* arena, font_handle_t font, f32 font_size, str_t string, f32 max_width, str_t trail_string);
 
@@ -96,11 +97,11 @@ function vec2_t font_atlas_add(vec2_t);
 // include backends
 
 #if defined(FNT_BACKEND_DWRITE)
-	#include "backends/font/font_dwrite.h"
+#include "backends/font/font_dwrite.h"
 #elif defined(FNT_BACKEND_CORE_TEXT)
-	// not implemented
+// not implemented
 #elif defined(FNT_BACKEND_FREETYPE)
-	// not implemented
+// not implemented
 #endif 
 
 #endif // FONT_H

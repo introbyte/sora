@@ -30,16 +30,16 @@ gfx_pipeline_create() {
 function b8
 gfx_pipeline_equals(gfx_pipeline_t a, gfx_pipeline_t b) {
 	b8 result = (
-		a.fill_mode == b.fill_mode &&
-		a.cull_mode == b.cull_mode &&
-		a.topology == b.topology &&
-		a.filter_mode == b.filter_mode &&
-		a.wrap_mode == b.wrap_mode &&
-		a.depth_mode == b.depth_mode &&
-		rect_equals(a.viewport, b.viewport) &&
-		rect_equals(a.scissor, b.scissor)
-	);
-
+                 a.fill_mode == b.fill_mode &&
+                 a.cull_mode == b.cull_mode &&
+                 a.topology == b.topology &&
+                 a.filter_mode == b.filter_mode &&
+                 a.wrap_mode == b.wrap_mode &&
+                 a.depth_mode == b.depth_mode &&
+                 rect_equals(a.viewport, b.viewport) &&
+                 rect_equals(a.scissor, b.scissor)
+                 );
+    
 	return result;
 }
 
@@ -60,11 +60,15 @@ gfx_texture_format_is_depth(gfx_texture_format format) {
 // per backend includes
 
 #ifdef GFX_BACKEND_D3D11
-#include "backends/gfx/gfx_d3d11.cpp"
-#elif defined(GFX_BACKEND_OPENGL)
+#    include "backends/gfx/gfx_d3d11.cpp"
+#elif GFX_BACKEND_D3D12
+#    include "backends/gfx/gfx_d3d12.cpp"
+#elif GFX_BACKEND_OPENGL
 #include "backends/gfx/gfx_opengl.cpp"
-#elif defined(GFX_BACKEND_METAL)
+#elif GFX_BACKEND_METAL
 #include "backends/gfx/gfx_metal.cpp"
-#endif 
+#elif GFX_BACKEND_VULKAN
+#include "backends/gfx/gfx_vulkan.cpp"
+#endif
 
 #endif // GFX_CPP

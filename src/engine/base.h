@@ -3,75 +3,109 @@
 #ifndef BASE_H
 #define BASE_H
 
-// base layer todos:
+// TODO:
 // 
-// [x] - add context cracking for backends.
-// [~] - add simd support.
-//   [x] - vectors.
-//   [x] - matrices.
-//   [x] - quaternions.
-//   [ ] - color.
-// [ ] - add more math structs
-//   [ ] - mat2.
-//   [ ] - mat3.
-// 
+// [ ] - 
+//
+//
+//
 
-// includes
+//~ compiler context
 
-// compiler context
 #if defined(__clang__)
-#define COMPILER_CLANG 1
+#    define COMPILER_CLANG 1
 #elif defined(_MSC_VER)
-#define COMPILER_MSVC 1
+#    define COMPILER_MSVC 1
 #elif defined(__GNUC__) || defined(__GNUG__)
-#define COMPILER_GCC 1
+#    define COMPILER_GCC 1
 #endif
 
-// os context
+//~ os context
+
+// NOTE: 
+// 
+// gfx backend support:
+//        | d3d11 | d3d12 | opengl | vulkan | metal |
+// win32: |   X   |   X   |   X    |   X    |       |
+// macos: |       |       |   X    |   X    |   X   |
+// linux: |       |       |   X    |   X    |       |
+//
+// audio backend support:
+//
+//        | wasapi | coreaudio | ALSA |
+// win32: |   X    |           |      |
+// macos: |        |     X     |      | 
+// linux: |        |           |   X  |
+//
+// font backend support:
+//
+//        | dwrite | coretext | freetype |
+// win32: |   X    |          |    X     |
+// macos: |        |     X    |    X     | 
+// linux: |        |          |    X     |
+//
+
+//- win32
 #if defined(_WIN32)
-#define OS_BACKEND_WIN32 1
-#define GFX_BACKEND_OPENGL 1
-//#define GFX_BACKEND_D3D11 1
-#define AUD_BACKEND_WASAPI 1
-#define FNT_BACKEND_DWRITE 1
+#    define OS_BACKEND_WIN32 1
+
+// determine gfx backend (defaults to d3d11)
+#    if !defined(GFX_BACKEND_D3D11) && !defined(GFX_BACKEND_D3D12) && !defined(GFX_BACKEND_OPENGL) && !defined(GFX_BACKEND_VULKAN)
+#        define GFX_BACKEND_D3D11 1
+#    endif
+
+// set audio backend
+#    define AUD_BACKEND_WASAPI 1
+
+// determin font backend (defaults to dwrite)
+#    if !defined(FNT_BACKEND_DWRITE) && !defined(FNT_BACKEND_FREETYPE)
+#        define FNT_BACKEND_DWRITE 1
+#    endif 
+
+//- macos
 #elif defined(__APPLE__) && defined(__MACH__)
-#define OS_BACKEND_MACOS 1
-#define GFX_BACKEND_METAL 1
-#define AUD_BACKEND_CORE_AUDIO 1
-#define FNT_BACKEND_CORE_TEXT 1
+#    define OS_BACKEND_MACOS 1
+#    define GFX_BACKEND_METAL 1
+#    define AUD_BACKEND_CORE_AUDIO 1
+#    define FNT_BACKEND_CORE_TEXT 1
+
+//- linux 
 #elif defined(__linux__) 
-#define OS_BACKEND_LINUX 1
-#define GFX_BACKEND_OPENGL 1
-#define AUD_BACKEND_ALSA 1
-#define FNT_BACKEND_FREETYPE 1
+#    define OS_BACKEND_LINUX 1
+#    define GFX_BACKEND_OPENGL 1
+#    define AUD_BACKEND_ALSA 1
+#    define FNT_BACKEND_FREETYPE 1
 #endif
 
-#define BASE_USE_SIMD 1
+#if !defined(BASE_USE_SIMD)
+#    define BASE_USE_SIMD 1
+#endif 
 
-// includes
+//~ includes
 
-#include <cstdio> // printf
 #include <cmath> // math functions
+#include <stdio.h>
+#include "vendor/stb_sprintf.h" // sprintf
 
-#if defined(BASE_USE_SIMD)
+#if BASE_USE_SIMD
 #include <pmmintrin.h> // simd functions
 #endif 
 
-// defines
+//~ defines
 
 #define function static
 #define global static
 #define persist static
 #define inlnfunc inline static
 
-// sizes
+//- sizes
 #define bytes(n)      (n)
 #define kilobytes(n)  (n << 10)
 #define megabytes(n)  (n << 20)
 #define gigabytes(n)  (((u64)n) << 30)
 #define terabytes(n)  (((u64)n) << 40)
 
-// type constants
+//- type constants
 #define u8_max  (0xFF)
 #define u8_min  (0)
 #define u16_max (0xFFFF)
@@ -100,7 +134,7 @@
 #define f32_pi (3.141592653597f)
 #define f64_pi (3.141592653597)
 
-// math
+//- math
 #define min(a, b) (((a)<(b)) ? (a) : (b))
 #define max(a, b) (((a)>(b)) ? (a) : (b))
 #define clamp(x, a, b) (((a)>(x))?(a):((b)<(x))?(b):(x))
@@ -108,23 +142,23 @@
 
 #define array_count(a) (sizeof(a) / sizeof((a)[0]))
 
-// arenas
+//- arenas
 #define arena_commit_size kilobytes(4)
 #define arena_decommit_size megabytes(4)
 
-// flags
+//- flags
 #define flag_set(flags, mask) ((flags) |= (mask))
 #define flag_remove(flags, mask) ((flags) &= ~(mask))
 #define flag_has(flags, mask) ((flags) & (mask) != 0)
 
-// stack
+//- stack
 #define stack_push_n(f, n, next) (((n)==0) ? 0 : ((n)->next = (f), (f) = (n)))
 #define stack_pop_n(f, next) (((f) == 0) ? 0 : ((f) = (f)->next))
 
 #define stack_push(f, n) stack_push_n(f, n, next)
 #define stack_pop(f) stack_pop_n(f, next)
 
-// queue
+//- queue
 #define queue_push_n(f, l, n, next) (((f) == 0) ? ((f)=(l)=(n), ((n)->next = 0)) : ((l)->next=(n),(l)=(n), ((n)->next = 0)))
 #define queue_push_front_n(f, l, n, next) (((f)==0) ? ((f)=(l)=(n),((n)->next = 0)) : ((n)->next=(f),(f)=(n)))
 #define queue_pop_n(f, l, next) (((f) == 0) ? 0 : ((f)==(l) ? (((f) = 0),((l) = 0)) : (f)=(f)->next))
@@ -133,7 +167,7 @@
 #define queue_push_front(f, l, n) queue_push_front_n(f, l, n, next)
 #define queue_pop(f, l) queue_pop_n(f, l, next)
 
-// doubly linked list
+//- doubly linked list
 #define dll_insert_np(f,l,p,n,next,prev) (((f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((p) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((p) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((p) == 0) && (((p)->next) == 0)) ? (0) : ((p)->next->prev = (n))), ((n)->next = (p)->next), ((p)->next = (n)), ((n)->prev = (p))))
 #define dll_push_back_np(f,l,n,next,prev) (((f) == 0) ? ((f) = (l) = (n), (((n)->next) = 0), (((n)->prev) = 0)) : ((l) == 0) ? ((n)->next = (f), (f)->prev = (n), (f) = (n), (((n)->prev) = 0)) : ((l) == (l)) ? ((l)->next = (n), (n)->prev = (l), (l) = (n), (((n)->next) = 0)) : (((!((l) == 0) && (((l)->next) == 0)) ? (0) : ((l)->next->prev = (n))), ((n)->next = (l)->next), ((l)->next = (n)), ((n)->prev = (l))))
 #define dll_push_front_np(f,l,n,next,prev) (((l) == 0) ? ((l) = (f) = (n), (((n)->prev) = 0), (((n)->next) = 0)) : ((f) == 0) ? ((n)->prev = (l), (l)->next = (n), (l) = (n), (((n)->next) = 0)) : ((f) == (f)) ? ((f)->prev = (n), (n)->next = (f), (f) = (n), (((n)->prev) = 0)) : (((!((f) == 0) && (((f)->prev) == 0)) ? (0) : ((f)->prev->next = (n))), ((n)->prev = (f)->prev), ((f)->prev = (n)), ((n)->next = (f))))
@@ -144,9 +178,12 @@
 #define dll_push_front(f,l,n) dll_push_front_np(f,l,n,next,prev)
 #define dll_remove(f,l,n) dll_remove_np(f,l,n,next,prev)
 
+
+//- misc 
+
 #define member_from_offset(type, ptr, off) (type)((((u8 *)ptr)+(off)))
 
-// typedefs
+//~ typedefs
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -165,7 +202,7 @@ typedef const char* cstr;
 
 typedef bool b8;
 
-// atmomics
+//~ atmomics
 
 #if COMPILER_MSVC
 
@@ -204,9 +241,9 @@ enum color_blend_mode {
 	color_blend_mode_overlay,
 };
 
-// structs
+//~ structs
 
-// memory arena
+//- memory arena
 
 struct arena_t {
 	u64 pos;
@@ -220,7 +257,7 @@ struct temp_t {
 	u64 pos;
 };
 
-// strings
+//- strings
 
 struct str_t {
 	u8* data;
@@ -255,9 +292,9 @@ struct codepoint_t {
 	u32 advance;
 };
 
-// math
+//- math
 
-// vec2
+//- vec2
 union vec2_t {
     
 	f32 data[2];
@@ -270,7 +307,7 @@ union vec2_t {
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
-// ivec2
+//- ivec2
 union ivec2_t {
     
 	i32 data[2];
@@ -283,7 +320,7 @@ union ivec2_t {
 	inline const i32& operator[](i32 index) const { return data[index]; }
 };
 
-// uvec2
+//- uvec2
 union uvec2_t {
     
 	u32 data[2];
@@ -296,7 +333,7 @@ union uvec2_t {
 	inline const u32& operator[](i32 index) const { return data[index]; }
 };
 
-// vec3
+//- vec3
 union vec3_t {
     
 	f32 data[3];
@@ -319,7 +356,7 @@ union vec3_t {
 	inline const f32& operator[](i32 index) const { return data[index]; }
 };
 
-// ivec3
+//- ivec3
 
 union ivec3_t {
 	i32 data[3];
@@ -334,7 +371,7 @@ union ivec3_t {
     
 };
 
-// uvec3
+//- uvec3
 
 union uvec3_t {
     
@@ -350,7 +387,7 @@ union uvec3_t {
 };
 
 
-// vec4
+//- vec4
 union vec4_t {
     
 	f32 data[4];
@@ -413,7 +450,7 @@ union quat_t {
 #endif
 };
 
-// matrices:
+//- matrices:
 //
 //             c0 c1 c2
 //             |  |  | 
@@ -465,7 +502,7 @@ union mat4_t {
 	inline const vec4_t& operator[](i32 index) const { return columns[index]; }
 };
 
-// misc
+//- misc
 
 union rect_t {
     
@@ -497,7 +534,7 @@ union color_t {
 };
 
 
-// globals
+//~ globals
 
 global u32 random_state = 0;
 global u8 utf8_class[32] = {
@@ -506,9 +543,9 @@ global u8 utf8_class[32] = {
 
 global arena_t* global_scratch_arena;
 
-// functions
+//~ functions
 
-// arenas
+//- arenas
 function arena_t* arena_create(u64 size);
 function void arena_release(arena_t* arena);
 function void* arena_alloc(arena_t* arena, u64 size);
@@ -522,7 +559,7 @@ function void temp_end(temp_t temp);
 function temp_t scratch_begin();
 function void scratch_end(temp_t temp);
 
-// cstr
+//- cstr
 function u32 cstr_length(cstr cstr);
 function b8 cstr_equals(cstr cstr1, cstr cstr2);
 function b8 char_is_whitespace(char c);
@@ -536,13 +573,13 @@ function char char_to_upper(char c);
 function char char_to_lower(char c);
 function char char_to_forward_slash(char c);
 
-// unicode
+//- unicode
 function codepoint_t utf8_decode(u8* data, u32 max);
 function codepoint_t utf16_decode(u16* data, u32 max);
 function u32 utf8_encode(u8* out, codepoint_t codepoint);
 function u32 utf16_encode(u16* out, codepoint_t codepoint);
 
-// str
+//- str
 function str_t str(char* cstr);
 function str_t str(char* cstr, u32 size);
 function str_t str_copy(arena_t* arena, str_t string);
@@ -562,13 +599,12 @@ function void str_scan(str_t string, char* fmt, ...);
 function u32 str_find_word_index(str_t string, u32 start_index, i32 dir);
 function u64 str_hash(u64 seed, str_t string);
 
-
-// str list
+//- str list
 function void str_list_push_node(str_list_t* list, str_node_t* node);
 function void str_list_push(arena_t* arena, str_list_t* list, str_t string);
 function str_list_t str_split(arena_t* arena, str_t string, u8* splits, u32 split_count);
 
-// str16
+//- str16
 function str16_t str16(u16* data);
 function str16_t str16(u16* data, u32 size);
 
@@ -576,22 +612,21 @@ function str16_t str16(u16* data, u32 size);
 function str_t str_from_str16(arena_t* arena, str16_t string);
 function str16_t str16_from_str(arena_t* arena, str_t string);
 
-// random
-
+//- random
 function void random_seed(u32 seed);
 function u32 random_u32();
 function u32 random_u32_range(u32 min_value, u32 max_value);
 function f32 random_f32();
 function f32 random_f32_range(f32 min_value, f32 max_value);
 
-// math
+//- math
 inlnfunc f32 radians(f32 deg);
 inlnfunc f32 degrees(f32 rad);
 inlnfunc f32 remap(f32 value, f32 from_min, f32 from_max, f32 to_min, f32 to_max);
 inlnfunc f32 lerp(f32 a, f32 b, f32 t);
 inlnfunc f32 wrap(f32 v, f32 min, f32 max);
 
-// vec2 
+//- vec2 
 inlnfunc vec2_t vec2(f32);
 inlnfunc vec2_t vec2(f32, f32);
 inlnfunc vec2_t vec2_add(vec2_t, f32);
@@ -615,17 +650,17 @@ inlnfunc vec2_t vec2_from_angle(f32, f32 = 1);
 inlnfunc vec2_t vec2_rotate(vec2_t, f32);
 inlnfunc vec2_t vec2_lerp(vec2_t, vec2_t, f32);
 
-// ivec2
+//- ivec2
 inlnfunc ivec2_t ivec2(i32);
 inlnfunc ivec2_t ivec2(i32, i32);
 inlnfunc b8 ivec2_equals(i32, i32);
 
-// uvec2
+//- uvec2
 inlnfunc uvec2_t uvec2(u32);
 inlnfunc uvec2_t uvec2(u32, u32);
 inlnfunc b8 uvec2_equals(u32, u32);
 
-// vec3
+//- vec3
 inlnfunc vec3_t vec3(f32);
 inlnfunc vec3_t vec3(f32, f32, f32);
 inlnfunc vec3_t vec3(vec2_t, f32);
@@ -649,17 +684,17 @@ inlnfunc vec3_t vec3_project(vec3_t, vec3_t);
 inlnfunc vec3_t vec3_rotate(vec3_t, quat_t);
 inlnfunc vec3_t vec3_clamp(vec3_t, f32, f32);
 
-// ivec3
+//- ivec3
 inlnfunc ivec3_t ivec3(i32);
 inlnfunc ivec3_t ivec3(i32, i32, i32);
 inlnfunc b8      ivec3_equals(ivec3_t, ivec3_t);
 
-// uvec3
+//- uvec3
 inlnfunc uvec3_t uvec3(u32);
 inlnfunc uvec3_t uvec3(u32, u32, u32);
 inlnfunc b8      uvec3_equals(uvec3_t, uvec3_t);
 
-// vec4
+//- vec4
 inlnfunc vec4_t vec4(f32);
 inlnfunc vec4_t vec4(f32, f32, f32, f32);
 inlnfunc vec4_t vec4_add(vec4_t, vec4_t);
@@ -679,7 +714,7 @@ inlnfunc vec4_t vec4_lerp(vec4_t, vec4_t, f32);
 inlnfunc f32    vec4_angle_between(vec4_t, vec4_t);
 inlnfunc vec4_t vec4_project(vec4_t, vec4_t);
 
-// rect
+//- rect
 inlnfunc rect_t rect(f32, f32, f32, f32);
 inlnfunc rect_t rect(vec2_t, vec2_t);
 inlnfunc b8     rect_equals(rect_t a, rect_t b);
@@ -701,7 +736,7 @@ inlnfunc rect_t rect_bbox(vec2_t*, u32);
 inlnfunc rect_t rect_round(rect_t);
 inlnfunc rect_t rect_lerp(rect_t a, rect_t b, f32 t);
 
-// quat
+//- quat
 inlnfunc quat_t quat(f32, f32, f32, f32);
 inlnfunc quat_t quat(vec4_t);
 inlnfunc quat_t quat_from_axis_angle(vec3_t, f32);
@@ -721,7 +756,7 @@ inlnfunc quat_t quat_negate(quat_t);
 inlnfunc quat_t quat_lerp(quat_t, quat_t, f32);
 inlnfunc quat_t quat_slerp(quat_t, quat_t, f32);
 
-// mat4
+//- mat4
 inlnfunc mat4_t mat4(f32);
 inlnfunc b8     mat4_equals(mat4_t, mat4_t);
 inlnfunc mat4_t mat4_transpose(mat4_t);
@@ -741,7 +776,7 @@ inlnfunc mat4_t mat4_perspective(f32, f32, f32, f32);
 inlnfunc mat4_t mat4_lookat(vec3_t, vec3_t, vec3_t);
 function void   mat4_print(mat4_t);
 
-// color
+//- color
 inlnfunc color_t color(u32 hex);
 inlnfunc color_t color(f32 r, f32 g, f32 b, f32 a = 1.0f);
 inlnfunc color_t color_add(color_t a, f32 b);
@@ -752,7 +787,7 @@ inlnfunc color_t color_hsv_to_rgb(color_t hsv);
 function color_t color_blend(color_t a, color_t b, color_blend_mode mode = color_blend_mode_normal);
 inlnfunc u32     color_to_hex(color_t color);
 
-// misc
+//- misc
 function vec3_t barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c);
 function b8 tri_contains(vec2_t a, vec2_t b, vec2_t c, vec2_t p);
 

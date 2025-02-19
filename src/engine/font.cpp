@@ -65,7 +65,6 @@ font_reset() {
     
 }
 
-
 // handle functions
 
 function b8
@@ -138,6 +137,23 @@ font_text_get_height(font_handle_t font, f32 size, str_t string) {
 	return h;
 }
 
+
+function vec2_t 
+font_align(str_t text, font_handle_t font, f32 size, rect_t rect) {
+    
+    vec2_t result = { 0 };
+    
+    font_metrics_t font_metrics = font_get_metrics(font, size);
+    f32 text_height = font_text_get_height(font, size, text);
+    result.y = roundf(rect.y0 + (rect.y1 - rect.y0 - (text_height)) / 2.0f);
+    
+    f32 text_width = font_text_get_width(font, size, text);
+    result.x = roundf((rect.x0 + rect.x1 - text_width) * 0.5f);
+    result.x = max(result.x, rect.x0 + 4.0f);
+    
+    result.x = floorf(result.x);
+    return result;
+}
 
 // TODO: find better way to do this.
 function str_t 

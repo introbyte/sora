@@ -3,12 +3,17 @@
 #ifndef GFX_OPENGL_H
 #define GFX_OPENGL_H
 
-//- includes 
+// NOTE: opengl  needs to be loaded differently for each os backend.
 
 //- opengl loader
 
 // win32 loader
 #if defined(OS_BACKEND_WIN32)
+
+#define __gl_glcorearb_h_ 1
+#define __gl_glext_h_ 1
+#define __gl_h_ 1
+#define __GL_H__ 1
 
 // defines
 typedef unsigned int  GLenum;
@@ -361,12 +366,15 @@ typedef int  GLint;
 
 // macos
 #elif defined (OS_BACKEND_MACOS)
+
+// NOTE: untested
 #    include <TargetConditionals.h>
 #    include <OpenGLES/ES3/gl.h>
 #    include <OpenGLES/ES3/glext.h>
 
 // linux
 #elif defined(OS_BACKEND_LINUX)
+// NOTE: untested
 #    define GL_GLEXT_PROTOTYPES
 #    include <gl/gl.h>
 #endif
@@ -426,8 +434,10 @@ struct gfx_ogl_renderer_t {
     color_t clear_color;
     uvec2_t resolution;
     
-    // opengl
-    u32 framebuffer;
+    // win32 
+#if OS_BACKEND_WIN32
+    HDC dc;
+#endif 
     
 };
 
@@ -435,10 +445,6 @@ struct gfx_ogl_state_t {
     
     arena_t* resource_arena;
     arena_t* renderer_arena;
-    
-    // opengl
-    GLuint test;
-    HGLRC rc;
     
     // resource list
     gfx_ogl_resource_t* resource_first;
@@ -450,16 +456,43 @@ struct gfx_ogl_state_t {
     gfx_ogl_renderer_t* renderer_last;
     gfx_ogl_renderer_t* renderer_free;
     
+    // win32
+#if OS_BACKEND_WIN32
+    HGLRC rc;
+    i32 format_idx;
+#endif 
+    
 };
 
 //- globals 
 
 global gfx_ogl_state_t gfx_ogl_state;
 
-//- opengl specific functions 
+//- per os specific opengl functions
 
+// win32
+#if OS_BACKEND_WIN32
 
+function PROC gfx_ogl_w32_load(HMODULE module, char* name);
 
+function void gfx_ogl_w32_init();
+function void gfx_ogl_w32_renderer_create();
+function void gfx_ogl_w32_renderer_release();
 
+// macos
+#elif OS_BACKEND_MACOS
+
+function void gfx_ogl_macos_init();
+function void gfx_ogl_macos_renderer_create();
+function void gfx_ogl_macos_renderer_release();
+
+// linux
+#elif OS_BACKEND_LINUX
+
+function void gfx_ogl_linux_init();
+function void gfx_ogl_linux_renderer_create();
+function void gfx_ogl_linux_renderer_release();
+
+#endif
 
 #endif // GFX_OPENGL_H

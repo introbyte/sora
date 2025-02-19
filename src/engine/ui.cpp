@@ -1236,52 +1236,9 @@ ui_end(ui_context_t* context) {
     
     // draw
     {
+        
         for (ui_frame_t* frame = context->frame_root; frame != nullptr;) {
             ui_frame_rec_t rec = ui_frame_rec_depth_first(frame);
-            
-            ui_palette_t* palette = &frame->palette;
-            
-            // draw shadow
-            if (frame->flags & ui_frame_flag_draw_shadow) {
-                draw_set_next_color(palette->shadow);
-                draw_set_next_rounding(frame->rounding);
-                f32 shadow_size = max(frame->shadow_size, 0.0f);
-                draw_set_next_softness(shadow_size);
-                draw_rect(rect_translate(rect_grow(frame->rect, shadow_size), roundf(frame->shadow_size * 0.5f)));
-            }
-            
-            
-            // draw background
-            if (frame->flags & ui_frame_flag_draw_background) {
-                
-                color_t background_color = palette->background;
-                
-                // draw hover effects
-                if (frame->flags & ui_frame_flag_draw_hover_effects) {
-                    background_color = color_lerp(background_color, color_blend(background_color, palette->hover), frame->hover_t);
-                }
-                
-                // draw active effects
-                if (frame->flags & ui_frame_flag_draw_active_effects) {
-                    background_color = color_lerp(background_color, color_blend(background_color, palette->active), frame->active_t);
-                }
-                
-                if (!gfx_handle_equals(frame->texture, {0})) {
-                    draw_set_next_texture(frame->texture);
-                }
-                draw_set_next_color(background_color);
-                draw_set_next_rounding(frame->rounding);
-                draw_rect(frame->rect);
-            }
-            
-            
-            // draw border
-            if (frame->flags & ui_frame_flag_draw_border) {
-                draw_set_next_color(palette->border);
-                draw_set_next_rounding(frame->rounding);
-                draw_set_next_thickness(frame->border_size);
-                draw_rect(frame->rect);
-            }
             
             // clipping
             if (frame->flags & ui_frame_flag_draw_clip) {
@@ -1294,46 +1251,88 @@ ui_end(ui_context_t* context) {
                 draw_push_clip_mask(new_clip);
             }
             
-            // draw text
-            if (frame->flags & ui_frame_flag_draw_text) {
+            // draw frame
+            if (context->custom_draw != nullptr) {
                 
-                vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
+                context->custom_draw(frame);
                 
-                draw_push_font(frame->font);
-                draw_push_font_size(frame->font_size);
+            } else {
                 
-                // text shadow
-                color_t text_shadow = palette->shadow; text_shadow.a = 0.8f;
-                draw_set_next_color(text_shadow);
-                draw_text(frame->label, vec2_add(text_pos, 1.0f));
+                ui_palette_t* palette = &frame->palette;
                 
-                // text
-                draw_set_next_color(palette->text);
-                draw_text(frame->label, text_pos);
-                
-                draw_pop_font_size();
-                draw_pop_font();
-                
-            }
-            
-            
-            // custom draw
-            if (frame->flags & ui_frame_flag_draw_custom) {
-                if (frame->custom_draw_func != nullptr) {
-                    frame->custom_draw_func(frame);
+                // draw shadow
+                if (frame->flags & ui_frame_flag_draw_shadow) {
+                    draw_set_next_color(palette->shadow);
+                    draw_set_next_rounding(frame->rounding);
+                    f32 shadow_size = max(frame->shadow_size, 0.0f);
+                    draw_set_next_softness(shadow_size);
+                    draw_rect(rect_translate(rect_grow(frame->rect, shadow_size), roundf(frame->shadow_size * 0.5f)));
                 }
+                
+                // draw background
+                if (frame->flags & ui_frame_flag_draw_background) {
+                    
+                    color_t background_color = palette->background;
+                    
+                    // draw hover effects
+                    if (frame->flags & ui_frame_flag_draw_hover_effects) {
+                        background_color = color_lerp(background_color, color_blend(background_color, palette->hover), frame->hover_t);
+                    }
+                    
+                    // draw active effects
+                    if (frame->flags & ui_frame_flag_draw_active_effects) {
+                        background_color = color_lerp(background_color, color_blend(background_color, palette->active), frame->active_t);
+                    }
+                    
+                    if (!gfx_handle_equals(frame->texture, {0})) {
+                        draw_set_next_texture(frame->texture);
+                    }
+                    draw_set_next_color(background_color);
+                    draw_set_next_rounding(frame->rounding);
+                    draw_rect(frame->rect);
+                }
+                
+                
+                // draw border
+                if (frame->flags & ui_frame_flag_draw_border) {
+                    draw_set_next_color(palette->border);
+                    draw_set_next_rounding(frame->rounding);
+                    draw_set_next_thickness(frame->border_size);
+                    draw_rect(frame->rect);
+                }
+                
+                // draw text
+                if (frame->flags & ui_frame_flag_draw_text) {
+                    
+                    vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
+                    
+                    draw_push_font(frame->font);
+                    draw_push_font_size(frame->font_size);
+                    
+                    // text shadow
+                    color_t text_shadow = palette->shadow; text_shadow.a = 0.8f;
+                    draw_set_next_color(text_shadow);
+                    draw_text(frame->label, vec2_add(text_pos, 1.0f));
+                    
+                    // text
+                    draw_set_next_color(palette->text);
+                    draw_text(frame->label, text_pos);
+                    
+                    draw_pop_font_size();
+                    draw_pop_font();
+                    
+                }
+                
+                // custom draw
+                if (frame->flags & ui_frame_flag_draw_custom) {
+                    if (frame->custom_draw_func != nullptr) {
+                        frame->custom_draw_func(frame);
+                    }
+                }
+                
             }
-            
-            // debug drawing
-            {
-                //draw_set_next_thickness(1.0f);
-                //draw_set_next_color(color(0xffff0015));
-                //draw_rect(frame->rect);
-            }
-            
             
             // pop clipping
-            
             i32 pop_index = 0;
             for (ui_frame_t* f = frame; f != nullptr && pop_index <= rec.pop_count; f = f->tree_parent) {
                 pop_index++;
@@ -1409,6 +1408,7 @@ ui_context_create(os_handle_t window, gfx_handle_t renderer) {
 	context->renderer = renderer;
     context->build_index = 0;
     context->drag_state = ui_drag_state_none;
+    context->custom_draw = nullptr;
     
 	// initialize stack
 	context->parent_default_node.v = nullptr;
@@ -1581,6 +1581,11 @@ ui_context_reset_stacks(ui_context_t* context) {
     context->hover_cursor_stack.free = nullptr;
     context->hover_cursor_stack.auto_pop = false;
     
+}
+
+function void
+ui_context_set_draw_function(ui_context_t* context, ui_context_draw_function* func) {
+    context->custom_draw = func;
 }
 
 //- string

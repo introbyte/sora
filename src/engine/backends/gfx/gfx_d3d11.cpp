@@ -263,6 +263,8 @@ gfx_release() {
 function void
 gfx_update() {
 	
+    // TODO: maybe we don't need this, each renderer should be responsible for updating itself.
+    
 	// update renderers
 	for (gfx_d3d11_renderer_t* renderer = gfx_state.renderer_first; renderer != 0; renderer = renderer->next) {
         
@@ -626,10 +628,9 @@ gfx_renderer_create(os_handle_t window, color_t clear_color) {
 	dll_push_back(gfx_state.renderer_first, gfx_state.renderer_last, renderer);
     
 	// fill
-	os_w32_window_t* w32_window = os_w32_window_from_handle(window);
 	renderer->window = window;
 	renderer->clear_color = clear_color;
-	renderer->resolution = w32_window->resolution;
+	renderer->resolution = os_window_get_size(window);
     
 	// create swapchain
 	HRESULT hr = 0;
@@ -647,6 +648,7 @@ gfx_renderer_create(os_handle_t window, color_t clear_color) {
 	swapchain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 	swapchain_desc.Flags = 0;
     
+    os_w32_window_t* w32_window = os_w32_window_from_handle(window);
 	hr = gfx_state.dxgi_factory->CreateSwapChainForHwnd(gfx_state.device, w32_window->handle, &swapchain_desc, 0, 0, &renderer->swapchain);
     if (FAILED(hr)) { goto renderer_create_cleanup; }
     
@@ -702,17 +704,19 @@ gfx_renderer_resize(gfx_handle_t renderer, uvec2_t resolution) {
     
 	// resize framebuffer
 	hr = d3d11_renderer->swapchain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-    if (FAILED(hr)) { goto renderer_resize_error; }
+    //if (FAILED(hr)) { goto renderer_resize_error; }
 	hr = d3d11_renderer->swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)(&d3d11_renderer->framebuffer));
-    if (FAILED(hr)) { goto renderer_resize_error; }
+    //if (FAILED(hr)) { goto renderer_resize_error; }
 	hr = gfx_state.device->CreateRenderTargetView(d3d11_renderer->framebuffer, 0, &d3d11_renderer->framebuffer_rtv);
-    if (FAILED(hr)) { goto renderer_resize_error; }
+    //if (FAILED(hr)) { goto renderer_resize_error; }
 	
 	// set new resolution
 	d3d11_renderer->resolution = resolution;
     
-    renderer_resize_error:
-    printf("[error]\n");
+    
+    
+    //renderer_resize_error:
+    //printf("[error] renderer resize error\n");
     
 }
 
@@ -1662,7 +1666,6 @@ gfx_render_target_get_texture(gfx_handle_t render_target) {
 
 // d3d11 specific function
 
-
 function gfx_d3d11_renderer_t* 
 gfx_d3d11_renderer_from_handle(gfx_handle_t renderer) {
 	gfx_d3d11_renderer_t* d3d11_renderer = (gfx_d3d11_renderer_t*)(renderer.data[0]);
@@ -1698,9 +1701,8 @@ gfx_d3d11_resource_create(gfx_resource_type type) {
 
 function void 
 gfx_d3d11_resource_release(gfx_d3d11_resource_t* resource) {
-    
-    
-    
+    dll_remove(gfx_state.resource_first, gfx_state.resource_last, resource);
+    stack_push(gfx_state.resource_free, resource);
 }
 
 

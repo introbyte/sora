@@ -346,6 +346,8 @@ typedef void ui_frame_custom_draw_func(ui_frame_t*);
 struct ui_view_t;
 typedef void ui_view_function();
 
+typedef void ui_context_draw_function(ui_frame_t*);
+
 //- structs
 
 // key
@@ -779,6 +781,9 @@ struct ui_context_t {
     ui_key_t key_focused;
     ui_key_t key_popup;
     
+    // custom draw 
+    ui_context_draw_function* custom_draw;
+    
     // input state
     vec2_t mouse_pos;
     vec2_t mouse_delta;
@@ -954,6 +959,7 @@ function ui_frame_t* ui_last_frame();
 function ui_context_t* ui_context_create(os_handle_t window, gfx_handle_t renderer);
 function void ui_context_release(ui_context_t* context);
 function void ui_context_reset_stacks(ui_context_t* context);
+function void ui_context_set_draw_function(ui_context_t* context, ui_context_draw_function* func);
 
 // string
 function u64 ui_string_hash(u64 seed, str_t string);

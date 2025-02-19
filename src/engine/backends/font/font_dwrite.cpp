@@ -30,8 +30,8 @@ font_open(str_t filepath) {
 	str16_t wide_filepath = str16_from_str(scratch.arena, filepath);
     
 	// create font file and face
-	font_dwrite_state.dwrite_factory->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &font->file);
-	font_dwrite_state.dwrite_factory->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
+	font_dwrite_state.dwrite_factory2->CreateFontFileReference((WCHAR*)wide_filepath.data, 0, &font->file);
+	font_dwrite_state.dwrite_factory2->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
     
 	str_t font_name = str_get_file_name(filepath);
 	printf("[info] successfully opened font: '%.*s'\n", font_name.size, font_name.data);
@@ -124,7 +124,7 @@ font_glyph_raster(arena_t* arena, font_handle_t font, f32 size, u32 codepoint) {
     
 	RECT bounding_box = { 0 };
 	vec2_t draw_pos = { 1.0f, (f32)atlas_dim_y - descent };
-	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_GDI_NATURAL, &glyph_run, font_dwrite_state.rendering_params, RGB(255, 255, 255), &bounding_box);
+	render_target->DrawGlyphRun(draw_pos.x, draw_pos.y, DWRITE_MEASURING_MODE_NATURAL, &glyph_run, font_dwrite_state.rendering_params, RGB(255, 255, 255), &bounding_box);
     
 	// get bitmap
 	DIBSECTION dib = { 0 };
@@ -176,21 +176,25 @@ font_dwrite_init() {
 	HRESULT hr = 0;
     
 	// create dwrite factory
-	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&font_dwrite_state.dwrite_factory);
+	//hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&font_dwrite_state.dwrite_factory);
+	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory2), (IUnknown**)&font_dwrite_state.dwrite_factory2);
 	//gfx_assert(hr, "failed to create dwrite factory.");
     
 	// create rendering params
-	hr = font_dwrite_state.dwrite_factory->CreateRenderingParams(&font_dwrite_state.rendering_params);
+	hr = font_dwrite_state.dwrite_factory2->CreateRenderingParams(&font_dwrite_state.rendering_params);
 	//gfx_assert(hr, "failed to create dwrite rendering params.");
     
 	f32 gamma = font_dwrite_state.rendering_params->GetGamma();
 	f32 enhanced_contrast = font_dwrite_state.rendering_params->GetEnhancedContrast();
 	f32 clear_type_level = font_dwrite_state.rendering_params->GetClearTypeLevel();
-	hr = font_dwrite_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_GDI_NATURAL, &font_dwrite_state.rendering_params);
+	//hr = font_dwrite_state.dwrite_factory->CreateCustomRenderingParams(gamma, enhanced_contrast, clear_type_level, DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_GDI_NATURAL, &font_dwrite_state.rendering_params);
+	hr = font_dwrite_state.dwrite_factory2->CreateCustomRenderingParams(gamma, enhanced_contrast, enhanced_contrast, clear_type_level, 
+                                                                        DWRITE_PIXEL_GEOMETRY_FLAT, DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC, DWRITE_GRID_FIT_MODE_ENABLED,
+                                                                        (IDWriteRenderingParams2**)&font_dwrite_state.rendering_params);
 	//gfx_assert(hr, "failed to create custom dwrite rendering params.");
     
 	// create gdi interop
-	hr = font_dwrite_state.dwrite_factory->GetGdiInterop(&font_dwrite_state.gdi_interop);
+	hr = font_dwrite_state.dwrite_factory2->GetGdiInterop(&font_dwrite_state.gdi_interop);
 	//gfx_assert(hr, "failed to create gdi interop.");
 	
 }
@@ -201,7 +205,7 @@ font_dwrite_release() {
 	// release dwrite
 	if (font_dwrite_state.gdi_interop != nullptr) { font_dwrite_state.gdi_interop->Release();  font_dwrite_state.gdi_interop = nullptr; }
 	if (font_dwrite_state.rendering_params != nullptr) { font_dwrite_state.rendering_params->Release(); font_dwrite_state.rendering_params = nullptr; }
-	if (font_dwrite_state.dwrite_factory != nullptr) { font_dwrite_state.dwrite_factory->Release(); font_dwrite_state.dwrite_factory = nullptr; }
+	if (font_dwrite_state.dwrite_factory2 != nullptr) { font_dwrite_state.dwrite_factory2->Release(); font_dwrite_state.dwrite_factory2 = nullptr; }
     
 	// release arenas
 	arena_release(font_dwrite_state.font_arena);

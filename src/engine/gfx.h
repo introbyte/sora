@@ -3,29 +3,6 @@
 #ifndef GFX_H
 #define GFX_H
 
-// gfx layer notes:
-// 
-// - when binding resources, there should be a way to specific where 
-// its going to be set, like for a pixel shader, or compute shader.
-// 
-// 
-// gfx layer todos:
-//
-// [ ] - combine 2d and 3d textures
-// [x] - make resources into entities to have one entity resource list.
-// [x] - use handles for resources instead of raw ptrs.
-//     [x] - buffers.
-//         [x] - vertex, index, and constant
-//     [x] - textures.
-//         [x] - 2d.
-//         [ ] - 3d.
-//     [x] - shaders.
-//         [x] - vertex and pixel.
-//         [ ] - compute.
-//     [ ] - render targets.
-// 
-
-
 // enums
 
 enum gfx_resource_type {
@@ -327,14 +304,16 @@ function b8 gfx_texture_format_is_depth(gfx_texture_format format);
 
 // per backend includes
 
-#if defined(GFX_BACKEND_D3D11)
-#include "backends/gfx/gfx_d3d11.h"
-#elif defined(GFX_BACKEND_D3D12)
-#include "backends/gfx/gfx_d3d12.h"
-#elif defined(GFX_BACKEND_OPENGL)
-#include "backends/gfx/gfx_opengl.h"
-#elif defined(GFX_BACKEND_METAL)
-#include "backends/gfx/gfx_metal.h"
+#if GFX_BACKEND_D3D11
+#    include "backends/gfx/gfx_d3d11.h"
+#elif GFX_BACKEND_D3D12
+#    include "backends/gfx/gfx_d3d12.h"
+#elif GFX_BACKEND_OPENGL
+#    include "backends/gfx/gfx_opengl.h"
+#elif GFX_BACKEND_METAL
+#    include "backends/gfx/gfx_metal.h"
+#elif GFX_BACKEND_VULKAN
+#    include "backends/gfx/gfx_vulkan.h"
 #endif 
 
 #endif // GFX_H 

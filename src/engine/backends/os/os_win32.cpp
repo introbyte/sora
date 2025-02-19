@@ -8,7 +8,6 @@
 #pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "dwmapi")
-//#pragma comment(lib, "advapi32")
 
 // implementation
 
@@ -167,7 +166,6 @@ os_get_sys_color(os_sys_color id) {
 	if (id == os_sys_color_accent) {
 		DWORD size = 0;
 		RegGetValueA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\DWM", "AccentColor", RRF_RT_REG_DWORD, nullptr, &result_color, &size);
-		printf("%x\n", result_color);
 	} else {
 		result_color = GetSysColor(id);
 	}
@@ -512,7 +510,7 @@ os_file_open(str_t filepath, os_file_access_flag flags) {
 	HANDLE handle = CreateFileA((char*)filepath.data, access_flags, share_mode, NULL, creation_disposition, FILE_ATTRIBUTE_NORMAL, NULL);
     
 	if (handle == INVALID_HANDLE_VALUE) {
-		printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
+		//printf("[error] failed to open file '%.*s'\n", filepath.size, filepath.data);
 	} else {
 		result.data[0] = (u64)handle;
 	}
