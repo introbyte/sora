@@ -41,14 +41,15 @@ os_event_get(os_event_type type) {
 }
 
 function b8
-os_key_press(os_handle_t window, os_key key, os_modifiers modifiers = 0) {
-	b8 result = 0;
+os_key_press(os_handle_t window, os_key key, os_modifiers modifiers) {
+	b8 result = false;
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_key_press && os_handle_equals(window, e->window) &&
 			e->key == key &&
-			((e->modifiers & modifiers) != 0 || (e->modifiers == 0 && modifiers == 0))) {
-			os_event_pop(e);
-			result = 1;
+            ((e->modifiers & modifiers) != 0 || (e->modifiers == 0 && modifiers == 0) || modifiers == os_modifier_any)) {
+            
+            os_event_pop(e);
+			result = true;
 			break;
 		}
 	}
@@ -56,14 +57,14 @@ os_key_press(os_handle_t window, os_key key, os_modifiers modifiers = 0) {
 }
 
 function b8
-os_key_release(os_handle_t window, os_key key, os_modifiers modifiers = 0) {
-	b8 result = 0;
+os_key_release(os_handle_t window, os_key key, os_modifiers modifiers) {
+	b8 result = false;
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_key_release && os_handle_equals(window, e->window) &&
 			e->key == key &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
+			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0) || modifiers == os_modifier_any)) {
 			os_event_pop(e);
-			result = 1;
+			result = true;
 			break;
 		}
 	}
@@ -71,14 +72,14 @@ os_key_release(os_handle_t window, os_key key, os_modifiers modifiers = 0) {
 }
 
 function b8
-os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifiers = 0) {
-	b8 result = 0;
+os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifiers) {
+	b8 result = false;
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_mouse_press && os_handle_equals(window, e->window) &&
 			e->mouse == button &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
+			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0) || modifiers == os_modifier_any)) {
 			os_event_pop(e);
-			result = 1;
+			result = true;
 			break;
 		}
 	}
@@ -86,14 +87,14 @@ os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifier
 }
 
 function b8
-os_mouse_release(os_handle_t window, os_mouse_button button, os_modifiers modifiers = 0) {
-	b8 result = 0;
+os_mouse_release(os_handle_t window, os_mouse_button button, os_modifiers modifiers) {
+	b8 result = false;
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_mouse_release && os_handle_equals(window, e->window) &&
 			e->mouse == button &&
-			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0))) {
+			((e->modifiers & modifiers) || (e->modifiers == 0 && modifiers == 0) || modifiers == os_modifier_any)) {
 			os_event_pop(e);
-			result = 1;
+			result = true;
 			break;
 		}
 	}
@@ -115,9 +116,9 @@ os_mouse_scroll(os_handle_t window) {
 
 function vec2_t
 os_mouse_move(os_handle_t window) {
-
+    
 	vec2_t result = vec2(0.0f, 0.0f);
-
+    
 	for (os_event_t* e = os_state.event_list.first; e != 0; e = e->next) {
 		if (e->type == os_event_type_mouse_move && os_handle_equals(window, e->window)) {
 			os_event_pop(e);
@@ -125,7 +126,7 @@ os_mouse_move(os_handle_t window) {
 			break;
 		}
 	}
-
+    
 	return result;
 }
 

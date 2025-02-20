@@ -1105,6 +1105,7 @@ function ui_interaction ui_checkboxf(b8* value, char* fmt, ...);
 function ui_interaction ui_text_edit(str_t label, char* buffer, u32* size, u32 max_size);
 function ui_interaction ui_float_edit(str_t label, f32* value, f32 delta = 0.01f, f32 min = 0.0f, f32 max = 0.0f);
 
+function ui_interaction ui_float3_edit(str_t label, vec3_t* value, f32 delta = 0.01f, f32 min = 0.0f, f32 max = 0.0f);
 
 function b8 ui_expander_begin(str_t label);
 function b8 ui_expanderf_begin(char* fmt, ...);

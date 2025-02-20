@@ -85,7 +85,6 @@
 
 #include <cmath> // math functions
 #include <stdio.h>
-#include "vendor/stb_sprintf.h" // sprintf
 
 #if BASE_USE_SIMD
 #include <pmmintrin.h> // simd functions

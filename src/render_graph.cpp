@@ -27,11 +27,11 @@
 //#include "projects/graphs/node_graph.cpp"
 
 
-#include "utils/mesh.h"
-#include "utils/camera.h"
+#include "projects/utils/mesh.h"
+#include "projects/utils/camera.h"
 
-#include "utils/mesh.cpp"
-#include "utils/camera.cpp"
+#include "projects/utils/mesh.cpp"
+#include "projects/utils/camera.cpp"
 
 
 //- globals

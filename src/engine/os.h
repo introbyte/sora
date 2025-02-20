@@ -121,9 +121,11 @@ enum os_mouse_button {
 
 typedef u32 os_modifiers;
 enum {
+    os_modifier_none = 0,
 	os_modifier_shift = (1 << 0),
 	os_modifier_ctrl = (1 << 1),
 	os_modifier_alt = (1 << 2),
+    os_modifier_any = (1 << 31),
 };
 
 enum os_event_type {
@@ -265,28 +267,31 @@ function b8           os_handle_equals(os_handle_t a, os_handle_t b);
 function void         os_event_push(os_event_t* event);
 function void         os_event_pop(os_event_t* event);
 function os_event_t*  os_event_get(os_event_type type);
-function b8           os_key_press(os_handle_t window, os_key key, os_modifiers modifiers);
-function b8           os_key_release(os_handle_t window, os_key key, os_modifiers modifiers);
-function b8           os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifiers);
-function b8           os_mouse_release(os_handle_t window, os_mouse_button button, os_modifiers modifiers);
+function b8           os_key_press(os_handle_t window, os_key key, os_modifiers modifiers = os_modifier_any);
+function b8           os_key_release(os_handle_t window, os_key key, os_modifiers modifiers = os_modifier_any);
+function b8           os_mouse_press(os_handle_t window, os_mouse_button button, os_modifiers modifiers = os_modifier_any);
+function b8           os_mouse_release(os_handle_t window, os_mouse_button button, os_modifiers modifiers = os_modifier_any);
 function f32          os_mouse_scroll(os_handle_t window);
 function vec2_t       os_mouse_move(os_handle_t window);
-function b8           os_mouse_button_is_down(os_mouse_button);
+function b8           os_mouse_button_is_down(os_mouse_button button);
 
 // window (implemented per backend)
 function os_handle_t  os_window_open(str_t title, u32 width, u32 height, os_window_flags flags = 0);
 function void         os_window_close(os_handle_t window);
+function void         os_window_update(os_handle_t window);
 function void         os_window_focus(os_handle_t window);
 function void         os_window_minimize(os_handle_t window);
 function void         os_window_maximize(os_handle_t window);
 function void         os_window_restore(os_handle_t window);
 function void         os_window_fullscreen(os_handle_t window);
 function void         os_window_set_title(os_handle_t window, str_t title);
+function str_t        os_window_get_title(os_handle_t window);
 function u32          os_window_get_dpi(os_handle_t window);
 
 function b8           os_window_is_maximized(os_handle_t window);
 function b8           os_window_is_minimized(os_handle_t window);
 function b8           os_window_is_fullscreen(os_handle_t window);
+function b8           os_window_is_active(os_handle_t window);
 
 function void         os_window_clear_title_bar_client_area(os_handle_t window);
 function void         os_window_add_title_bar_client_area(os_handle_t window, rect_t area);

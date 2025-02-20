@@ -61,7 +61,9 @@ struct camera_t {
 	f32 min_roll;
 	f32 max_roll;
     
-	b8 fps_lock;
+	// mouse
+    b8 mouse_is_down;
+    vec2_t mouse_start;
 };
 
 // functions

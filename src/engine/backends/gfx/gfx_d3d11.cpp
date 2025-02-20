@@ -858,90 +858,14 @@ gfx_texture_create_ex(gfx_texture_desc_t desc, void* data) {
 	// fill description
 	resource->texture_desc = desc;
     
-	// create d3d11 texture
-	switch (desc.type) {
-        
-		// 2d texture
-		case gfx_texture_type_2d: {
-            
-            
-			// determine bind flags
-			D3D11_BIND_FLAG bind_flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE);
-            
-            if (desc.sample_count == 1) {
-                bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_UNORDERED_ACCESS);
-            }
-            
-			if (desc.render_target) {
-				if (gfx_texture_format_is_depth(desc.format)) {
-					bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_DEPTH_STENCIL);
-				} else {
-					bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_RENDER_TARGET);
-				}
-			}
-            
-			// fill out description
-			D3D11_TEXTURE2D_DESC texture_desc = { 0 };
-			texture_desc.Width = desc.size.x;
-			texture_desc.Height = desc.size.y;
-			texture_desc.ArraySize = 1;
-			texture_desc.Format = gfx_d3d11_dxgi_format_from_texture_format(desc.format);
-			texture_desc.SampleDesc.Count = desc.sample_count;
-			texture_desc.SampleDesc.Quality = (desc.sample_count > 1) ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
-			texture_desc.Usage = gfx_d3d11_d3d11_usage_from_gfx_usage(desc.usage);
-			texture_desc.BindFlags = bind_flags;
-			texture_desc.CPUAccessFlags = gfx_d3d11_access_flags_from_gfx_usage(desc.usage);
-			texture_desc.MipLevels = 1;
-			texture_desc.MiscFlags = 0;
-            
-			// initial data
-			D3D11_SUBRESOURCE_DATA texture_data = { 0 };
-			if (data != nullptr) {
-				texture_data.pSysMem = data;
-				texture_data.SysMemPitch = resource->texture_desc.size.x * gfx_d3d11_byte_size_from_texture_format(desc.format);
-			}
-            
-			// create texture2d
-			hr = gfx_state.device->CreateTexture2D(&texture_desc, data ? &texture_data : nullptr, &resource->texture.id);
-            if (FAILED(hr)) { goto texture_create_cleanup; }
-            
-			// create srv
-			D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = { 0 };
-			srv_desc.Format = gfx_d3d11_srv_format_from_texture_format(desc.format);
-			if (desc.sample_count > 1) {
-				srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
-			} else {
-				srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-				srv_desc.Texture2D.MipLevels = 1; // TODO: support mips.
-			}
-			hr = gfx_state.device->CreateShaderResourceView(resource->texture.id, &srv_desc, &resource->texture.srv);
-            if (FAILED(hr)) { goto texture_create_cleanup; }
-            
-			// create uav
-            
-            if (desc.sample_count == 1) {
-                D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = { 0 };
-                uav_desc.Format = texture_desc.Format;
-                uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-                uav_desc.Texture2D.MipSlice = 0;
-                
-                hr = gfx_state.device->CreateUnorderedAccessView(resource->texture.id, &uav_desc, &resource->texture.uav);
-                if (FAILED(hr)) { goto texture_create_cleanup; }
-            }
-            
-			break;
-		}
-        
-		case gfx_texture_type_3d: {
-			// TODO: implement 3d textures.
-			break;
-		}
-	}
-	
-    texture_create_cleanup:
+    // create texture
+	gfx_d3d11_texture_create_resources(resource, data);
     
     gfx_handle_t handle = { 0 };
-    if (!FAILED(hr)) { handle = { (u64)resource }; }
+    if (!FAILED(hr)) { 
+        printf("[info] successfully created texture: '%.*s'\n", resource->texture_desc.name.size, resource->texture_desc.name.data);
+        handle = { (u64)resource };
+    }
     
 	return handle;
 }
@@ -969,27 +893,27 @@ function gfx_handle_t
 gfx_texture_load(str_t filepath) {
 	
 	// load file
-	//i32 width = 0;
-	//i32 height = 0;
-	//i32 bpp = 0;
+	i32 width = 0;
+	i32 height = 0;
+	i32 bpp = 0;
     
-	//stbi_set_flip_vertically_on_load(1);
-	//unsigned char* buffer = stbi_load((char*)filepath.data, &width, &height, &bpp, 4);
+	stbi_set_flip_vertically_on_load(1);
+	unsigned char* buffer = stbi_load((char*)filepath.data, &width, &height, &bpp, 4);
     
-	// fill description
-	//gfx_texture_desc_t desc = { 0 };
-	//desc.name = str_get_file_name(filepath);
-	//desc.size = uvec2(width, height);
-	//desc.format = gfx_texture_format_rgba8;
-	//desc.type = gfx_texture_type_2d;
-	//desc.sample_count = 1;
-	//desc.usage = gfx_usage_dynamic;
-	//desc.render_target = false;
+    //fill description
+    gfx_texture_desc_t desc = { 0 };
+	desc.name = str_get_file_name(filepath);
+	desc.size = uvec2(width, height);
+	desc.format = gfx_texture_format_rgba8;
+	desc.type = gfx_texture_type_2d;
+	desc.sample_count = 1;
+	desc.usage = gfx_usage_dynamic;
+	desc.render_target = false;
     
-	// create and return texture
-	//gfx_handle_t handle = gfx_texture_create_ex(desc, buffer);
+    //create and return texture
+    gfx_handle_t handle = gfx_texture_create_ex(desc, buffer);
     
-	return { 0 };
+	return handle;
 }
 
 function void
@@ -1005,6 +929,27 @@ gfx_texture_release(gfx_handle_t texture) {
         if (resource->texture.uav != nullptr) { resource->texture.uav->Release(); resource->texture.uav = nullptr; }
         
         gfx_d3d11_resource_release(resource);
+    }
+}
+
+function uvec2_t
+gfx_texture_get_size(gfx_handle_t texture) {
+    uvec2_t result = { 0 };
+    
+    if (!gfx_handle_equals(texture, { 0 })) {
+        gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(texture.data[0]);
+        result = resource->texture_desc.size;
+    }
+    
+    return result;
+}
+
+function void 
+gfx_texture_resize(gfx_handle_t texture, uvec2_t size) {
+    if (size.x > 0 && size.y > 0) {
+        gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(texture.data[0]);
+        resource->texture_desc.size = size;
+        gfx_d3d11_texture_create_resources(resource, nullptr);
     }
 }
 
@@ -1061,7 +1006,138 @@ gfx_texture_blit(gfx_handle_t texture_dst, gfx_handle_t texture_src) {
 	}
 }
 
+function void
+gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
+    
+    // release old resources if needs
+    if (resource->texture.id != nullptr) { resource->texture.id->Release(); resource->texture.id = nullptr;}
+    if (resource->texture.srv != nullptr) { resource->texture.srv->Release(); resource->texture.srv = nullptr; }
+    if (resource->texture.uav != nullptr) { resource->texture.uav->Release(); resource->texture.uav = nullptr; }
+    
+    // create texture
+    
+    HRESULT hr = 0;
+    
+    // determine bind flags
+    D3D11_BIND_FLAG bind_flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE);
+    
+    if (resource->texture_desc.sample_count == 1) {
+        bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_UNORDERED_ACCESS);
+    }
+    
+    if (resource->texture_desc.render_target) {
+        if (gfx_texture_format_is_depth(resource->texture_desc.format)) {
+            bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_DEPTH_STENCIL);
+        } else {
+            bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_RENDER_TARGET);
+        }
+    }
+    
+    // fill out description
+    D3D11_TEXTURE2D_DESC texture_desc = { 0 };
+    texture_desc.Width = resource->texture_desc.size.x;
+    texture_desc.Height = resource->texture_desc.size.y;
+    texture_desc.ArraySize = 1;
+    texture_desc.Format = gfx_d3d11_dxgi_format_from_texture_format(resource->texture_desc.format);
+    texture_desc.SampleDesc.Count = resource->texture_desc.sample_count;
+    texture_desc.SampleDesc.Quality = (resource->texture_desc.sample_count > 1) ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
+    texture_desc.Usage = gfx_d3d11_d3d11_usage_from_gfx_usage(resource->texture_desc.usage);
+    texture_desc.BindFlags = bind_flags;
+    texture_desc.CPUAccessFlags = gfx_d3d11_access_flags_from_gfx_usage(resource->texture_desc.usage);
+    texture_desc.MipLevels = 1;
+    texture_desc.MiscFlags = 0;
+    
+    // initial data
+    D3D11_SUBRESOURCE_DATA texture_data = { 0 };
+    if (data != nullptr) {
+        texture_data.pSysMem = data;
+        texture_data.SysMemPitch = resource->texture_desc.size.x * gfx_d3d11_byte_size_from_texture_format(resource->texture_desc.format);
+    }
+    
+    // create texture2d
+    hr = gfx_state.device->CreateTexture2D(&texture_desc, data ? &texture_data : nullptr, &resource->texture.id);
+    
+    // create srv
+    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = { 0 };
+    srv_desc.Format = gfx_d3d11_srv_format_from_texture_format(resource->texture_desc.format);
+    if (resource->texture_desc.sample_count > 1) {
+        srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+    } else {
+        srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srv_desc.Texture2D.MipLevels = 1; // TODO: support mips.
+    }
+    hr = gfx_state.device->CreateShaderResourceView(resource->texture.id, &srv_desc, &resource->texture.srv);
+    
+    // create uav
+    
+    if (resource->texture_desc.sample_count == 1) {
+        D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = { 0 };
+        uav_desc.Format = texture_desc.Format;
+        uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+        uav_desc.Texture2D.MipSlice = 0;
+        
+        hr = gfx_state.device->CreateUnorderedAccessView(resource->texture.id, &uav_desc, &resource->texture.uav);
+    }
+    
+    if (FAILED(hr)) {
+        printf("[error] an error occurred!\n");
+    }
+    
+}
 
+function void
+gfx_texture_write(gfx_handle_t texture, str_t filepath) {
+    
+    temp_t scratch = scratch_begin();
+    
+    gfx_d3d11_resource_t* resource = (gfx_d3d11_resource_t*)(texture.data[0]);
+    
+    // get texture description
+    D3D11_TEXTURE2D_DESC desc;
+    resource->texture.id->GetDesc(&desc);
+    
+    // create staging resource description
+    D3D11_TEXTURE2D_DESC staging_desc = desc;
+    staging_desc.Usage = D3D11_USAGE_STAGING;
+    staging_desc.BindFlags = 0;
+    staging_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    staging_desc.MiscFlags = 0;
+    
+    // create staging texture
+    ID3D11Texture2D* staging_texture = nullptr;
+    HRESULT hr = gfx_state.device->CreateTexture2D(&staging_desc, nullptr, &staging_texture);
+    
+    gfx_state.device_context->CopyResource(staging_texture, resource->texture.id);
+    
+    D3D11_MAPPED_SUBRESOURCE mapped_resource;
+    hr = gfx_state.device_context->Map(staging_texture, 0, D3D11_MAP_READ, 0, &mapped_resource);
+    
+    u32 byte_size = gfx_d3d11_byte_size_from_texture_format(resource->texture_desc.format);
+    
+    u8* texture_data = (u8*)arena_alloc(scratch.arena, desc.Width * desc.Height * byte_size);
+    
+    u8* dst = texture_data;
+    u8* src = (u8*)mapped_resource.pData;
+    
+    // copy data
+    for (u32 row = 0; row < desc.Height; row++) {
+        memcpy(dst, src, desc.Width * byte_size );
+        dst += desc.Width * byte_size;
+        src += mapped_resource.RowPitch;
+    }
+    
+    // Unmap resource
+    gfx_state.device_context->Unmap(staging_texture, 0);
+    
+    // output to file
+    stbi_write_png((char*)filepath.data, desc.Width, desc.Height, 4, texture_data, desc.Width * byte_size);
+    
+    // Cleanup
+    staging_texture->Release();
+    
+    scratch_end(scratch);
+    
+}
 
 
 // 3d texture
@@ -1435,7 +1511,7 @@ gfx_compute_shader_compile(gfx_handle_t shader, str_t src) {
 	ID3DBlob* cs_error_blob = nullptr;
 	ID3D11ComputeShader* compute_shader = nullptr;
     
-	u32 compile_flags = 0;
+	u32 compile_flags = D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
     
 #if defined(BUILD_DEBUG)
 	compile_flags |= D3DCOMPILE_DEBUG;

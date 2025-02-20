@@ -198,14 +198,16 @@ ui_begin(ui_context_t* context) {
                 // skip if not leaf panel
                 if (panel->tree_first != nullptr) { continue; }
                 
-                if (rect_contains(panel->frame->rect, event->position)) {
-                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
-                    cmd->src_panel = panel;
-                    cmd->view = panel->view_focus;
+                if (panel->frame != nullptr) {
+                    
+                    if (rect_contains(panel->frame->rect, event->position)) {
+                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                        cmd->src_panel = panel;
+                        cmd->view = panel->view_focus;
+                        
+                    }
                     
                 }
-                
-                
                 
             }
             
@@ -855,6 +857,7 @@ ui_begin(ui_context_t* context) {
             
             // skip if not leaf panel
             if (panel->tree_first != nullptr) { continue; }
+            if (panel == context->panel_root) { continue;}
             
             b8 panel_is_focused = (context->panel_focused == panel);
             
@@ -1731,7 +1734,7 @@ ui_size_by_children(f32 strictness) {
 
 function ui_size_t
 ui_size_text(f32 padding) {
-    return { ui_size_type_text, padding, 0.0f };
+    return { ui_size_type_text, padding, 1.0f };
 }
 
 //- axis
@@ -2903,6 +2906,7 @@ ui_layout_solve_upward_dependent(ui_frame_t* frame, ui_axis axis) {
         for (ui_frame_t* p = frame->tree_parent; p != nullptr; p = p->tree_parent) {
             if (p->flags & (ui_frame_flag_fixed_width << axis)||
                 p->size_wanted[axis].type == ui_size_type_pixel ||
+                p->size_wanted[axis].type == ui_size_type_text ||
                 p->size_wanted[axis].type == ui_size_type_percent) {
                 parent = p;
                 break;
@@ -3006,8 +3010,8 @@ ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
                 f32 child_size = child->size_target[axis];
                 total_size += child_size;
                 total_weighted_size += child_size * (1.0f - child->size_wanted[axis].strictness);
-                child_count++;
             }
+            child_count++;
         }
         
         f32 violation = total_size - total_allowed_size;
@@ -3024,8 +3028,8 @@ ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
                     child_fixup = max(0.0f, child_fixup);
                     child_fixups[child_index] = child_fixup;
                     child_fixup_sum += child_fixup;
-                    child_index++;
                 }
+                child_index++;
             }
             
             // fixup children
@@ -3035,8 +3039,8 @@ ui_layout_solve_violations(ui_frame_t* frame, ui_axis axis) {
                     f32 fixup_percent = violation / total_weighted_size;
                     fixup_percent = clamp_01(fixup_percent);
                     child->size_target[axis] -= child_fixups[child_index] * fixup_percent;
-                    child_index++;
                 }
+                child_index++;
             }
         }
     }
@@ -3311,6 +3315,7 @@ ui_slider(f32* value, f32 min, f32 max, str_t label) {
         ui_frame_flag_draw_hover_effects |
         ui_frame_flag_draw_active_effects |
         ui_frame_flag_draw_shadow |
+        ui_frame_flag_draw_border |
         ui_frame_flag_draw_custom;
     
     ui_set_next_hover_cursor(os_cursor_resize_EW);
@@ -3619,7 +3624,33 @@ ui_float_edit(str_t label, f32* value, f32 delta, f32 min, f32 max) {
     return interaction;
 }
 
-
+function ui_interaction 
+ui_float3_edit(str_t label, vec3_t* value, f32 delta, f32 min, f32 max) {
+    
+    ui_row_begin();
+    
+    ui_push_width(ui_size_percent(1.0f));
+    ui_push_height(ui_size_percent(1.0f));
+    
+    str_t x_label = str_format(ui_build_arena(), "%.*s_x_label", label.size, label.data);
+    str_t y_label = str_format(ui_build_arena(), "%.*s_y_label", label.size, label.data);
+    str_t z_label = str_format(ui_build_arena(), "%.*s_z_label", label.size, label.data);
+    
+    ui_interaction interaction = ui_interaction_none;
+    
+    interaction |= ui_float_edit(x_label, &(value->x), delta, min, max);
+    ui_spacer();
+    interaction |= ui_float_edit(y_label, &(value->y), delta, min, max);
+    ui_spacer();
+    interaction |= ui_float_edit(z_label, &(value->z), delta, min, max);
+    
+    ui_pop_width();
+    ui_pop_height();
+    
+    ui_row_end();
+    
+    return interaction;
+}
 
 
 function b8

@@ -10,7 +10,7 @@ features:
 	- audio (wasapi, alsa, etc.)
 	- font rasterizers (dwrite, freetype, etc. )
 - math library:
-	- vectors, matrices.
+	- vectors, matrices, quaternions.
 	- simd support.
 	- colors.
 - 2d drawing library:
@@ -30,6 +30,9 @@ ui showcase:
 atmosphere showcase:
 ![atmosphere showcase](/images/atmosphere_showcase.png?raw=true "atmosphere showcase")
 
+shadows showcase:
+![shadow showcase](/images/shadow_showcase.png?raw=true "shadow showcase")
+
 # build
 
 ### windows:
@@ -45,7 +48,7 @@ examples:
   build.bat main.cpp debug
   build.bat ui_test.cpp release
 ```
-the `build.bat` script expects the main file to be in `\src` and outputs generated files to `\build`.
+`build.bat` expects the main file to be in `\src` and outputs generated files to `\build`.
 
 
 ### linux:
@@ -60,7 +63,7 @@ not supported yet.
 		- `\src\engines\vendor`: contains third party code.
 	- `\src\templates`: contains template main files.
 	- `\src\projects`: contains project specific code.
-- `\build`: all build files and generate binaries.
+- `\build`: all build artifacts and generated binaries.
 
 # structure
 the codebase is set up in *layers*. some layers depend on other layers.

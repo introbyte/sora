@@ -180,15 +180,15 @@ app_init() {
     
     // insert view
     ui_view_t* view0 = ui_view_create(context, str("Widgets"), widget_view);
-    ui_view_t* view1 = ui_view_create(context, str("Node Graph"), node_graph_view);
+    //ui_view_t* view1 = ui_view_create(context, str("Node Graph"), node_graph_view);
     ui_view_t* view2 = ui_view_create(context, str("Force Graph"), force_graph_view);
-    ui_view_t* view3 = ui_view_create(context, str("Editor"), editor_view);
+    //ui_view_t* view3 = ui_view_create(context, str("Editor"), editor_view);
     ui_view_t* view4 = ui_view_create(context, str("Console"), console_view);
     
     ui_view_insert(left, view0);
-    ui_view_insert(right, view1);
+    //ui_view_insert(right, view1);
     ui_view_insert(right, view2);
-    ui_view_insert(right, view3);
+    //ui_view_insert(right, view3);
     ui_view_insert(bottom, view4);
     
     // force graph
@@ -530,11 +530,6 @@ function void
 editor_view() {
     
     
-    
-    
-    
-    
-    
 }
 
 
@@ -545,7 +540,7 @@ app_entry_point(i32 argc, char** argv) {
     
 	// init layers
 	os_init();
-   
+    
 	gfx_init();
 	font_init();
 	draw_init();

@@ -28,8 +28,7 @@ camera_create(arena_t* arena, os_handle_t window, gfx_handle_t renderer, f32 fov
 	camera->max_yaw = 0.0f;
 	camera->min_roll = 0.0f;
 	camera->max_roll = 0.0f;
-	camera->fps_lock = true;
-    
+    camera->mouse_is_down = false;
 	//os_set_cursor(os_cursor_null);
     
 	return camera;
@@ -48,16 +47,6 @@ camera_update(camera_t* camera, uvec2_t size) {
 	f32 et = os_window_get_elapsed_time(camera->window);
 	f32 dt = os_window_get_delta_time(camera->window);
     
-	// toggle fps lock
-	if (os_key_press(camera->window, os_key_tab)) {
-        camera->fps_lock = !camera->fps_lock;
-        if (camera->fps_lock) {
-            os_set_cursor(os_cursor_null);
-        } else {
-            os_set_cursor(os_cursor_pointer);
-        }
-	}
-    
 	// get input
 	f32 forward_input = 0.0f;
 	f32 right_input = 0.0f;
@@ -69,18 +58,41 @@ camera_update(camera_t* camera, uvec2_t size) {
     
 	forward_input = (f32)(os_key_is_down(os_key_W) - os_key_is_down(os_key_S));
 	right_input = (f32)(os_key_is_down(os_key_D) - os_key_is_down(os_key_A));
-	up_input = (f32)(os_key_is_down(os_key_space) - os_key_is_down(os_key_ctrl));
-	roll_input = (f32)(os_key_is_down(os_key_E) - os_key_is_down(os_key_Q));
+	up_input = (f32)(os_key_is_down(os_key_ctrl) - os_key_is_down(os_key_space));
+	roll_input = (f32)(os_key_is_down(os_key_Q) - os_key_is_down(os_key_E));
 	speed = os_key_is_down(os_key_shift) ? 10.0f : 2.5f;
     
-	// mouse delta
-	vec2_t mouse_pos = os_window_get_cursor_pos(camera->window);
-	vec2_t delta = vec2_sub(vec2(window_size.x *0.5f, window_size.y * 0.5f), mouse_pos);
-	if (camera->fps_lock) {
-        os_window_set_cursor_pos(camera->window, vec2(window_size.x * 0.5f, window_size.y * 0.5f));
+    // mouse input
+    if (os_mouse_press(camera->window, os_mouse_button_right)) {
+        camera->mouse_start =  os_window_get_cursor_pos(camera->window);
+        camera->mouse_is_down = true;
+        os_set_cursor(os_cursor_null);
+    }
+    
+    if (os_mouse_release(camera->window, os_mouse_button_right)) {
+        camera->mouse_is_down = false;
+        os_set_cursor(os_cursor_pointer);
+    }
+    
+    if (camera->mouse_is_down) {
+        vec2_t mouse_pos = os_window_get_cursor_pos(camera->window);
+        vec2_t delta = vec2_sub(camera->mouse_start, mouse_pos);
+        os_window_set_cursor_pos(camera->window, camera->mouse_start);
         yaw_input = delta.x;
-        pitch_input = delta.y;
-	}
+        pitch_input = -delta.y;
+    }
+    
+	// mouse delta
+    /*if (os_window_is_active(camera->window)) {
+        vec2_t mouse_pos = os_window_get_cursor_pos(camera->window);
+        vec2_t delta = vec2_sub(vec2(window_size.x *0.5f, window_size.y * 0.5f), mouse_pos);
+        if (camera->fps_lock) {
+            os_window_set_cursor_pos(camera->window, vec2(window_size.x * 0.5f, window_size.y * 0.5f));
+            yaw_input = delta.x;
+            pitch_input = -delta.y;
+        }
+        
+    }*/
     
 	// clamp input
 	vec3_t euler_angle = quat_to_euler_angle(camera->target_orientation);

@@ -141,13 +141,13 @@ os_any_window_exist() {
 
 function void
 os_set_cursor(os_cursor cursor) {
-	if (cursor == os_cursor_null) {
-		ShowCursor(false);
-	} else {
-		ShowCursor(true);
-		HCURSOR hcursor = os_state.cursors[cursor];
+    if (cursor == os_cursor_null) {
+        while(ShowCursor(0) >= 0);
+    } else {
+        while(ShowCursor(1) < 0);
+        HCURSOR hcursor = os_state.cursors[cursor];
 		SetCursor(hcursor);
-	}
+    }
 }
 
 function os_system_info_t 
@@ -229,6 +229,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	dll_push_back(os_state.window_first, os_state.window_last, window);
     
 	// fill struct
+    window->title = title;
 	window->flags = flags;
 	QueryPerformanceCounter(&window->tick_current);
 	window->tick_previous = window->tick_current;
@@ -236,7 +237,6 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	window->elasped_time = 0.0;
 	window->resolution = uvec2(width, height);
 	window->last_window_placement.length = sizeof(WINDOWPLACEMENT);
-    
 	// borderless
 	window->borderless = flags & os_window_flag_borderless;
 	BOOL enabled = 0;
@@ -248,7 +248,7 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	}
     
 	// adjust window size
-	DWORD style = WS_OVERLAPPEDWINDOW | WS_SIZEBOX;
+	DWORD style = WS_OVERLAPPEDWINDOW;
 	
 	// validate size
 	RECT rect = { 0, 0, width, height };
@@ -257,13 +257,15 @@ os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
 	i32 adjusted_height = rect.bottom - rect.top;
     
 	// open window
+    DWORD ex_flags = WS_EX_APPWINDOW;
 	os_state.new_borderless_window = !!(flags & os_window_flag_borderless);
-	window->handle = CreateWindowExA(WS_EX_APPWINDOW, "sora_window_class", (char*)title.data,
+	window->handle = CreateWindowExA(ex_flags, "sora_window_class", (char*)title.data,
                                      style, CW_USEDEFAULT, CW_USEDEFAULT, adjusted_width, adjusted_height,
                                      nullptr, nullptr, GetModuleHandle(NULL), nullptr);
 	os_state.new_borderless_window = false;
 	ShowWindow(window->handle, SW_SHOW);
 	
+    
 	os_handle_t window_handle = os_w32_handle_from_window(window);
 	return window_handle;
 }
@@ -286,6 +288,11 @@ os_window_close(os_handle_t handle) {
         if (window->handle != nullptr) { DestroyWindow(window->handle);  }
         
     }
+}
+
+function void
+os_window_update(os_handle_t window) {
+    // TODO: the user should update each window
 }
 
 function void 
@@ -347,6 +354,13 @@ function void
 os_window_set_title(os_handle_t handle, str_t title) {
 	os_w32_window_t* window = os_w32_window_from_handle(handle);
 	SetWindowTextA(window->handle, (char*)title.data);
+    window->title = title;
+}
+
+function str_t
+os_window_get_title(os_handle_t handle) {
+    os_w32_window_t* window = os_w32_window_from_handle(handle);
+    return window->title;
 }
 
 function u32
@@ -1071,6 +1085,11 @@ os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
 			}
 			break;
 		}
+        
+        case WM_ERASEBKGND: {
+            result = 1;
+            break;
+        }
         
 		case WM_ENTERSIZEMOVE: {
 			window->is_moving = true;

@@ -7,6 +7,12 @@
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../../vendor/stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../../vendor/stb_image_write.h"
+
 //- defines
 
 #ifdef BUILD_DEBUG
@@ -150,6 +156,9 @@ struct gfx_d3d11_state_t {
 global gfx_d3d11_state_t gfx_state;
 
 //- d3d11 specific functions
+
+// texture
+function void gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* texture, void* data);
 
 // renderer
 function gfx_d3d11_renderer_t* gfx_d3d11_renderer_from_handle(gfx_handle_t handle);

@@ -63,6 +63,7 @@ struct os_w32_window_t {
 	HWND handle;
 	
 	// info
+    str_t title;
 	uvec2_t resolution;
 	b8 borderless;
 	b8 composition_enabled;

@@ -498,10 +498,10 @@ str_formatv(arena_t* arena, char* fmt, va_list args) {
 	str_t result = { 0 };
 	va_list args2;
 	va_copy(args2, args);
-	u32 needed_bytes = stbsp_vsnprintf(0, 0, fmt, args) + 1;
+	u32 needed_bytes = vsnprintf(0, 0, fmt, args) + 1;
 	result.data = (u8*)arena_alloc(arena, sizeof(u8) * needed_bytes);
 	result.size = needed_bytes - 1;
-	stbsp_vsnprintf((char*)result.data, needed_bytes, fmt, args2);
+	vsnprintf((char*)result.data, needed_bytes, fmt, args2);
 	return result;
 }
 
@@ -519,7 +519,7 @@ function void
 str_scan(str_t string, char* fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-	//vsscanf((char*)string.data, fmt, args);
+	vsscanf((char*)string.data, fmt, args);
 	va_end(args);
 }
 

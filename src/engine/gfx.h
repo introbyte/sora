@@ -264,13 +264,16 @@ function void         gfx_buffer_release(gfx_handle_t buffer);
 function void         gfx_buffer_fill(gfx_handle_t buffer, void* data, u32 size);
 
 // texture (implemented per backend)
-function gfx_handle_t gfx_texture_create_ex(gfx_texture_desc_t, void* = nullptr);
-function gfx_handle_t gfx_texture_create(uvec2_t, gfx_texture_format = gfx_texture_format_rgba8, void* = nullptr);
+function gfx_handle_t gfx_texture_create_ex(gfx_texture_desc_t texture_desc, void* data = nullptr);
+function gfx_handle_t gfx_texture_create(uvec2_t size, gfx_texture_format format = gfx_texture_format_rgba8, void* data = nullptr);
 function gfx_handle_t gfx_texture_load(str_t filepath);
-function void gfx_texture_release(gfx_handle_t);
-function void gfx_texture_fill(gfx_handle_t, void*);
-function void gfx_texture_fill_region(gfx_handle_t, rect_t, void*);
-function void gfx_texture_blit(gfx_handle_t, gfx_handle_t);
+function void gfx_texture_release(gfx_handle_t texture);
+function uvec2_t gfx_texture_get_size(gfx_handle_t texture);
+function void gfx_texture_resize(gfx_handle_t texture, uvec2_t size);
+function void gfx_texture_fill(gfx_handle_t texture, void* data);
+function void gfx_texture_fill_region(gfx_handle_t texture, rect_t region, void* data);
+function void gfx_texture_blit(gfx_handle_t texture_dst, gfx_handle_t texture_src);
+function void gfx_texture_write(gfx_handle_t texture, str_t filepath);
 
 function gfx_handle_t gfx_texture_3d_create_ex(gfx_texture_3d_desc_t desc, void* data = nullptr);
 function gfx_handle_t gfx_texture_3d_create(str_t name, uvec3_t size, gfx_texture_format format = gfx_texture_format_rgba8, void* data = nullptr);
