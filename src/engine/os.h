@@ -13,7 +13,8 @@
 
 // typedefs
 
-typedef void os_thread_function_t();
+typedef void os_thread_function_t(void*);
+typedef void os_fiber_function_t(void*);
 typedef void os_frame_function_t();
 
 // enums
@@ -306,6 +307,11 @@ function f32          os_window_get_delta_time(os_handle_t window);
 function f32          os_window_get_elapsed_time(os_handle_t window);
 function vec2_t       os_window_get_mouse_delta(os_handle_t window);
 
+// graphical messages (implemented per backend)
+
+function void         os_graphical_message(b8 error, str_t title, str_t msg);
+
+
 // memory (implemented per backend)
 function u64          os_page_size();
 function void*        os_mem_reserve(u64 size);
@@ -325,13 +331,13 @@ function os_file_info_t os_file_get_info(os_handle_t file);
 function os_file_info_t os_file_get_info(str_t filepath);
 
 // file iterator (implemented per backend)
-function os_handle_t os_file_iter_begin(str_t filepath, os_file_iter_flags flags = 0);
-function void os_file_iter_end(os_handle_t iter);
-function b8 os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info);
+function os_handle_t  os_file_iter_begin(str_t filepath, os_file_iter_flags flags = 0);
+function void         os_file_iter_end(os_handle_t iter);
+function b8           os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info);
 
 // threads (implemented per backend)
-function os_handle_t  os_thread_create(os_thread_function_t* thread_func, str_t name);
-function b8           os_thread_join(os_handle_t thread, u64 endt_us);
+function os_handle_t  os_thread_create(os_thread_function_t* thread_func, void* params = nullptr);
+function b8           os_thread_join(os_handle_t thread, u64 endt_us = u64_max);
 function void         os_thread_detach(os_handle_t thread);
 function void         os_thread_set_name(os_handle_t thread, str_t name);
 
@@ -349,7 +355,7 @@ function void         os_rw_mutex_unlock_r(os_handle_t rw_mutex);
 function void         os_rw_mutex_lock_w(os_handle_t rw_mutex);
 function void         os_rw_mutex_unlock_w(os_handle_t rw_mutex);
 
-// condition variable
+// condition variable (implemented per backend)
 function os_handle_t  os_condition_variable_create();
 function void         os_condition_variable_release(os_handle_t cv);
 function b8           os_condition_variable_wait(os_handle_t cv, os_handle_t mutex, u64 endt_us);
@@ -358,6 +364,10 @@ function b8           os_condition_variable_wait_rw_w(os_handle_t cv, os_handle_
 function void         os_condition_variable_signal(os_handle_t cv);
 function void         os_condition_variable_broadcast(os_handle_t cv);
 
+// fiber (implemented per backend)
+function os_handle_t  os_fiber_create(u32 stack_size, os_fiber_function_t* fiber_func, void* params = nullptr);
+function void         os_fiber_release(os_handle_t fiber);
+function os_handle_t  os_fiber_from_thread();
 
 // backend includes
 

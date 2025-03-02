@@ -104,23 +104,28 @@
 #define gigabytes(n)  (((u64)n) << 30)
 #define terabytes(n)  (((u64)n) << 40)
 
+//- profiling 
+
+#define prof_begin(name)
+#define prof_end()
+
 //- type constants
-#define u8_max  (0xFF)
+#define u8_max  (0xff)
 #define u8_min  (0)
-#define u16_max (0xFFFF)
+#define u16_max (0xffff)
 #define u16_min (0)
-#define u32_max (0xFFFFFFFF)
+#define u32_max (0xffffffff)
 #define u32_min (0)
-#define u64_max (0xFFFFFFFFFFFFFFFF)
+#define u64_max (0xffffffffffffffffull)
 #define u64_min (0)
-#define i8_max (0x7F)
-#define i8_min (-1 - 0x7F)
-#define i16_max (0x7FFF)
-#define i16_min (-1 - 0x7FFF)
-#define i32_max (0x7FFFFFFF)
-#define i32_min (-1 - 0x7FFFFFFF)
-#define i64_max (0x7FFFFFFFFFFFFFFF)
-#define i64_min (-1 - 0x7FFFFFFFFFFFFFFF)
+#define i8_max ((i8)0x7f)
+#define i8_min ((i8)0xff)
+#define i16_max ((i16)0x7fff)
+#define i16_min ((i16)0xffff)
+#define i32_max ((i32)0x7fffffff)
+#define i32_min ((i32)0xffffffff)
+#define i64_max ((i64)0x7fffffffffffffffull)
+#define i64_min ((i64)0xffffffffffffffffull)
 
 #define f32_sign (0x80000000)
 #define f32_exp (0x7F800000)
@@ -204,6 +209,9 @@ typedef bool b8;
 //~ atmomics
 
 #if COMPILER_MSVC
+
+#define atomic_u64(x) *((volatile __int64*)(x))
+#define atomic_u32(x) *((volatile LONG*)(x))
 
 #define atomic_u64_inc(x) InterlockedIncrement64((volatile __int64*)(x))
 #define atomic_u64_dec(x) InterlockedDecrement64((volatile __int64*)(x))

@@ -5,6 +5,7 @@
 
 // enums
 
+// TODO: priority not implement yet.
 enum task_priority {
     task_priority_low,
     task_priority_normal,
@@ -18,18 +19,19 @@ typedef void task_function(void*);
 
 // structs
 
-struct task_t {
-    task_priority priority;
+struct task_desc_t {
     task_function* func;
     void* data;
 };
 
 struct task_counter_t {
-    u32 id;
+    task_counter_t* next;
+    u32 count;
 };
 
-struct task_fiber_t {
-
+struct task_t {
+    task_desc_t desc;
+    task_counter_t* counter;
 };
 
 struct task_queue_t {
@@ -37,15 +39,27 @@ struct task_queue_t {
     task_queue_t* prev;
     
     task_t task;
-}
+};
 
 struct task_state_t {
     
     arena_t* arena;
     
+    u32 state_active;
+    
+    // worker pool
     os_handle_t* worker_threads;
     u32 worker_threads_count;
-    u32 worker_threads_active_count;
+    
+    // counter free list
+    task_counter_t* counter_free;
+    
+    // task queue
+    task_queue_t* task_queue_first;
+    task_queue_t* task_queue_last;
+    task_queue_t* task_queue_free;
+    
+    os_handle_t task_queue_mutex;
     
 };
 
@@ -56,10 +70,9 @@ global task_state_t task_state;
 function void task_init(u32 worker_thread_count);
 function void task_release();
 
-function task_counter_t* task_start(task_t* task_list, u32 task_count);
+function task_counter_t* task_run(task_desc_t* tasks, u32 tasks_count);
 function void task_wait_for_counter(task_counter_t* counter, u32 value);
 
-
-function void task_work_thread_entry_point();
+function void task_work_thread_entry_point(void* params);
 
 #endif // TASK_H

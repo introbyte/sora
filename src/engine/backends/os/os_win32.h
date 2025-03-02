@@ -23,6 +23,7 @@ enum os_w32_entity_type {
 	os_w32_entity_type_mutex,
 	os_w32_entity_type_rw_mutex,
 	os_w32_entity_type_condition_variable,
+    os_w32_entity_type_fiber,
 	os_w32_entity_type_file_iter,
 };
 
@@ -33,21 +34,41 @@ struct os_w32_entity_t {
     
 	os_w32_entity_type type;
 	union {
+        
+        // thread
 		struct {
 			HANDLE handle;
-			DWORD thread_id;
+			DWORD tid;
 			void* ptr;
+            void* params;
 			os_thread_function_t* func;
 		} thread;
+        
+        // mutex
 		CRITICAL_SECTION mutex;
+        
+        // rw_mutex
 		SRWLOCK rw_mutex;
+        
+        // condition_variable
 		CONDITION_VARIABLE cv;
+        
+        // fiber
+        struct {
+            void* params;
+            os_fiber_function_t* func;
+            void* fiber_id;
+        } fiber;
+        
+        // file iter
         struct {
             os_file_iter_flags flags;
             HANDLE handle;
             WIN32_FIND_DATAW find_data;
         } file_iter;
+        
 	};
+    
 };
 
 struct os_w32_window_t {

@@ -31,7 +31,7 @@ function void
 app_init() {
     
     window = os_window_open(str("rendering test"), 1440, 960);
-    renderer = gfx_renderer_create(window, color(0xcececeff));
+    renderer = gfx_renderer_create(window, color(0x500000ff));
     
     // set frame function
     os_window_set_frame_function(window, app_frame);
@@ -40,7 +40,6 @@ app_init() {
 
 function void
 app_release() {
-    
     gfx_renderer_release(renderer);
     os_window_close(window);
 }
@@ -50,7 +49,6 @@ app_frame() {
     
     // update layers
     os_update();
-    gfx_update();
     
     // quit events
     if (os_key_press(window, os_key_esc) || os_event_get(os_event_type_window_close) != 0) {
@@ -65,6 +63,8 @@ app_frame() {
     // render
     if (!gfx_handle_equals(renderer, { 0 })) {
         gfx_renderer_begin(renderer);
+        
+        
         
         gfx_renderer_end(renderer);
     }

@@ -3,6 +3,22 @@
 #ifndef GFX_VULKAN_H
 #define GFX_VULKAN_H
 
+//
+// todo:
+//
+// [ ] - state:
+//     [ ] - create instance
+//     [ ] - find physical device
+//     [ ] - find queue families
+//     [ ] - create logical device
+// [ ] - renderer:
+//     [ ] - create window surface
+//     [ ] - create swapchain
+//     [ ] - create graphics pipeline
+//
+//
+
+
 //- includes 
 
 #undef function
@@ -58,6 +74,13 @@ struct gfx_vk_resource_t {
     
 };
 
+struct gfx_vk_queue_family_indices_t  {
+    i32 graphics_family_index;
+    i32 present_family_index;
+    i32 compute_family_index;
+    i32 transfer_family_index;
+};
+
 // renderer
 struct gfx_vk_renderer_t {
     gfx_vk_renderer_t* next;
@@ -66,12 +89,26 @@ struct gfx_vk_renderer_t {
     // context
 	os_handle_t window;
 	color_t clear_color;
-	uvec2_t resolution;
+	uvec2_t size;
+    
+    arena_t* arena;
     
     // vulkan
     VkSurfaceKHR surface;
-    VkQueue present_queue;
     VkSwapchainKHR swapchain;
+    
+    u32 swapchain_image_count;
+    VkImage* swapchain_images;
+    VkImageView* swapchain_image_views;
+    VkSemaphore* image_available_semaphore;
+    VkSemaphore* rendering_finished_semaphore;
+    VkFence* in_flight_fences;
+    
+    VkCommandPool command_pool;
+    VkCommandBuffer* command_buffers;
+    
+    u32 image_index;
+    u32 current_frame;
     
 };
 
@@ -95,10 +132,12 @@ struct gfx_vk_state_t {
     
     // vulkan
     VkInstance instance;
+    VkDebugUtilsMessengerEXT debug_messenger;
     VkPhysicalDevice physical_device;
     VkDevice device;
     VkQueue graphics_queue;
-    
+    VkQueue present_queue;
+    gfx_vk_queue_family_indices_t queue_indices;
 };
 
 //- globals 
@@ -107,8 +146,21 @@ global gfx_vk_state_t gfx_vk_state;
 
 //- vullkan specific functions 
 
+// implemented per backend
 function cstr* gfx_vk_get_extensions(u32* count);
 function void gfx_vk_surface_create(gfx_vk_renderer_t* renderer);
+function b8 gfx_vk_presentation_support(VkPhysicalDevice device, u32 queue_family_index);
+function void gfx_vk_renderer_create_swapchain(gfx_vk_renderer_t* renderer);
+
+// queue families
+function gfx_vk_queue_family_indices_t  gfx_vk_get_queue_family_indices(VkPhysicalDevice device);
+
+// enum conversions
+function VkFormat gfx_vk_format_from_texture_format(gfx_texture_format format);
+
+// string conversions
+function cstr gfx_vk_str_from_result(VkResult result);
+
 
 //- include os specifics 
 

@@ -126,7 +126,7 @@ float3 integrate_scattering(float3 ray_start, float3 ray_dir, float ray_length, 
         ray_length -= intersection.x;
     }
 
-    int sample_count = 24;
+    int sample_count = 8;
     float prev_ray_time = 0;
 
     float3 optical_depth = float3(0.0f, 0.0f, 0.0f);
@@ -168,7 +168,7 @@ float3 integrate_scattering(float3 ray_start, float3 ray_dir, float ray_length, 
     return ((rayleigh * rayleigh_coeff.rgb + mie * mie_coeff.rgb) * exposure);
 }
 
-[numthreads(16 , 16, 1)]
+[numthreads(32 , 32, 1)]
 void cs_main(uint3 id : SV_DispatchThreadID) {
     
     // calculate view vector

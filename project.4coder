@@ -22,7 +22,7 @@ command_list = {
         .save_dirty_files = true,
         .cursor_at_end = false,
         .cmd = {
-            { "build.bat ui_test", .os = "win" },
+            { "build.bat vulkan_test", .os = "win" },
         },
     },
 

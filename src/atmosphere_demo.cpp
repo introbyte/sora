@@ -8,6 +8,8 @@
 #include "engine/font.h"
 #include "engine/draw.h"
 #include "engine/ui.h"
+#include "engine/log.h"
+#include "engine/profile.h"
 
 #include "engine/base.cpp"
 #include "engine/os.cpp"
@@ -15,6 +17,8 @@
 #include "engine/font.cpp"
 #include "engine/draw.cpp"
 #include "engine/ui.cpp"
+#include "engine/log.cpp"
+#include "engine/profile.cpp"
 
 #include "projects/utils/camera.h"
 #include "projects/utils/camera.cpp"
@@ -56,6 +60,7 @@ global gfx_handle_t constant_buffer;
 
 global b8 show_controls_panel;
 global b8 show_settings_panel;
+global b8 show_console_panel;
 
 //- functions 
 
@@ -99,6 +104,7 @@ app_init() {
     // panels
     show_controls_panel = true;
     show_settings_panel = true;
+    show_console_panel = true;
     
 }
 
@@ -181,7 +187,7 @@ app_frame() {
             gfx_set_texture(render_texture, 0, gfx_texture_usage_cs);
             gfx_set_texture(blue_noise, 1, gfx_texture_usage_cs);
             gfx_set_buffer(constant_buffer);
-            gfx_dispatch(texture_size.x / 16 + 1, texture_size.y / 16 + 1, 1);
+            gfx_dispatch(texture_size.x / 32 + 1, texture_size.y / 32 + 1, 1);
             gfx_set_texture({ 0 }, 0);
             gfx_set_texture({ 0 }, 1);
             gfx_set_compute_shader({ 0 });
@@ -304,6 +310,30 @@ app_frame() {
             
         }
         
+        // console panel
+        if (show_console_panel) {
+            
+            /*ui_set_next_fixed_x(5.0f);
+            ui_set_next_fixed_y(renderer_size.y - 355.0f);
+            ui_set_next_size(ui_size_pixels(750.0f), ui_size_pixels(350.0f));
+            ui_set_next_layout_dir(ui_dir_up);
+            
+            ui_frame_t* console_frame = ui_frame_from_stringf(ui_frame_flag_draw_background, "console_frame");
+            
+            ui_push_parent(console_frame);
+            
+            ui_push_size(ui_size_percent(1.0f), ui_size_pixels(20.0f));
+            
+            for (log_t* log = log_state.log_first; log != 0; log = log->next) {
+                ui_label(log->string);
+            }
+            ui_pop_size();
+            
+            ui_pop_parent();*/
+            
+        }
+        
+        
         ui_pop_color_border();
         ui_end(ui);
         draw_end(renderer);
@@ -318,6 +348,8 @@ function i32
 app_entry_point(i32 argc, char** argv) {
     
     // init layers
+    log_init();
+    pf_init();
     os_init();
     gfx_init();
     font_init();
@@ -341,6 +373,8 @@ app_entry_point(i32 argc, char** argv) {
     font_release();
     gfx_release();
     os_release();
+    pf_release();
+    log_release();
     
     return 0;
     

@@ -461,6 +461,13 @@ os_window_get_mouse_delta(os_handle_t handle) {
 	return window->mouse_delta;
 }
 
+// graphical message
+
+function void
+os_graphical_message(b8 error, str_t title, str_t msg) {
+    MessageBoxA(0, (char*)msg.data, (char*)title.data, MB_OK |(!!error*MB_ICONERROR));
+}
+
 // memory functions
 
 function u64
@@ -742,21 +749,14 @@ os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info) {
 // thread functions
 
 function os_handle_t
-os_thread_create(os_thread_function_t* thread_function, str_t name = str("")) {
+os_thread_create(os_thread_function_t* thread_function, void* params) {
     
 	// get entity
 	os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_thread);
     
 	entity->thread.func = thread_function;
-	entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.thread_id);
-    
-    // set name
-    if (entity->thread.handle != 0) {
-        temp_t scratch = scratch_begin();
-        str16_t thread_wide = str16_from_str(scratch.arena, name);
-        SetThreadDescription(entity->thread.handle, (WCHAR*)thread_wide.data);
-        scratch_end(scratch);
-    }
+	entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.tid);
+    entity->thread.params = params;
     
 	os_handle_t handle = { (u64)entity };
 	return handle;
@@ -775,6 +775,7 @@ os_thread_join(os_handle_t thread, u64 endt_us) {
 		os_w32_entity_release(entity);
 	}
     
+    return (wait_result == WAIT_OBJECT_0);
 }
 
 function void
@@ -940,6 +941,42 @@ os_condition_variable_broadcast(os_handle_t cv) {
 	WakeAllConditionVariable(&entity->cv);
 }
 
+// fiber functions
+
+function os_handle_t
+os_fiber_create(u32 stack_size, os_fiber_function_t* fiber_func, void* params) {
+    os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_fiber);
+    
+    entity->fiber.params = params;
+    entity->fiber.func = fiber_func;
+    entity->fiber.fiber_id = CreateFiber(stack_size, fiber_func, params);
+    
+    os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+function void
+os_fiber_release(os_handle_t fiber) {
+    os_w32_entity_t* entity = (os_w32_entity_t*)(fiber.data[0]);
+    DeleteFiber(entity->fiber.fiber_id);
+    os_w32_entity_release(entity);
+}
+
+function void
+os_fiber_switch(os_handle_t fiber) {
+    os_w32_entity_t* entity = (os_w32_entity_t*)(fiber.data[0]);
+    SwitchToFiber(entity->fiber.fiber_id);
+}
+
+function os_handle_t
+os_fiber_from_thread() {
+    os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_fiber);
+    entity->fiber.fiber_id = ConvertThreadToFiber(nullptr);
+    os_handle_t handle = { (u64)entity };
+	return handle;
+}
+
+
 
 // win32 specific functions
 
@@ -1048,7 +1085,14 @@ os_w32_sleep_ms_from_endt_us(u64 endt_us) {
 function DWORD
 os_w32_thread_entry_point(void* ptr) {
 	os_w32_entity_t* entity = (os_w32_entity_t*)ptr;
-	entity->thread.func();
+    
+    // launch thread function
+	entity->thread.func(entity->thread.params);
+    
+    // once finish, cleanup
+    CloseHandle(entity->thread.handle);
+    os_w32_entity_release(entity);
+    
 	return 0;
 }
 
