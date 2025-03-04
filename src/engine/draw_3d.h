@@ -61,6 +61,9 @@ struct draw_3d_state_t {
     draw_3d_shader_node_t shader_default_node;
     draw_3d_texture_node_t texture_default_node;
     
+    // default assets
+    gfx_handle_t default_texture;
+    
 };
 
 // globals

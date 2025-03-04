@@ -21,11 +21,15 @@ draw_3d_init() {
 		draw_3d_state.constant_buffers[i] = gfx_buffer_create(gfx_buffer_type_constant, kilobytes(4));
 	}
     
+    // create default texture
+    u32 data = 0xffffffff;
+	draw_3d_state.default_texture = gfx_texture_create(uvec2(1, 1), gfx_texture_format_rgba8, &data);
+    
+    
     // stack defaults
     draw_3d_state.pipeline_default_node.v = gfx_pipeline_create();
     draw_3d_state.shader_default_node.v = { 0 };
-    draw_3d_state.texture_default_node.v = draw_state.texture;
-    
+    draw_3d_state.texture_default_node.v = draw_3d_state.default_texture;
     
 }
 

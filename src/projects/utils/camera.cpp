@@ -56,11 +56,14 @@ camera_update(camera_t* camera, uvec2_t size) {
 	f32 yaw_input = 0.0f;
 	f32 speed = 2.5f;
     
-	forward_input = (f32)(os_key_is_down(os_key_W) - os_key_is_down(os_key_S));
-	right_input = (f32)(os_key_is_down(os_key_D) - os_key_is_down(os_key_A));
-	up_input = (f32)(os_key_is_down(os_key_ctrl) - os_key_is_down(os_key_space));
-	roll_input = (f32)(os_key_is_down(os_key_Q) - os_key_is_down(os_key_E));
-	speed = os_key_is_down(os_key_shift) ? 10.0f : 2.5f;
+    // only get input if window is focused
+    if (os_window_is_active(camera->window)) {
+        forward_input = (f32)(os_key_is_down(os_key_W) - os_key_is_down(os_key_S));
+        right_input = (f32)(os_key_is_down(os_key_D) - os_key_is_down(os_key_A));
+        up_input = (f32)(os_key_is_down(os_key_space) - os_key_is_down(os_key_ctrl));
+        roll_input = (f32)(os_key_is_down(os_key_E) - os_key_is_down(os_key_Q));
+        speed = os_key_is_down(os_key_shift) ? 10.0f : 2.5f;
+    }
     
     // mouse input
     if (os_mouse_press(camera->window, os_mouse_button_right)) {
@@ -79,7 +82,7 @@ camera_update(camera_t* camera, uvec2_t size) {
         vec2_t delta = vec2_sub(camera->mouse_start, mouse_pos);
         os_window_set_cursor_pos(camera->window, camera->mouse_start);
         yaw_input = delta.x;
-        pitch_input = -delta.y;
+        pitch_input = delta.y;
     }
     
 	// mouse delta

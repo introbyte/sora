@@ -675,6 +675,41 @@ str16_from_str(arena_t* arena, str_t string) {
     
 }
 
+// number/string conversions
+
+function f32
+f32_from_str(str_t string) {
+    
+    i32 i = 0;
+    i32 sign = 1;
+    i32 integer_part = 0;
+    i32 fraction_part = 0;
+    i32 divisor = 1;
+    
+    if (string.data[i] == '-') {
+        sign = -1;
+        i++;
+    } else if (string.data[i] == '+') {
+        i++;
+    }
+    
+    while(char_is_digit(string.data[i]) && i < string.size) {
+        integer_part = integer_part * 10 + (string.data[i] - '0');
+        i++;
+    }
+    
+    if (string.data[i] == '.') {
+        i++;
+        while (char_is_digit(string.data[i]) && i < string.size) {
+            fraction_part = fraction_part * 10 + (string.data[i] - '0');
+            divisor *= 10;
+            i++;
+        }
+    }
+    
+    return sign * ((f32)integer_part + (f32)fraction_part / (f32)divisor);
+}
+
 // random
 
 function void

@@ -1017,6 +1017,7 @@ gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
     // create texture
     
     HRESULT hr = 0;
+    b8 has_uav = true;
     
     // determine bind flags
     D3D11_BIND_FLAG bind_flags = (D3D11_BIND_FLAG)(D3D11_BIND_SHADER_RESOURCE);
@@ -1028,6 +1029,8 @@ gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
     if (resource->texture_desc.render_target) {
         if (gfx_texture_format_is_depth(resource->texture_desc.format)) {
             bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_DEPTH_STENCIL);
+            bind_flags = (D3D11_BIND_FLAG)(bind_flags & ~D3D11_BIND_UNORDERED_ACCESS);
+            has_uav = false;
         } else {
             bind_flags = (D3D11_BIND_FLAG)(bind_flags | D3D11_BIND_RENDER_TARGET);
         }
@@ -1056,6 +1059,11 @@ gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
     
     // create texture2d
     hr = gfx_state.device->CreateTexture2D(&texture_desc, data ? &texture_data : nullptr, &resource->texture.id);
+    if (FAILED(hr)) {
+        os_graphical_message(true, str("[gfx] texture error"), str("failed to create texture!"));
+        os_abort(1);
+    }
+    
     
     // create srv
     D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = { 0 };
@@ -1067,20 +1075,28 @@ gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
         srv_desc.Texture2D.MipLevels = 1; // TODO: support mips.
     }
     hr = gfx_state.device->CreateShaderResourceView(resource->texture.id, &srv_desc, &resource->texture.srv);
+    if (FAILED(hr)) {
+        os_graphical_message(true, str("[gfx] texture error"), str("failed to create srv for texture!"));
+        os_abort(1);
+    }
     
     // create uav
     
-    if (resource->texture_desc.sample_count == 1) {
+    if (resource->texture_desc.sample_count == 1 && has_uav) {
         D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = { 0 };
         uav_desc.Format = texture_desc.Format;
         uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
         uav_desc.Texture2D.MipSlice = 0;
         
         hr = gfx_state.device->CreateUnorderedAccessView(resource->texture.id, &uav_desc, &resource->texture.uav);
+        if (FAILED(hr)) {
+            os_graphical_message(true, str("[gfx] texture error"), str("failed to create uav for texture!"));
+            os_abort(1);
+        }
     }
     
     if (FAILED(hr)) {
-        printf("[error] an error occurred!\n");
+        printf("[error] a texture error occurred! hr: %x\n", hr);
     }
     
 }
@@ -1712,7 +1728,7 @@ gfx_render_target_create_resources(gfx_handle_t render_target) {
         
 		// create new dsv
 		D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = { 0 };
-		dsv_desc.Format = gfx_d3d11_dsv_format_from_texture_format(resource->render_target_desc.format);
+		dsv_desc.Format = gfx_d3d11_dsv_format_from_texture_format(gfx_texture_format_d32);
 		if (resource->render_target_desc.sample_count > 1) {
 			dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
 		} else {

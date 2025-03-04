@@ -619,6 +619,10 @@ function str16_t str16(u16* data, u32 size);
 function str_t str_from_str16(arena_t* arena, str16_t string);
 function str16_t str16_from_str(arena_t* arena, str_t string);
 
+// number/string conversions
+function f32 f32_from_str(str_t string);
+function str_t str_from_f32(f32 value);
+
 //- random
 function void random_seed(u32 seed);
 function u32 random_u32();
