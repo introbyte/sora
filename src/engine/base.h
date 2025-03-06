@@ -103,6 +103,10 @@
 #define persist static
 #define inlnfunc inline static
 
+#if COMPILER_MSVC
+#define thread_static __declspec(thread)
+#endif 
+
 //- sizes
 #define bytes(n)      (n)
 #define kilobytes(n)  (n << 10)
@@ -267,6 +271,10 @@ struct arena_t {
 struct temp_t {
 	arena_t* arena;
 	u64 pos;
+};
+
+struct thread_context_t {
+    arena_t* scratch_arena;
 };
 
 //- strings
@@ -553,7 +561,7 @@ global u8 utf8_class[32] = {
 	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
 };
 
-global arena_t* global_scratch_arena;
+thread_static thread_context_t thread_context_local;
 
 //~ functions
 
@@ -576,6 +584,12 @@ function void temp_end(temp_t temp);
 
 function temp_t scratch_begin();
 function void scratch_end(temp_t temp);
+
+//- thread context
+function void thread_context_create();
+function void thread_context_release();
+function thread_context_t* thread_context_get();
+function arena_t* thread_context_get_scratch();
 
 //- cstr
 function u32 cstr_length(cstr cstr);

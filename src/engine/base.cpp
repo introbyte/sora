@@ -10,13 +10,17 @@ i32 app_entry_point(i32 argc, char** argv);
 
 #if defined(BUILD_DEBUG)
 int main(int argc, char** argv) {
-	global_scratch_arena = arena_create(gigabytes(2));
-	return app_entry_point(argc, argv);
+    thread_context_create();
+    i32 result = app_entry_point(argc, argv);
+    thread_context_release();
+	return result;
 }
 #elif defined(BUILD_RELEASE)
 int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd) {
-	global_scratch_arena = arena_create(gigabytes(2));
-	return app_entry_point(__argc, __argv);
+    thread_context_create();
+    i32 result = app_entry_point(__argc, __argv);
+    thread_context_release();
+	return result;
 }
 #endif
 
@@ -29,7 +33,6 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 #define os_mem_commit(ptr, size) os_base_mem_commit(ptr, size)
 #define os_mem_decommit(ptr, size) os_base_mem_decommit(ptr, size)
 #endif 
-
 
 function void*
 os_base_mem_reserve(u64 size) {
@@ -50,8 +53,6 @@ function void
 os_base_mem_decommit(void* ptr, u64 size) {
     // no op
 }
-
-
 
 //- arenas
 
@@ -170,7 +171,8 @@ temp_end(temp_t temp) {
 
 function temp_t
 scratch_begin() {
-	temp_t temp = temp_begin(global_scratch_arena);
+    arena_t* thread_arena = thread_context_get_scratch();
+    temp_t temp = temp_begin(thread_arena);
 	return temp;
 }
 
@@ -179,7 +181,29 @@ scratch_end(temp_t temp) {
 	temp_end(temp);
 }
 
-// cstr functions
+//- thread context functions 
+
+function void
+thread_context_create() {
+    thread_context_local.scratch_arena = arena_create(gigabytes(1));
+}
+
+function void
+thread_context_release() {
+    arena_release(thread_context_local.scratch_arena);
+}
+
+function thread_context_t*
+thread_context_get() {
+    return &thread_context_local;
+}
+
+function arena_t*
+thread_context_get_scratch() {
+    return thread_context_local.scratch_arena;
+}
+
+//- cstr functions
 
 function u32
 cstr_length(cstr cstr) {

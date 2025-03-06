@@ -1091,8 +1091,14 @@ function DWORD
 os_w32_thread_entry_point(void* ptr) {
 	os_w32_entity_t* entity = (os_w32_entity_t*)ptr;
     
+    // init thread context
+    thread_context_create();
+    
     // launch thread function
 	entity->thread.func(entity->thread.params);
+    
+    // release thread context
+    thread_context_release();
     
     // once finish, cleanup
     CloseHandle(entity->thread.handle);
