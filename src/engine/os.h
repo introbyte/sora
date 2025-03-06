@@ -11,13 +11,15 @@
 // [ ] - redo window update system.
 //
 
-// typedefs
+//- defines 
+
+//- typedefs
 
 typedef void os_thread_function_t(void*);
 typedef void os_fiber_function_t(void*);
 typedef void os_frame_function_t();
 
-// enums
+//- enums
 
 enum os_key {
 	os_key_null = 0,
@@ -197,7 +199,7 @@ enum {
     os_file_iter_flag_done = (1 << 31),
 };
 
-// structs
+//- structs
 
 struct os_handle_t {
 	u64 data[1];
@@ -244,7 +246,7 @@ struct os_system_info_t {
 	u32 logical_processor_count;
 };
 
-// functions
+//- functions
 
 // state (implemented per backends)
 function void             os_init();
@@ -308,16 +310,10 @@ function f32          os_window_get_elapsed_time(os_handle_t window);
 function vec2_t       os_window_get_mouse_delta(os_handle_t window);
 
 // graphical messages (implemented per backend)
-
 function void         os_graphical_message(b8 error, str_t title, str_t msg);
-
 
 // memory (implemented per backend)
 function u64          os_page_size();
-function void*        os_mem_reserve(u64 size);
-function void         os_mem_release(void* ptr, u64 size);
-function void         os_mem_commit(void* ptr, u64 size);
-function void         os_mem_decommit(void* ptr, u64 size);
 
 // file (implemented per backend)
 function os_handle_t  os_file_open(str_t filepath, os_file_access_flag access_flag = os_file_access_flag_read | os_file_access_flag_share_read | os_file_access_flag_share_write);
@@ -369,7 +365,7 @@ function os_handle_t  os_fiber_create(u32 stack_size, os_fiber_function_t* fiber
 function void         os_fiber_release(os_handle_t fiber);
 function os_handle_t  os_fiber_from_thread();
 
-// backend includes
+//- backend includes
 
 #if defined(OS_BACKEND_WIN32)
 #include "backends/os/os_win32.h"

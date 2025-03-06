@@ -3,9 +3,9 @@
 #ifndef BASE_CPP
 #define BASE_CPP
 
-// implementation
+//~ implementation
 
-// entry point (defined by user)
+//- entry point (defined by user)
 i32 app_entry_point(i32 argc, char** argv);
 
 #if defined(BUILD_DEBUG)
@@ -20,7 +20,40 @@ int WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPS
 }
 #endif
 
-// arenas
+//- memory 
+
+#if !defined(os_mem_reserve)
+#include <stdlib.h> // malloc
+#define os_mem_reserve(size) os_base_mem_reserve(size)
+#define os_mem_release(ptr, size) os_base_mem_release(ptr, size)
+#define os_mem_commit(ptr, size) os_base_mem_commit(ptr, size)
+#define os_mem_decommit(ptr, size) os_base_mem_decommit(ptr, size)
+#endif 
+
+
+function void*
+os_base_mem_reserve(u64 size) {
+    return malloc(size);
+}
+
+function void
+os_base_mem_release(void* ptr, u64 size) {
+    free(ptr);
+}
+
+function void
+os_base_mem_commit(void* ptr, u64 size) {
+    // no op
+}
+
+function void
+os_base_mem_decommit(void* ptr, u64 size) {
+    // no op
+}
+
+
+
+//- arenas
 
 function arena_t*
 arena_create(u64 size) {
@@ -58,7 +91,6 @@ arena_alloc(arena_t* arena, u64 size) {
     
 	if (arena == nullptr) {
 		//printf("[error] arena was not initialized!\n");
-		os_abort(1);
 	} else {
         
         if (arena->pos + size <= arena->size) {

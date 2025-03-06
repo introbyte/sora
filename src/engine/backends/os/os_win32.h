@@ -3,19 +3,27 @@
 #ifndef OS_WIN32_H
 #define OS_WIN32_H
 
-// includes
+//- includes
+
 #define WIN32_LEAN_AND_MEAN 1
 #define NOMINMAX
 #include <windows.h>
 #include <timeapi.h>
 #include <dwmapi.h>
 
-// defines
+//- defines
 
+// define memory functions
+#define os_mem_reserve(size) os_w32_mem_reserve(size);
+#define os_mem_release(ptr, size) os_w32_mem_release(ptr, size);
+#define os_mem_commit(ptr, size) os_w32_mem_commit(ptr, size);
+#define os_mem_decommit(ptr, size) os_w32_mem_decommit(ptr, size);
+
+// window procedure cases
 #define WM_NCUAHDRAWCAPTION (0x00AE)
 #define WM_NCUAHDRAWFRAME (0x00AF)
 
-// enums
+//- enums
 
 enum os_w32_entity_type {
 	os_w32_entity_type_null,
@@ -27,8 +35,9 @@ enum os_w32_entity_type {
 	os_w32_entity_type_file_iter,
 };
 
-// structs
+//- structs
 
+// entity
 struct os_w32_entity_t {
 	os_w32_entity_t* next;
     
@@ -71,6 +80,7 @@ struct os_w32_entity_t {
     
 };
 
+// window
 struct os_w32_window_t {
     
 	// window list 
@@ -113,6 +123,7 @@ struct os_w32_window_t {
 	vec2_t mouse_delta;
 };
 
+// state
 struct os_w32_state_t {
     
 	// arenas
@@ -147,11 +158,17 @@ struct os_w32_state_t {
     
 };
 
-// globals
+//- globals
 
 global os_w32_state_t os_state;
 
-// win32 specific functions
+//- win32 specific functions
+
+// memory
+function void* os_w32_mem_reserve(u64 size);
+function void os_w32_mem_release(void* ptr, u64 size);
+function void os_w32_mem_commit(void* ptr, u64 size);
+function void os_w32_mem_decommit(void* ptr, u64 size);
 
 // windows
 function os_handle_t      os_w32_handle_from_window(os_w32_window_t* window);

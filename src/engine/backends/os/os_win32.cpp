@@ -3,15 +3,16 @@
 #ifndef OS_WIN32_CPP
 #define OS_WIN32_CPP
 
-// include lib
+//- include lib
 #pragma comment(lib, "user32")
 #pragma comment(lib, "gdi32")
 #pragma comment(lib, "winmm")
 #pragma comment(lib, "dwmapi")
 
-// implementation
+//~ implementation
 
-// state
+//- state functions 
+
 function void
 os_init() {
     
@@ -212,7 +213,7 @@ os_mouse_is_down(os_mouse_button button) {
 	return down;
 }
 
-// window functions
+//- window functions
 
 function os_handle_t
 os_window_open(str_t title, u32 width, u32 height, os_window_flags flags) {
@@ -461,14 +462,14 @@ os_window_get_mouse_delta(os_handle_t handle) {
 	return window->mouse_delta;
 }
 
-// graphical message
+//- graphical message
 
 function void
 os_graphical_message(b8 error, str_t title, str_t msg) {
     MessageBoxA(0, (char*)msg.data, (char*)title.data, MB_OK |(!!error*MB_ICONERROR));
 }
 
-// memory functions
+//- memory functions
 
 function u64
 os_page_size() {
@@ -477,39 +478,7 @@ os_page_size() {
 	return info.dwPageSize;
 }
 
-function void*
-os_mem_reserve(u64 size) {
-	u64 size_snapped = size;
-	size_snapped += gigabytes(1) - 1;
-	size_snapped -= size_snapped % gigabytes(1);
-	void* ptr = VirtualAlloc(0, size_snapped, MEM_RESERVE, PAGE_NOACCESS);
-	return ptr;
-}
-
-function void
-os_mem_release(void* ptr, u64 size) {
-	VirtualFree(ptr, 0, MEM_RELEASE);
-}
-
-function void
-os_mem_commit(void* ptr, u64 size) {
-	u64 page_snapped = size;
-	page_snapped += os_page_size() - 1;
-	page_snapped -= page_snapped % os_page_size();
-	VirtualAlloc(ptr, page_snapped, MEM_COMMIT, PAGE_READWRITE);
-}
-
-function void
-os_mem_decommit(void* ptr, u64 size) {
-# pragma warning( push )
-# pragma warning( disable : 6250 )
-	VirtualFree(ptr, size, MEM_DECOMMIT);
-# pragma warning( pop )
-}
-
-
-
-// file functions
+//- file functions
 
 function os_handle_t
 os_file_open(str_t filepath, os_file_access_flag flags) {
@@ -603,7 +572,7 @@ os_file_read_all(arena_t* arena, os_handle_t file) {
 
 
 
-// file info functions
+//- file info functions
 
 function os_file_info_t
 os_file_get_info(os_handle_t file) {
@@ -632,7 +601,7 @@ os_file_get_info(str_t filepath) {
 }
 
 
-// file iterator
+//- file iterator
 
 function os_handle_t
 os_file_iter_begin(str_t filepath, os_file_iter_flags flags) {
@@ -746,7 +715,7 @@ os_file_iter_next(arena_t* arena, os_handle_t iter, os_file_info_t* file_info) {
     return result;
 }
 
-// thread functions
+//- thread functions
 
 function os_handle_t
 os_thread_create(os_thread_function_t* thread_function, void* params) {
@@ -804,7 +773,7 @@ os_thread_set_name(os_handle_t thread, str_t name) {
 
 
 
-// mutex functions
+//- mutex functions
 
 function os_handle_t 
 os_mutex_create() {
@@ -835,7 +804,7 @@ os_mutex_unlock(os_handle_t mutex) {
 
 
 
-// rw_mutex functions
+//- rw_mutex functions
 
 function os_handle_t
 os_rw_mutex_create() {
@@ -877,7 +846,7 @@ os_rw_mutex_unlock_w(os_handle_t rw_mutex) {
 
 
 
-// condition variables
+//- condition variables
 
 function os_handle_t 
 os_condition_variable_create() {
@@ -941,7 +910,7 @@ os_condition_variable_broadcast(os_handle_t cv) {
 	WakeAllConditionVariable(&entity->cv);
 }
 
-// fiber functions
+//- fiber functions
 
 function os_handle_t
 os_fiber_create(u32 stack_size, os_fiber_function_t* fiber_func, void* params) {
@@ -978,9 +947,43 @@ os_fiber_from_thread() {
 
 
 
-// win32 specific functions
+//- win32 specific functions
 
-// windows
+// memory functions 
+
+function void*
+os_w32_mem_reserve(u64 size) {
+	u64 size_snapped = size;
+	size_snapped += gigabytes(1) - 1;
+	size_snapped -= size_snapped % gigabytes(1);
+	void* ptr = VirtualAlloc(0, size_snapped, MEM_RESERVE, PAGE_NOACCESS);
+	return ptr;
+}
+
+function void
+os_w32_mem_release(void* ptr, u64 size) {
+	VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+function void
+os_w32_mem_commit(void* ptr, u64 size) {
+	u64 page_snapped = size;
+	page_snapped += os_page_size() - 1;
+	page_snapped -= page_snapped % os_page_size();
+	VirtualAlloc(ptr, page_snapped, MEM_COMMIT, PAGE_READWRITE);
+}
+
+function void
+os_w32_mem_decommit(void* ptr, u64 size) {
+# pragma warning( push )
+# pragma warning( disable : 6250 )
+	VirtualFree(ptr, size, MEM_DECOMMIT);
+# pragma warning( pop )
+}
+
+
+// window functions
+
 function os_handle_t 
 os_w32_handle_from_window(os_w32_window_t* window) {
 	os_handle_t handle = { (u64)window };
@@ -1011,8 +1014,8 @@ os_w32_hwnd_from_window(os_w32_window_t* window) {
 }
 
 
+// entity functions 
 
-// entities
 function os_w32_entity_t* 
 os_w32_entity_create(os_w32_entity_type type) {
     
@@ -1050,7 +1053,7 @@ os_w32_entity_release(os_w32_entity_t* entity) {
 	LeaveCriticalSection(&os_state.entity_mutex);
 }
 
-// file
+// file functions
 
 function os_file_flags 
 os_w32_file_flags_from_attributes(DWORD attributes) {
@@ -1065,7 +1068,8 @@ os_w32_file_flags_from_attributes(DWORD attributes) {
 }
 
 
-// time
+// time functions
+
 function u32 
 os_w32_sleep_ms_from_endt_us(u64 endt_us) {
 	u32 sleep_ms = 0;
@@ -1081,7 +1085,8 @@ os_w32_sleep_ms_from_endt_us(u64 endt_us) {
 	return sleep_ms;
 }
 
-// thread entry point
+// thread entry point function
+
 function DWORD
 os_w32_thread_entry_point(void* ptr) {
 	os_w32_entity_t* entity = (os_w32_entity_t*)ptr;
@@ -1096,7 +1101,8 @@ os_w32_thread_entry_point(void* ptr) {
 	return 0;
 }
 
-// window procedure
+// window procedure function
+
 LRESULT CALLBACK
 os_w32_window_procedure(HWND handle, UINT msg, WPARAM wparam, LPARAM lparam) {
     

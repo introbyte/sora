@@ -7,8 +7,6 @@
 // 
 // [ ] - 
 //
-//
-//
 
 //~ compiler context
 
@@ -24,6 +22,12 @@
 
 // NOTE: 
 // 
+// arena backend support:
+//        |  libc  | win32 | mmap |
+// win32: |   X    |   X   |      |
+// macos: |   X    |       |  X   |
+// linux: |   X    |       |  X   |
+//
 // gfx backend support:
 //        | d3d11 | d3d12 | opengl | vulkan | metal |
 // win32: |   X   |   X   |   X    |   X    |       |
@@ -85,6 +89,8 @@
 
 #include <cmath> // math functions
 #include <stdio.h>
+#include <stdarg.h> 
+#include <string.h>
 
 #if BASE_USE_SIMD
 #include <pmmintrin.h> // simd functions
@@ -229,11 +235,10 @@ typedef bool b8;
 // not supported yet
 #endif 
 
-
-// enums
+//~ enums
 
 typedef u32 str_match_flags;
-enum : u32 {
+enum {
 	str_match_flag_case_insensitive = (1 << 0),
 	str_match_flag_right_side_sloppy = (1 << 1),
 	str_match_flag_slash_insensitive = (1 << 2),
@@ -551,6 +556,12 @@ global u8 utf8_class[32] = {
 global arena_t* global_scratch_arena;
 
 //~ functions
+
+//- memory 
+function void* os_base_mem_reserve(u64 size);
+function void os_base_mem_release(void* ptr, u64 size);
+function void os_base_mem_commit(void* ptr, u64 size);
+function void os_base_mem_decommit(void* ptr, u64 size);
 
 //- arenas
 function arena_t* arena_create(u64 size);
