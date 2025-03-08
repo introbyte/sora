@@ -3,6 +3,16 @@
 #ifndef BASE_H
 #define BASE_H
 
+// this layer contains fundamental definitions and utilities.
+// it contains:
+//  - context cracking.
+//  - constants.
+//  - useful macros.
+//  - memory arenas.
+//  - length based string implementation.
+//  - math libary.
+//
+
 // TODO:
 // 
 // [ ] - 
@@ -114,7 +124,18 @@
 #define gigabytes(n)  (((u64)n) << 30)
 #define terabytes(n)  (((u64)n) << 40)
 
-//- profiling 
+//- logging 
+
+#define log_info(s)
+#define log_infof(fmt, ...)
+
+#define log_warn(s)
+#define log_warnf(fmt, ...)
+
+#define log_error(s)
+#define log_errorf(fmt, ...)
+
+//- profiling
 
 #define prof_begin(name)
 #define prof_end()
@@ -144,6 +165,9 @@
 #define f32_min (-3.402823e+38f)
 #define f32_smallest_positive (1.1754943508e-38)
 #define f32_epsilon (5.96046448e-8)
+
+#define f64_min (2.2250738585072014e-308)
+#define f64_max (1.7976931348623157e+308)
 
 #define f32_pi (3.141592653597f)
 #define f64_pi (3.141592653597)
@@ -310,6 +334,31 @@ struct str32_t {
 struct codepoint_t {
 	u32 codepoint;
 	u32 advance;
+};
+
+struct fuzzy_match_node_t {
+    fuzzy_match_node_t* next;
+    u32 range_min;
+    u32 range_max;
+};
+
+struct fuzzy_match_list_t {
+    fuzzy_match_node_t* first;
+    fuzzy_match_node_t* last;
+    u32 count;
+};
+
+//- time 
+
+struct date_time_t {
+    u16 micro_second; // [0 - 999] 
+    u16 milli_second; // [0 - 999] 
+    u8 second; // [0 - 60]
+    u8 minute; // [0 - 59]
+    u8 hour; // [0 - 24]
+    u8 day; // [0-31]
+    u8 month; // [0-12]
+    u32 year; // [0-u32_max]
 };
 
 //- math
@@ -640,13 +689,22 @@ function str_list_t str_split(arena_t* arena, str_t string, u8* splits, u32 spli
 function str16_t str16(u16* data);
 function str16_t str16(u16* data, u32 size);
 
-// str conversions
+//- str conversions
 function str_t str_from_str16(arena_t* arena, str16_t string);
 function str16_t str16_from_str(arena_t* arena, str_t string);
 
-// number/string conversions
+//- number/string conversions
 function f32 f32_from_str(str_t string);
 function str_t str_from_f32(f32 value);
+
+//- fuzzy matching 
+function fuzzy_match_list_t str_fuzzy_match_find(arena_t* arena, str_t needle, str_t haystack);
+
+//- time 
+function date_time_t date_time_from_dense_time(u64 densetime);
+function u64 dense_time_from_data_time(date_time_t datetime);
+
+function date_time_t date_time_from_microseconds(u32 microseconds);
 
 //- random
 function void random_seed(u32 seed);

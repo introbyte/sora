@@ -597,7 +597,7 @@ str_find_word_index(str_t string, u32 start_index, i32 dir) {
     
 }
 
-// str list
+//- str list
 
 function void
 str_list_push_node(str_list_t* list, str_node_t* node) {
@@ -657,7 +657,7 @@ str_hash(u64 seed, str_t string) {
 }
 
 
-// str16 functions
+//- str16 functions
 
 function str16_t
 str16(u16* data) {
@@ -677,7 +677,7 @@ str16(u16* data, u32 size) {
 	return result;
 }
 
-// string conversions
+//- string conversions
 
 function str_t
 str_from_str16(arena_t* arena, str16_t string) {
@@ -731,7 +731,7 @@ str16_from_str(arena_t* arena, str_t string) {
     
 }
 
-// number/string conversions
+//- number/string conversions
 
 function f32
 f32_from_str(str_t string) {
@@ -766,7 +766,124 @@ f32_from_str(str_t string) {
     return sign * ((f32)integer_part + (f32)fraction_part / (f32)divisor);
 }
 
-// random
+//- fuzzy matching 
+
+function fuzzy_match_list_t 
+str_fuzzy_match_find(arena_t* arena, str_t needle, str_t haystack) {
+    
+    fuzzy_match_list_t result = { 0 };
+    temp_t scratch = scratch_begin();
+    
+    str_list_t needles = str_split(scratch.arena, needle, (u8*)" ", 1);
+    for (str_node_t* n = needles.first; n != nullptr; n = n->next) {
+        
+        u32 find_pos = 0;
+        for (;find_pos < haystack.size;) {
+            
+            find_pos = str_find_substr(haystack, n->string, find_pos, str_match_flag_case_insensitive);
+            
+            b8 is_in_gathered_ranges = false;
+            for (fuzzy_match_node_t* match_node = result.first; match_node != nullptr; match_node = match_node->next) {
+                if (match_node->range_min <= find_pos && find_pos < match_node->range_max) {
+                    is_in_gathered_ranges = true;
+                    find_pos = match_node->range_max;
+                    break;
+                }
+            }
+            
+            if (!is_in_gathered_ranges) {
+                break;
+            }
+            
+        }
+        
+        if (find_pos < haystack.size) {
+            
+            fuzzy_match_node_t* node = (fuzzy_match_node_t*)arena_alloc(arena, sizeof(fuzzy_match_list_t));
+            node->range_min = find_pos;
+            node->range_max = find_pos + n->string.size;
+            
+            queue_push(result.first, result.last, node);
+            result.count++;
+            
+        }
+        
+    }
+    
+    
+    scratch_end(scratch);
+    return result;
+}
+
+
+//- time
+
+function date_time_t 
+date_time_from_dense_time(u64 densetime) {
+    date_time_t result = { 0 };
+    
+    result.milli_second = densetime % 1000;
+    densetime /= 1000;
+    result.second  = densetime % 61;
+    densetime /= 61;
+    result.minute  = densetime % 60;
+    densetime /= 60;
+    result.hour = densetime % 24;
+    densetime /= 24;
+    result.day  = densetime % 31;
+    densetime /= 31;
+    result.month  = densetime % 12;
+    densetime /= 12;
+    result.year = (u32)densetime;
+    
+    return result;
+}
+
+function u64 
+dense_time_from_data_time(date_time_t datetime) {
+    u64 result = 0;
+    
+    result += datetime.year;
+    result *= 12;
+    result += datetime.month;
+    result *= 31;
+    result += datetime.day;
+    result *= 24;
+    result += datetime.hour;
+    result *= 60;
+    result += datetime.minute;
+    result *= 61;
+    result += datetime.second;
+    result *= 1000;
+    result += datetime.milli_second;
+    
+    return result;
+}
+
+function date_time_t
+date_time_from_microseconds(u64 microseconds) {
+    date_time_t result = { 0 };
+    
+    result.micro_second = microseconds%1000;
+    microseconds /= 1000;
+    result.milli_second = microseconds%1000;
+    microseconds /= 1000;
+    result.second = microseconds%60;
+    microseconds /= 60;
+    result.minute = microseconds%60;
+    microseconds /= 60;
+    result.hour = microseconds%24;
+    microseconds /= 24;
+    result.day = microseconds%31;
+    microseconds /= 31;
+    result.month = microseconds%12;
+    microseconds /= 12;
+    result.year = (u32)microseconds;
+    
+    return result;
+}
+
+//- random
 
 function void
 random_seed(u32 seed) {
@@ -799,7 +916,7 @@ random_f32_range(f32 min_value, f32 max_value) {
 	return min_value + random_f32() * (max_value - min_value);
 }
 
-// math
+//- math
 
 inlnfunc f32
 radians(f32 degrees) {
@@ -829,7 +946,7 @@ wrap(f32 v, f32 min, f32 max) {
 	return v;
 }
 
-// vec2 
+//- vec2 
 
 inlnfunc vec2_t
 vec2(f32 v = 0.0f) {
@@ -974,7 +1091,7 @@ vec2_lerp(vec2_t a, vec2_t b, f32 t) {
 	return vec2_add(vec2_mul(a, 1.0f - t), vec2_mul(b, t));
 }
 
-// ivec2
+//- ivec2
 
 inlnfunc ivec2_t 
 ivec2(i32 v = 0) {
@@ -991,7 +1108,7 @@ ivec2_equals(ivec2_t a, ivec2_t b) {
 	return ((a.x == b.x) && (a.y == b.y));
 }
 
-// uvec2
+//- uvec2
 
 inlnfunc uvec2_t 
 uvec2(u32 v = 0) {
@@ -1008,7 +1125,7 @@ uvec2_equals(uvec2_t a, uvec2_t b) {
 	return ((a.x == b.x) && (a.y == b.y));
 }
 
-// vec3
+//- vec3
 
 inlnfunc vec3_t
 vec3(f32 v = 0.0f) {
@@ -1169,7 +1286,7 @@ vec3_clamp(vec3_t v, f32 a, f32 b) {
 	return { clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b) };
 }
 
-// ivec3
+//- ivec3
 inlnfunc ivec3_t 
 ivec3(i32 v) {
 	return { v, v, v };
@@ -1185,7 +1302,7 @@ ivec3_equals(ivec3_t a, ivec3_t b) {
 	return a.x == b.x && a.y == b.y && a.z == b.z;
 }
 
-// uvec3
+//- uvec3
 inlnfunc uvec3_t 
 uvec3(u32 v) {
 	return { v, v, v };
@@ -1202,7 +1319,7 @@ uvec3_equals(uvec3_t a, uvec3_t b) {
 }
 
 
-// vec4
+//- vec4
 
 inlnfunc vec4_t
 vec4(f32 v) {
@@ -1445,7 +1562,7 @@ vec4_project(vec4_t a, vec4_t b) {
 	return vec4_mul(b, vec4_dot(a, b) / vec4_dot(b, b));
 }
 
-// quat
+//- quat
 
 inlnfunc quat_t
 quat(f32 x, f32 y, f32 z, f32 w) {
@@ -1736,7 +1853,7 @@ quat_slerp(quat_t a, quat_t b, f32 t) {
 }
 
 
-// mat3
+//- mat3
 
 inlnfunc mat3_t
 mat3(f32 v = 1.0f) {
@@ -1747,7 +1864,7 @@ mat3(f32 v = 1.0f) {
 	return result;
 }
 
-// mat4
+//- mat4
 
 inlnfunc mat4_t
 mat4(f32 v = 1.0f) {
@@ -2047,7 +2164,7 @@ mat4_lookat(vec3_t from, vec3_t to, vec3_t up) {
 	return v;
 }
 
-// rect
+//- rect
 
 inlnfunc rect_t
 rect(f32 x0, f32 y0, f32 x1, f32 y1) {
@@ -2211,7 +2328,7 @@ rect_cut_right(rect_t r, f32 a) {
 }
 
 
-// color 
+//- color 
 
 inlnfunc color_t
 color(u32 hex) {
@@ -2335,17 +2452,6 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
     
 	switch (mode) {
 		case color_blend_mode_normal: {
-            
-			// background = src
-			// foreground = dst
-            
-			//f32 color_a = src.a + dst.a - src.a * dst.a;
-            
-			//f32 color_r = 0.0f;
-			//f32 color_g = 0.0f;
-			//f32 color_b = 0.0f;
-            
-			//f32 result_a = dst.a + src.a - dst.a * src.a;
 			f32 result_a = dst.a + (1 - dst.a) * src.a;
             
 			result.r = (dst.r * dst.a + src.r * src.a * (1.0f - dst.a)) / result_a;
@@ -2373,10 +2479,7 @@ color_blend(color_t src, color_t dst, color_blend_mode mode) {
 		}
         
 		case color_blend_mode_overlay: {
-			/*result.r = (b.r < 0.5f) ? (2.0f * b.r * f.r) : (1.0f - 2.0f * (1.0f - b.r) * (1.0f - f.r));
-			result.g = (b.g < 0.5f) ? (2.0f * b.g * f.g) : (1.0f - 2.0f * (1.0f - b.g) * (1.0f - f.g));
-			result.b = (b.b < 0.5f) ? (2.0f * b.b * f.b) : (1.0f - 2.0f * (1.0f - b.b) * (1.0f - f.b));
-			result.a = b.a * (1.0f - f.a) + f.a;*/
+			// TODO: 
 			break;
 		}
         
@@ -2396,7 +2499,7 @@ color_to_hex(color_t color) {
 	return hex;
 }
 
-// misc functions
+//- misc functions
 
 function vec3_t
 barycentric(vec2_t p, vec2_t a, vec2_t b, vec2_t c) {
