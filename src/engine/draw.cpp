@@ -83,74 +83,80 @@ draw_release() {
 function void 
 draw_begin(gfx_handle_t renderer) {
 	
-	// clear batch arena
-	arena_clear(draw_state.batch_arena);
-	draw_state.batch_first = nullptr;
-    draw_state.batch_last = nullptr;
-    
-	// update pipeline and constant buffer
-	uvec2_t renderer_size = gfx_renderer_get_size(renderer);
-	rect_t screen = rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y);
-	draw_state.pipeline.viewport = screen;
-	draw_state.pipeline.scissor = screen;
-	draw_state.constants.window_size = vec2(screen.x1, screen.y1);
-    
-	// reset texture list
-	memset(draw_state.texture_list, 0, sizeof(gfx_handle_t) * draw_max_textures);
-	draw_state.texture_count = 0;
-    
-	// reset clip mask
-	memset(draw_state.constants.clip_masks, 0, sizeof(rect_t) * 128);
-	draw_state.clip_mask_count = 0;
-    
-	// reset stacks
-	draw_state.color0_stack.top = &draw_state.color0_default_node; draw_state.color0_stack.free = 0; draw_state.color0_stack.auto_pop = 0;
-	draw_state.color1_stack.top = &draw_state.color1_default_node; draw_state.color1_stack.free = 0; draw_state.color1_stack.auto_pop = 0;
-	draw_state.color2_stack.top = &draw_state.color2_default_node; draw_state.color2_stack.free = 0; draw_state.color2_stack.auto_pop = 0;
-	draw_state.color3_stack.top = &draw_state.color3_default_node; draw_state.color3_stack.free = 0; draw_state.color3_stack.auto_pop = 0;
-    
-	draw_state.radius0_stack.top = &draw_state.radius0_default_node; draw_state.radius0_stack.free = 0; draw_state.radius0_stack.auto_pop = 0;
-	draw_state.radius1_stack.top = &draw_state.radius1_default_node; draw_state.radius1_stack.free = 0; draw_state.radius1_stack.auto_pop = 0;
-	draw_state.radius2_stack.top = &draw_state.radius2_default_node; draw_state.radius2_stack.free = 0; draw_state.radius2_stack.auto_pop = 0;
-	draw_state.radius3_stack.top = &draw_state.radius3_default_node; draw_state.radius3_stack.free = 0; draw_state.radius3_stack.auto_pop = 0;
-    
-	draw_state.thickness_stack.top = &draw_state.thickness_default_node; draw_state.thickness_stack.free = 0; draw_state.thickness_stack.auto_pop = 0;
-	draw_state.softness_stack.top = &draw_state.softness_default_node; draw_state.softness_stack.free = 0; draw_state.softness_stack.auto_pop = 0;
-    
-	draw_state.font_stack.top = &draw_state.font_default_node; draw_state.font_stack.free = 0; draw_state.font_stack.auto_pop = 0;
-	draw_state.font_size_stack.top = &draw_state.font_size_default_node; draw_state.font_size_stack.free = 0; draw_state.font_size_stack.auto_pop = 0;
-    
-	draw_state.clip_mask_stack.top = &draw_state.clip_mask_default_node; draw_state.clip_mask_stack.free = 0; draw_state.clip_mask_stack.auto_pop = 0;
-    
-	draw_state.texture_stack.top = &draw_state.texture_default_node; draw_state.texture_stack.free = 0; draw_state.texture_stack.auto_pop = 0;
-	
-	// push default clip mask and texture
-	draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y));
-	draw_push_texture(draw_state.texture);
-	
+    prof_scope("draw_begin") {
+        
+        
+        // clear batch arena
+        arena_clear(draw_state.batch_arena);
+        draw_state.batch_first = nullptr;
+        draw_state.batch_last = nullptr;
+        
+        // update pipeline and constant buffer
+        uvec2_t renderer_size = gfx_renderer_get_size(renderer);
+        rect_t screen = rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y);
+        draw_state.pipeline.viewport = screen;
+        draw_state.pipeline.scissor = screen;
+        draw_state.constants.window_size = vec2(screen.x1, screen.y1);
+        
+        // reset texture list
+        memset(draw_state.texture_list, 0, sizeof(gfx_handle_t) * draw_max_textures);
+        draw_state.texture_count = 0;
+        
+        // reset clip mask
+        memset(draw_state.constants.clip_masks, 0, sizeof(rect_t) * 128);
+        draw_state.clip_mask_count = 0;
+        
+        // reset stacks
+        draw_state.color0_stack.top = &draw_state.color0_default_node; draw_state.color0_stack.free = 0; draw_state.color0_stack.auto_pop = 0;
+        draw_state.color1_stack.top = &draw_state.color1_default_node; draw_state.color1_stack.free = 0; draw_state.color1_stack.auto_pop = 0;
+        draw_state.color2_stack.top = &draw_state.color2_default_node; draw_state.color2_stack.free = 0; draw_state.color2_stack.auto_pop = 0;
+        draw_state.color3_stack.top = &draw_state.color3_default_node; draw_state.color3_stack.free = 0; draw_state.color3_stack.auto_pop = 0;
+        
+        draw_state.radius0_stack.top = &draw_state.radius0_default_node; draw_state.radius0_stack.free = 0; draw_state.radius0_stack.auto_pop = 0;
+        draw_state.radius1_stack.top = &draw_state.radius1_default_node; draw_state.radius1_stack.free = 0; draw_state.radius1_stack.auto_pop = 0;
+        draw_state.radius2_stack.top = &draw_state.radius2_default_node; draw_state.radius2_stack.free = 0; draw_state.radius2_stack.auto_pop = 0;
+        draw_state.radius3_stack.top = &draw_state.radius3_default_node; draw_state.radius3_stack.free = 0; draw_state.radius3_stack.auto_pop = 0;
+        
+        draw_state.thickness_stack.top = &draw_state.thickness_default_node; draw_state.thickness_stack.free = 0; draw_state.thickness_stack.auto_pop = 0;
+        draw_state.softness_stack.top = &draw_state.softness_default_node; draw_state.softness_stack.free = 0; draw_state.softness_stack.auto_pop = 0;
+        draw_state.font_stack.top = &draw_state.font_default_node; draw_state.font_stack.free = 0; draw_state.font_stack.auto_pop = 0;
+        draw_state.font_size_stack.top = &draw_state.font_size_default_node; draw_state.font_size_stack.free = 0; draw_state.font_size_stack.auto_pop = 0;
+        
+        draw_state.clip_mask_stack.top = &draw_state.clip_mask_default_node; draw_state.clip_mask_stack.free = 0; draw_state.clip_mask_stack.auto_pop = 0;
+        
+        draw_state.texture_stack.top = &draw_state.texture_default_node; draw_state.texture_stack.free = 0; draw_state.texture_stack.auto_pop = 0;
+        
+        // push default clip mask and texture
+        draw_push_clip_mask(rect(0.0f, 0.0f, (f32)renderer_size.x, (f32)renderer_size.y));
+        draw_push_texture(draw_state.texture);
+        
+        
+    }
 }
 
 function void 
 draw_end(gfx_handle_t renderer) {
-	
-	// update constant buffer
-	gfx_buffer_fill(draw_state.constant_buffer, &draw_state.constants, sizeof(draw_constants_t));
-    
-	// set state
-	gfx_set_pipeline(draw_state.pipeline);
-	gfx_set_shader(draw_state.shader);
-	gfx_set_buffer(draw_state.constant_buffer);
-	gfx_set_texture_array(draw_state.texture_list, draw_state.texture_count, 0, gfx_texture_usage_ps);
-    
-	for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
+	prof_scope("draw_end") {
         
-		// fill instance buffer
-		gfx_buffer_fill(draw_state.instance_buffer, batch->instances, batch->instance_count * sizeof(draw_instance_t));
-		gfx_set_buffer(draw_state.instance_buffer, 0, sizeof(draw_instance_t));
+        // update constant buffer
+        gfx_buffer_fill(draw_state.constant_buffer, &draw_state.constants, sizeof(draw_constants_t));
         
-		gfx_draw_instanced(4, batch->instance_count);
-	}
-	
+        // set state
+        gfx_set_pipeline(draw_state.pipeline);
+        gfx_set_shader(draw_state.shader);
+        gfx_set_buffer(draw_state.constant_buffer);
+        gfx_set_texture_array(draw_state.texture_list, draw_state.texture_count, 0, gfx_texture_usage_ps);
+        
+        for (draw_batch_t* batch = draw_state.batch_first; batch != 0; batch = batch->next) {
+            
+            // fill instance buffer
+            gfx_buffer_fill(draw_state.instance_buffer, batch->instances, batch->instance_count * sizeof(draw_instance_t));
+            gfx_set_buffer(draw_state.instance_buffer, 0, sizeof(draw_instance_t));
+            
+            gfx_draw_instanced(4, batch->instance_count);
+        }
+        
+    }
 }
 
 

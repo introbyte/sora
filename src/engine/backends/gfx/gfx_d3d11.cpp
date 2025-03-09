@@ -713,45 +713,43 @@ gfx_renderer_resize(gfx_handle_t renderer, uvec2_t resolution) {
 	// set new resolution
 	d3d11_renderer->resolution = resolution;
     
-    
-    
-    //renderer_resize_error:
-    //printf("[error] renderer resize error\n");
-    
 }
 
 function void
 gfx_renderer_begin(gfx_handle_t renderer) {
-    
-	// get renderer
-	gfx_d3d11_renderer_t* d3d11_renderer = gfx_d3d11_renderer_from_handle(renderer);
-    
-    // set render target
-	gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
-	gfx_state.device_context->OMSetRenderTargets(1, &d3d11_renderer->framebuffer_rtv, nullptr);
-    
-    // clear render target
-	FLOAT clear_color_array[] = { d3d11_renderer->clear_color.r, d3d11_renderer->clear_color.g, d3d11_renderer->clear_color.b, d3d11_renderer->clear_color.a };
-	gfx_state.device_context->ClearRenderTargetView(d3d11_renderer->framebuffer_rtv, clear_color_array);
-    
-    // set active renderer
-	gfx_state.renderer_active = d3d11_renderer;
-    
+    prof_scope("renderer_begin") {
+        
+        // get renderer
+        gfx_d3d11_renderer_t* d3d11_renderer = gfx_d3d11_renderer_from_handle(renderer);
+        
+        // set render target
+        gfx_state.device_context->OMSetBlendState(gfx_state.blend_state, nullptr, 0xffffffff);
+        gfx_state.device_context->OMSetRenderTargets(1, &d3d11_renderer->framebuffer_rtv, nullptr);
+        
+        // clear render target
+        FLOAT clear_color_array[] = { d3d11_renderer->clear_color.r, d3d11_renderer->clear_color.g, d3d11_renderer->clear_color.b, d3d11_renderer->clear_color.a };
+        gfx_state.device_context->ClearRenderTargetView(d3d11_renderer->framebuffer_rtv, clear_color_array);
+        
+        // set active renderer
+        gfx_state.renderer_active = d3d11_renderer;
+    }
 }
 
 function void
 gfx_renderer_end(gfx_handle_t renderer) {
-    
-	// get renderer
-	gfx_d3d11_renderer_t* d3d11_renderer = gfx_d3d11_renderer_from_handle(renderer);
-    
-	if (!os_window_is_minimized(d3d11_renderer->window)) {
-		d3d11_renderer->swapchain->Present(1, 0);
-	} else {
-		os_sleep(16);
-	}
-	gfx_state.device_context->ClearState();
-	gfx_state.renderer_active = nullptr;
+    prof_scope("renderer_end") {
+        
+        // get renderer
+        gfx_d3d11_renderer_t* d3d11_renderer = gfx_d3d11_renderer_from_handle(renderer);
+        
+        if (!os_window_is_minimized(d3d11_renderer->window)) {
+            d3d11_renderer->swapchain->Present(1, 0);
+        } else {
+            os_sleep(16);
+        }
+        gfx_state.device_context->ClearState();
+        gfx_state.renderer_active = nullptr;
+    }
 }
 
 function void
@@ -863,7 +861,7 @@ gfx_texture_create_ex(gfx_texture_desc_t desc, void* data) {
     
     gfx_handle_t handle = { 0 };
     if (!FAILED(hr)) { 
-        printf("[info] successfully created texture: '%.*s'\n", resource->texture_desc.name.size, resource->texture_desc.name.data);
+        log_infof("successfullt created texture: %.*s", resource->texture_desc.name.size, resource->texture_desc.name.data);
         handle = { (u64)resource };
     }
     
@@ -976,8 +974,8 @@ gfx_texture_fill_region(gfx_handle_t texture, rect_t region, void* data) {
 	};
     
 	if (dst_box.right > resource->texture_desc.size.x || dst_box.bottom > resource->texture_desc.size.y) {
-		printf("[error] incorrect region size.\n");
-		return;
+		log_errorf("gfx_texture_fill_region: incorrect region size!");
+        return;
 	}
     
 	u32 bytes = gfx_d3d11_byte_size_from_texture_format(resource->texture_desc.format);
@@ -1096,7 +1094,7 @@ gfx_d3d11_texture_create_resources(gfx_d3d11_resource_t* resource, void* data) {
     }
     
     if (FAILED(hr)) {
-        printf("[error] a texture error occurred! hr: %x\n", hr);
+        log_errorf("gfx_texture_create_resources: texture error occured!");
     }
     
 }
@@ -1369,8 +1367,8 @@ gfx_shader_compile(gfx_handle_t shader, str_t src) {
 	hr = D3DCompile(src.data, src.size, (char*)resource->shader_desc.name.data, 0, 0, "vs_main", "vs_5_0", compile_flags, 0, &vs_blob, &vs_error_blob);
 	if (vs_error_blob) {
 		cstr error_msg = (cstr)vs_error_blob->GetBufferPointer();
-		printf("[error] failed to compile vertex shader:\n\n%s\n", error_msg);
-		goto shader_build_cleanup;
+		log_error("gfx_shader_compile: failed to compile vertex shader: \n\n%s\n", error_msg);
+        goto shader_build_cleanup;
 	}
 	hr = gfx_state.device->CreateVertexShader(vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), nullptr, &vertex_shader);
     
@@ -1378,7 +1376,7 @@ gfx_shader_compile(gfx_handle_t shader, str_t src) {
 	hr = D3DCompile(src.data, src.size, (char*)resource->shader_desc.name.data, 0, 0, "ps_main", "ps_5_0", compile_flags, 0, &ps_blob, &ps_error_blob);
 	if (ps_error_blob) {
 		cstr error_msg = (cstr)ps_error_blob->GetBufferPointer();
-		printf("[error] failed to compile pixel shader:\n\n%s\n", error_msg);
+		log_error("gfx_shader_compile: failed to compile pixel shader: \n\n%s\n", error_msg);
 		goto shader_build_cleanup;
 	}
 	hr = gfx_state.device->CreatePixelShader(ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &pixel_shader);
@@ -1404,7 +1402,7 @@ gfx_shader_compile(gfx_handle_t shader, str_t src) {
         
 		hr = gfx_state.device->CreateInputLayout(input_element_desc, resource->shader_desc.attribute_count, vs_blob->GetBufferPointer(), vs_blob->GetBufferSize(), &resource->shader.input_layout);
 		if (FAILED(hr)) {
-			printf("[error] failed to create shader input layout. (%x)\n", hr);
+            log_errorf("gfx_shader_compile: faild to create shader input layout!");
 			goto shader_build_cleanup;
 		}
 	}
@@ -1421,7 +1419,7 @@ gfx_shader_compile(gfx_handle_t shader, str_t src) {
         
 		success = true;
         
-		printf("[info] successfully created shader: '%.*s'\n", resource->shader_desc.name.size, resource->shader_desc.name.data);
+        log_infof("successfully created shader: '%.*s'",  resource->shader_desc.name.size, resource->shader_desc.name.data);
 	}
     
     shader_build_cleanup:
@@ -1542,8 +1540,8 @@ gfx_compute_shader_compile(gfx_handle_t shader, str_t src) {
     
 	if (cs_error_blob) {
 		cstr error_msg = (cstr)cs_error_blob->GetBufferPointer();
-		printf("[error] failed to compile compute shader:\n\n%s\n", error_msg);
-		goto shader_build_cleanup;
+		log_error("gfx_compute_shader_compile: failed to compile compute shader: \n\n%s\n", error_msg);
+        goto shader_build_cleanup;
 	}
 	hr = gfx_state.device->CreateComputeShader(cs_blob->GetBufferPointer(), cs_blob->GetBufferSize(), nullptr, &compute_shader);
     
@@ -1557,7 +1555,7 @@ gfx_compute_shader_compile(gfx_handle_t shader, str_t src) {
         
 		success = true;
         
-		printf("[info] successfully created compute shader: '%.*s'\n", resource->compute_shader_desc.name.size, resource->compute_shader_desc.name.data);
+        log_infof("succesffully create compute shader: %.*s", resource->compute_shader_desc.name.size, resource->compute_shader_desc.name.data);
 	}
     
     shader_build_cleanup:

@@ -34,8 +34,8 @@ font_open(str_t filepath) {
 	font_dwrite_state.dwrite_factory2->CreateFontFace(DWRITE_FONT_FACE_TYPE_TRUETYPE, 1, &font->file, 0, DWRITE_FONT_SIMULATIONS_NONE, &(font->face));
     
 	str_t font_name = str_get_file_name(filepath);
-	printf("[info] successfully opened font: '%.*s'\n", font_name.size, font_name.data);
-	
+	log_infof("successfully opened font: %.*s", font_name.size, font_name.data);
+    
 	scratch_end(scratch);
     
 	font_handle_t handle = { (u64)font };
@@ -176,7 +176,6 @@ font_dwrite_init() {
 	HRESULT hr = 0;
     
 	// create dwrite factory
-	//hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown**)&font_dwrite_state.dwrite_factory);
 	hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory2), (IUnknown**)&font_dwrite_state.dwrite_factory2);
 	//gfx_assert(hr, "failed to create dwrite factory.");
     

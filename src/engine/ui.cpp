@@ -176,34 +176,37 @@ ui_update() {
 
 function void
 ui_begin(ui_context_t* context) {
-    
-	// set active context
-	ui_state.context_active = context;
-    context->frame_mrc = nullptr; // most recently created
-    
-    // handle inputs
-    for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
-        if (!os_handle_equals(event->window, context->window)) { continue; }
+    prof_scope("ui_begin") {
         
-        // drop drag state
-        if (event->type == ui_event_type_mouse_release && ui_drag_is_active()) {
-            context->drag_state = ui_drag_state_dropping;
-        }
+        // set active context
+        ui_state.context_active = context;
+        context->frame_mrc = nullptr; // most recently created
         
-        if (event->type == ui_event_type_mouse_press) {
+        // handle inputs
+        for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
+            if (!os_handle_equals(event->window, context->window)) { continue; }
             
-            // find which panel we clicked on 
-            for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
+            // drop drag state
+            if (event->type == ui_event_type_mouse_release && ui_drag_is_active()) {
+                context->drag_state = ui_drag_state_dropping;
+            }
+            
+            if (event->type == ui_event_type_mouse_press) {
                 
-                // skip if not leaf panel
-                if (panel->tree_first != nullptr) { continue; }
-                
-                if (panel->frame != nullptr) {
+                // find which panel we clicked on 
+                for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
                     
-                    if (rect_contains(panel->frame->rect, event->position)) {
-                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
-                        cmd->src_panel = panel;
-                        cmd->view = panel->view_focus;
+                    // skip if not leaf panel
+                    if (panel->tree_first != nullptr) { continue; }
+                    
+                    if (panel->frame != nullptr) {
+                        
+                        if (rect_contains(panel->frame->rect, event->position)) {
+                            ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                            cmd->src_panel = panel;
+                            cmd->view = panel->view_focus;
+                            
+                        }
                         
                     }
                     
@@ -213,634 +216,634 @@ ui_begin(ui_context_t* context) {
             
         }
         
-    }
-    
-    // process commands
-    for (ui_cmd_t* command = ui_state.command_first, *cmd_next = nullptr; command != nullptr; command = cmd_next) {
-        cmd_next = command->next;
-        if (command->context != context) { continue; }
-        
-        switch (command->type) {
+        // process commands
+        for (ui_cmd_t* command = ui_state.command_first, *cmd_next = nullptr; command != nullptr; command = cmd_next) {
+            cmd_next = command->next;
+            if (command->context != context) { continue; }
             
-            case ui_cmd_type_focus_panel: {
+            switch (command->type) {
                 
-                if (command->src_panel != nullptr) {
-                    context->panel_focused = command->src_panel;
+                case ui_cmd_type_focus_panel: {
                     
-                    if (command->view != nullptr) {
-                        context->view_focus = command->view;
-                        command->src_panel->view_focus = command->view;
+                    if (command->src_panel != nullptr) {
+                        context->panel_focused = command->src_panel;
+                        
+                        if (command->view != nullptr) {
+                            context->view_focus = command->view;
+                            command->src_panel->view_focus = command->view;
+                        }
                     }
+                    break;
                 }
-                break;
-            }
-            
-            case ui_cmd_type_close_panel: {
                 
-                // get panels
-                ui_panel_t* panel = command->src_panel;
-                ui_panel_t* parent = panel->tree_parent;
-                
-                // skip if last panel so we can't remove all panels
-                if (panel == context->panel_root) { break; }
-                
-                // if no sibling panels
-                if (parent->child_count == 2) {
+                case ui_cmd_type_close_panel: {
                     
                     // get panels
-                    ui_panel_t* discard_panel = panel;
-                    ui_panel_t* keep_panel = panel == parent->tree_first ? parent->tree_last : parent->tree_first;
-                    ui_panel_t* grandparent = parent->tree_parent;
-                    ui_panel_t* parent_prev = parent->tree_prev;
-                    f32 percent_of_parent = parent->percent_of_parent;
+                    ui_panel_t* panel = command->src_panel;
+                    ui_panel_t* parent = panel->tree_parent;
                     
-                    ui_panel_remove(keep_panel);
+                    // skip if last panel so we can't remove all panels
+                    if (panel == context->panel_root) { break; }
                     
-                    if (grandparent != nullptr) {
-                        ui_panel_remove(parent);
-                    }
-                    
-                    ui_panel_release(context, parent);
-                    ui_panel_release(context, discard_panel);
-                    
-                    if (grandparent == nullptr) {
-                        context->panel_root = keep_panel;
-                    } else {
-                        ui_panel_insert(grandparent, keep_panel, parent_prev);
-                    }
-                    keep_panel->percent_of_parent = percent_of_parent;
-                    
-                    // focus panel
-                    if (context->panel_focused == discard_panel) {
-                        context->panel_focused = keep_panel;
-                        for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
-                            context->panel_focused = grandchild;
-                        }
-                    }
-                    
-                    if (grandparent != nullptr && grandparent->split_axis == keep_panel->split_axis && keep_panel->tree_first != nullptr) {
+                    // if no sibling panels
+                    if (parent->child_count == 2) {
+                        
+                        // get panels
+                        ui_panel_t* discard_panel = panel;
+                        ui_panel_t* keep_panel = panel == parent->tree_first ? parent->tree_last : parent->tree_first;
+                        ui_panel_t* grandparent = parent->tree_parent;
+                        ui_panel_t* parent_prev = parent->tree_prev;
+                        f32 percent_of_parent = parent->percent_of_parent;
+                        
                         ui_panel_remove(keep_panel);
-                        ui_panel_t* prev = parent_prev;
-                        for (ui_panel_t* child = keep_panel->tree_first, *next = nullptr; child != nullptr; child = next) {
-                            next = child->tree_next;
-                            ui_panel_remove(child);
-                            ui_panel_insert(grandparent, child, prev);
-                            prev = child;
-                            child->percent_of_parent *= keep_panel->percent_of_parent;
+                        
+                        if (grandparent != nullptr) {
+                            ui_panel_remove(parent);
                         }
-                        ui_panel_release(context, keep_panel);
-                    }
-                } else {
-                    
-                    ui_panel_t* next = nullptr;
-                    f32 removed_size_percent = panel->percent_of_parent;
-                    if (next == nullptr) { next = panel->tree_prev; }
-                    if (next == nullptr) { next = panel->tree_next; }
-                    ui_panel_remove(panel);
-                    ui_panel_release(context, panel);
-                    
-                    // focus panel
-                    //if (context->panel_focused == discard_panel) {
-                    //context->panel_focused = keep_panel;
-                    //for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
-                    //context->panel_focused = grandchild;
-                    //}
-                    //}
-                    
-                    // set sizes
-                    for (ui_panel_t* child = parent->tree_first; child != nullptr; child = child->tree_next) {
-                        child->percent_of_parent /= 1.0f - removed_size_percent;
-                    }
-                }
-                
-                break;
-            }
-            
-            case ui_cmd_type_split_panel: {
-                
-                ui_panel_t* split_panel = command->dst_panel;
-                ui_axis split_axis = ui_axis_from_dir(command->dir);
-                ui_side split_side = ui_side_from_dir(command->dir);
-                
-                ui_panel_t* new_panel = nullptr;
-                ui_panel_t* split_parent = split_panel->tree_parent;
-                
-                // if the parents split axis is the same
-                if (split_parent != nullptr && split_parent->split_axis == split_axis) {
-                    
-                    // create and insert panel
-                    ui_panel_t* inserted_panel = ui_panel_create(context);
-                    ui_panel_insert(split_parent, inserted_panel, split_side == ui_side_max ? split_panel : split_panel->tree_prev);
-                    inserted_panel->percent_of_parent = 1.0f / (f32)split_parent->child_count;
-                    
-                    // update sizes
-                    for (ui_panel_t* child = split_parent->tree_first; child != nullptr; child = child->tree_next) {
-                        if (child != inserted_panel) {
-                            child->percent_of_parent *= (f32)(split_parent->child_count - 1) / (split_parent->child_count);
+                        
+                        ui_panel_release(context, parent);
+                        ui_panel_release(context, discard_panel);
+                        
+                        if (grandparent == nullptr) {
+                            context->panel_root = keep_panel;
+                        } else {
+                            ui_panel_insert(grandparent, keep_panel, parent_prev);
                         }
-                    }
-                    
-                    context->panel_focused = inserted_panel;
-                    new_panel = inserted_panel;
-                } else {
-                    // parents split axis is not the same
-                    
-                    // create new parent with correct split axis
-                    ui_panel_t* pre_prev = split_panel->tree_prev;
-                    ui_panel_t* pre_parent = split_parent;
-                    ui_panel_t* new_parent = ui_panel_create(context, split_panel->percent_of_parent, split_axis);
-                    
-                    // reorder panels
-                    if (pre_parent != nullptr) {
-                        ui_panel_remove(split_panel);
-                        ui_panel_insert(pre_parent, new_parent, pre_prev);
+                        keep_panel->percent_of_parent = percent_of_parent;
+                        
+                        // focus panel
+                        if (context->panel_focused == discard_panel) {
+                            context->panel_focused = keep_panel;
+                            for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
+                                context->panel_focused = grandchild;
+                            }
+                        }
+                        
+                        if (grandparent != nullptr && grandparent->split_axis == keep_panel->split_axis && keep_panel->tree_first != nullptr) {
+                            ui_panel_remove(keep_panel);
+                            ui_panel_t* prev = parent_prev;
+                            for (ui_panel_t* child = keep_panel->tree_first, *next = nullptr; child != nullptr; child = next) {
+                                next = child->tree_next;
+                                ui_panel_remove(child);
+                                ui_panel_insert(grandparent, child, prev);
+                                prev = child;
+                                child->percent_of_parent *= keep_panel->percent_of_parent;
+                            }
+                            ui_panel_release(context, keep_panel);
+                        }
                     } else {
-                        context->panel_root = new_parent;
+                        
+                        ui_panel_t* next = nullptr;
+                        f32 removed_size_percent = panel->percent_of_parent;
+                        if (next == nullptr) { next = panel->tree_prev; }
+                        if (next == nullptr) { next = panel->tree_next; }
+                        ui_panel_remove(panel);
+                        ui_panel_release(context, panel);
+                        
+                        // focus panel
+                        //if (context->panel_focused == discard_panel) {
+                        //context->panel_focused = keep_panel;
+                        //for (ui_panel_t* grandchild = context->panel_focused; grandchild != nullptr; grandchild = grandchild->tree_first) {
+                        //context->panel_focused = grandchild;
+                        //}
+                        //}
+                        
+                        // set sizes
+                        for (ui_panel_t* child = parent->tree_first; child != nullptr; child = child->tree_next) {
+                            child->percent_of_parent /= 1.0f - removed_size_percent;
+                        }
                     }
                     
-                    // create new panel
-                    ui_panel_t* left = split_panel;
-                    ui_panel_t* right = ui_panel_create(context);
-                    new_panel = right;
-                    
-                    if (split_side == ui_side_min) {
-                        ui_panel_t* t = left;
-                        left = right;
-                        right = t;
-                    }
-                    
-                    left->percent_of_parent = 0.5f;
-                    right->percent_of_parent = 0.5f;
-                    
-                    context->panel_focused = new_panel;
-                    
-                    // insert both panels
-                    ui_panel_insert(new_parent, left);
-                    ui_panel_insert(new_parent, right, left);
-                    
+                    break;
                 }
                 
+                case ui_cmd_type_split_panel: {
+                    
+                    ui_panel_t* split_panel = command->dst_panel;
+                    ui_axis split_axis = ui_axis_from_dir(command->dir);
+                    ui_side split_side = ui_side_from_dir(command->dir);
+                    
+                    ui_panel_t* new_panel = nullptr;
+                    ui_panel_t* split_parent = split_panel->tree_parent;
+                    
+                    // if the parents split axis is the same
+                    if (split_parent != nullptr && split_parent->split_axis == split_axis) {
+                        
+                        // create and insert panel
+                        ui_panel_t* inserted_panel = ui_panel_create(context);
+                        ui_panel_insert(split_parent, inserted_panel, split_side == ui_side_max ? split_panel : split_panel->tree_prev);
+                        inserted_panel->percent_of_parent = 1.0f / (f32)split_parent->child_count;
+                        
+                        // update sizes
+                        for (ui_panel_t* child = split_parent->tree_first; child != nullptr; child = child->tree_next) {
+                            if (child != inserted_panel) {
+                                child->percent_of_parent *= (f32)(split_parent->child_count - 1) / (split_parent->child_count);
+                            }
+                        }
+                        
+                        context->panel_focused = inserted_panel;
+                        new_panel = inserted_panel;
+                    } else {
+                        // parents split axis is not the same
+                        
+                        // create new parent with correct split axis
+                        ui_panel_t* pre_prev = split_panel->tree_prev;
+                        ui_panel_t* pre_parent = split_parent;
+                        ui_panel_t* new_parent = ui_panel_create(context, split_panel->percent_of_parent, split_axis);
+                        
+                        // reorder panels
+                        if (pre_parent != nullptr) {
+                            ui_panel_remove(split_panel);
+                            ui_panel_insert(pre_parent, new_parent, pre_prev);
+                        } else {
+                            context->panel_root = new_parent;
+                        }
+                        
+                        // create new panel
+                        ui_panel_t* left = split_panel;
+                        ui_panel_t* right = ui_panel_create(context);
+                        new_panel = right;
+                        
+                        if (split_side == ui_side_min) {
+                            ui_panel_t* t = left;
+                            left = right;
+                            right = t;
+                        }
+                        
+                        left->percent_of_parent = 0.5f;
+                        right->percent_of_parent = 0.5f;
+                        
+                        context->panel_focused = new_panel;
+                        
+                        // insert both panels
+                        ui_panel_insert(new_parent, left);
+                        ui_panel_insert(new_parent, right, left);
+                        
+                    }
+                    
+                    
+                    if (command->view != nullptr) {
+                        
+                        ui_panel_t* from_panel =command->src_panel;
+                        
+                        ui_view_remove(from_panel, command->view);
+                        ui_view_insert(new_panel, command->view, new_panel->view_last);
+                        
+                        if (from_panel->view_first == nullptr && from_panel != context->panel_root &&
+                            from_panel != new_panel->tree_prev && from_panel != new_panel->tree_next) {
+                            ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                            cmd->src_panel = from_panel; 
+                        }
+                        
+                        context->view_focus = new_panel->view_first;
+                    }
+                    
+                    break;
+                }
                 
-                if (command->view != nullptr) {
+                case ui_cmd_type_move_view: {
                     
-                    ui_panel_t* from_panel =command->src_panel;
+                    ui_panel_t* from_panel = command->src_panel;
+                    ui_panel_t* to_panel = command->dst_panel;
+                    ui_view_t* view = command->view;
                     
-                    ui_view_remove(from_panel, command->view);
-                    ui_view_insert(new_panel, command->view, new_panel->view_last);
+                    ui_view_remove(from_panel, view);
+                    ui_view_insert(to_panel, view, to_panel->view_last);
                     
-                    if (from_panel->view_first == nullptr && from_panel != context->panel_root &&
-                        from_panel != new_panel->tree_prev && from_panel != new_panel->tree_next) {
+                    if (from_panel->view_first == nullptr) {
                         ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
                         cmd->src_panel = from_panel; 
                     }
                     
-                    context->view_focus = new_panel->view_first;
-                }
-                
-                break;
-            }
-            
-            case ui_cmd_type_move_view: {
-                
-                ui_panel_t* from_panel = command->src_panel;
-                ui_panel_t* to_panel = command->dst_panel;
-                ui_view_t* view = command->view;
-                
-                ui_view_remove(from_panel, view);
-                ui_view_insert(to_panel, view, to_panel->view_last);
-                
-                if (from_panel->view_first == nullptr) {
-                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
-                    cmd->src_panel = from_panel; 
-                }
-                
-                context->panel_focused = to_panel;
-                context->view_focus = view;
-                
-                break;
-            }
-            
-        }
-        
-        // pop command
-        ui_cmd_pop(command);
-        
-    }
-    
-    // animation rates
-    f32 dt = os_window_get_delta_time(context->window);
-    context->anim_fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
-    context->anim_slow_rate = 1.0f - powf(2.0f, -25.0f * dt);
-    
-    // remove unused animation nodes
-    {
-        for (ui_anim_node_t* n = context->anim_node_lru, *next = nullptr; n != nullptr; n = next) {
-            next = n->lru_next;
-            if (n->last_build_index + 1 < context->build_index) {
-                dll_remove_np(context->anim_node_first, context->anim_node_last, n, list_next, list_prev);
-                dll_remove_np(context->anim_node_lru, context->anim_node_mru, n, lru_next, lru_prev);
-                stack_push_n(context->anim_node_free, n, list_next);
-            } else {
-                break;
-            }
-        }
-    }
-    
-    // remove unused data node
-    {
-        for (ui_data_node_t* n = context->data_node_lru, *next = nullptr; n != nullptr; n = next) {
-            next = n->lru_next;
-            if (n->last_build_index + 1 < context->build_index) {
-                dll_remove_np(context->data_node_first, context->data_node_last, n, list_next, list_prev);
-                dll_remove_np(context->data_node_lru, context->data_node_mru, n, lru_next, lru_prev);
-                stack_push_n(context->data_node_free, n, list_next);
-            } else {
-                break;
-            }
-        }
-    }
-    
-    
-    // reset stacks
-    ui_context_reset_stacks(context);
-    
-    // reset popup
-    context->popup_updated_this_frame = false;
-    
-    // reset keys
-    {
-        
-        // reset active keys
-        for (i32 i = 0 ; i < 3; i++) {
-            ui_frame_t* frame = ui_frame_find(context->key_active[i]);
-            
-            if (frame == nullptr) {
-                context->key_active[i] = { 0 };
-            }
-        }
-        
-        // reset hover key
-        context->key_hovered_prev = context->key_hovered;
-        context->key_hovered = { 0 };
-        
-    }
-    
-    // get input
-    context->mouse_pos = os_window_get_cursor_pos(context->window);
-    context->mouse_delta = os_window_get_mouse_delta(context->window);
-    uvec2_t content_size = gfx_renderer_get_size(context->renderer);
-    rect_t content_rect = rect(0.0f, 0.0f, content_size.x, content_size.y);
-    
-    // create root frame
-    {
-        ui_set_next_rect(content_rect);
-        ui_key_t root_key = ui_key_from_stringf({ 0 }, "%p_window_root_frame", context);
-        context->frame_root = ui_frame_from_key(0, root_key);
-        ui_frame_set_display_string(context->frame_root, str("window_root_frame")); // for debug
-        ui_push_parent(context->frame_root);
-    }
-    
-    // create tooltip frame
-    {
-        ui_frame_flags tooltip_flags = ui_frame_flag_floating;
-        ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
-        ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
-        ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-        ui_set_next_padding(2.0f);
-        ui_set_next_color_background(color(0x1d1d1dff));
-        ui_key_t tooltip_key = ui_key_from_stringf({ 0 }, "%p_tooltip_root_frame", context);
-        context->frame_tooltip = ui_frame_from_key(tooltip_flags, tooltip_key);
-        ui_frame_set_display_string(context->frame_tooltip, str("tooltip_root_frame")); // for debug
-    }
-    // create popup frame
-    {
-        ui_frame_flags popup_flags = 
-            ui_frame_flag_interactable |
-            ui_frame_flag_floating;
-        
-        ui_key_t popup_key = ui_key_from_stringf({ 0 }, "%p_popup_root_frame", context);
-        ui_set_next_fixed_x(context->popup_pos.x);
-        ui_set_next_fixed_y(context->popup_pos.y);
-        ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-        ui_set_next_padding(2.0f);
-        ui_set_next_color_background(color(0x1d1d1dff));
-        context->frame_popup = ui_frame_from_key(popup_flags, popup_key);
-        ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
-    }
-    
-    // drop site and visualization params
-    
-    ui_frame_flags drop_site_flags = 
-        ui_frame_flag_interactable |
-        ui_frame_flag_draw_background |
-        ui_frame_flag_draw_border |
-        ui_frame_flag_draw_custom;
-    
-    ui_frame_flags vis_panel_flags =
-        ui_frame_flag_draw_background |
-        ui_frame_flag_draw_border;
-    
-    color_t drop_background_color = color(0x151515ff);
-    color_t drop_border_color = color(0x353535ff);
-    
-    color_t vis_background_color = color(0x50505080);
-    color_t vis_border_color = color(0x80808080);
-    
-    f32 drop_site_major_size = 40.0f;
-    f32 drop_site_minor_size = 30.0f;
-    
-    f32 vis_major_size = 50.0f;
-    
-    // create non leaf panel ui
-    {
-        
-        for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
-            
-            // skip if leaf panel
-            if (panel->tree_first == nullptr) { continue; }
-            
-            // calculate rect
-            rect_t panel_rect = ui_rect_from_panel(panel, content_rect);
-            ui_axis split_axis = panel->split_axis;
-            
-            // boundary drop sites
-            if (ui_drag_is_active() && context->view_drag != nullptr) {
-                
-                // build root drop sites
-                if (panel == context->panel_root) {
+                    context->panel_focused = to_panel;
+                    context->view_focus = view;
                     
-                    for (ui_side side = ui_side_min; side < ui_side_count; side++) {
+                    break;
+                }
+                
+            }
+            
+            // pop command
+            ui_cmd_pop(command);
+            
+        }
+        
+        // animation rates
+        f32 dt = os_window_get_delta_time(context->window);
+        context->anim_fast_rate = 1.0f - powf(2.0f, -50.0f * dt);
+        context->anim_slow_rate = 1.0f - powf(2.0f, -25.0f * dt);
+        
+        // remove unused animation nodes
+        {
+            for (ui_anim_node_t* n = context->anim_node_lru, *next = nullptr; n != nullptr; n = next) {
+                next = n->lru_next;
+                if (n->last_build_index + 1 < context->build_index) {
+                    dll_remove_np(context->anim_node_first, context->anim_node_last, n, list_next, list_prev);
+                    dll_remove_np(context->anim_node_lru, context->anim_node_mru, n, lru_next, lru_prev);
+                    stack_push_n(context->anim_node_free, n, list_next);
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        // remove unused data node
+        {
+            for (ui_data_node_t* n = context->data_node_lru, *next = nullptr; n != nullptr; n = next) {
+                next = n->lru_next;
+                if (n->last_build_index + 1 < context->build_index) {
+                    dll_remove_np(context->data_node_first, context->data_node_last, n, list_next, list_prev);
+                    dll_remove_np(context->data_node_lru, context->data_node_mru, n, lru_next, lru_prev);
+                    stack_push_n(context->data_node_free, n, list_next);
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        
+        // reset stacks
+        ui_context_reset_stacks(context);
+        
+        // reset popup
+        context->popup_updated_this_frame = false;
+        
+        // reset keys
+        {
+            
+            // reset active keys
+            for (i32 i = 0 ; i < 3; i++) {
+                ui_frame_t* frame = ui_frame_find(context->key_active[i]);
+                
+                if (frame == nullptr) {
+                    context->key_active[i] = { 0 };
+                }
+            }
+            
+            // reset hover key
+            context->key_hovered_prev = context->key_hovered;
+            context->key_hovered = { 0 };
+            
+        }
+        
+        // get input
+        context->mouse_pos = os_window_get_cursor_pos(context->window);
+        context->mouse_delta = os_window_get_mouse_delta(context->window);
+        uvec2_t content_size = gfx_renderer_get_size(context->renderer);
+        rect_t content_rect = rect(0.0f, 0.0f, content_size.x, content_size.y);
+        
+        // create root frame
+        {
+            ui_set_next_rect(content_rect);
+            ui_key_t root_key = ui_key_from_stringf({ 0 }, "%p_window_root_frame", context);
+            context->frame_root = ui_frame_from_key(0, root_key);
+            ui_frame_set_display_string(context->frame_root, str("window_root_frame")); // for debug
+            ui_push_parent(context->frame_root);
+        }
+        
+        // create tooltip frame
+        {
+            ui_frame_flags tooltip_flags = ui_frame_flag_floating;
+            ui_set_next_fixed_x(context->mouse_pos.x + 15.0f);
+            ui_set_next_fixed_y(context->mouse_pos.y + 15.0f);
+            ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+            ui_set_next_padding(2.0f);
+            ui_set_next_color_background(color(0x1d1d1dff));
+            ui_key_t tooltip_key = ui_key_from_stringf({ 0 }, "%p_tooltip_root_frame", context);
+            context->frame_tooltip = ui_frame_from_key(tooltip_flags, tooltip_key);
+            ui_frame_set_display_string(context->frame_tooltip, str("tooltip_root_frame")); // for debug
+        }
+        // create popup frame
+        {
+            ui_frame_flags popup_flags = 
+                ui_frame_flag_interactable |
+                ui_frame_flag_floating;
+            
+            ui_key_t popup_key = ui_key_from_stringf({ 0 }, "%p_popup_root_frame", context);
+            ui_set_next_fixed_x(context->popup_pos.x);
+            ui_set_next_fixed_y(context->popup_pos.y);
+            ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+            ui_set_next_padding(2.0f);
+            ui_set_next_color_background(color(0x1d1d1dff));
+            context->frame_popup = ui_frame_from_key(popup_flags, popup_key);
+            ui_frame_set_display_string(context->frame_popup, str("popup_root_frame")); // for debug
+        }
+        
+        // drop site and visualization params
+        
+        ui_frame_flags drop_site_flags = 
+            ui_frame_flag_interactable |
+            ui_frame_flag_draw_background |
+            ui_frame_flag_draw_border |
+            ui_frame_flag_draw_custom;
+        
+        ui_frame_flags vis_panel_flags =
+            ui_frame_flag_draw_background |
+            ui_frame_flag_draw_border;
+        
+        color_t drop_background_color = color(0x151515ff);
+        color_t drop_border_color = color(0x353535ff);
+        
+        color_t vis_background_color = color(0x50505080);
+        color_t vis_border_color = color(0x80808080);
+        
+        f32 drop_site_major_size = 40.0f;
+        f32 drop_site_minor_size = 30.0f;
+        
+        f32 vis_major_size = 50.0f;
+        
+        // create non leaf panel ui
+        {
+            
+            for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
+                
+                // skip if leaf panel
+                if (panel->tree_first == nullptr) { continue; }
+                
+                // calculate rect
+                rect_t panel_rect = ui_rect_from_panel(panel, content_rect);
+                ui_axis split_axis = panel->split_axis;
+                
+                // boundary drop sites
+                if (ui_drag_is_active() && context->view_drag != nullptr) {
+                    
+                    // build root drop sites
+                    if (panel == context->panel_root) {
                         
-                        // calculate rect
-                        vec2_t panel_rect_center = rect_center(panel_rect);
-                        rect_t drop_rect = rect(panel_rect_center, panel_rect_center);
-                        
-                        drop_rect.v0[split_axis] = panel_rect_center[split_axis] - drop_site_major_size;
-                        drop_rect.v1[split_axis] = panel_rect_center[split_axis] + drop_site_major_size;
-                        
-                        if (side == ui_side_min) {
-                            drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f;
-                            drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f + (drop_site_minor_size * 2.0f);
-                        } else {
-                            drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f - (drop_site_minor_size * 2.0f);
-                            drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f;
+                        for (ui_side side = ui_side_min; side < ui_side_count; side++) {
+                            
+                            // calculate rect
+                            vec2_t panel_rect_center = rect_center(panel_rect);
+                            rect_t drop_rect = rect(panel_rect_center, panel_rect_center);
+                            
+                            drop_rect.v0[split_axis] = panel_rect_center[split_axis] - drop_site_major_size;
+                            drop_rect.v1[split_axis] = panel_rect_center[split_axis] + drop_site_major_size;
+                            
+                            if (side == ui_side_min) {
+                                drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f;
+                                drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] + 10.0f + (drop_site_minor_size * 2.0f);
+                            } else {
+                                drop_rect.v0[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f - (drop_site_minor_size * 2.0f);
+                                drop_rect.v1[!split_axis] = panel_rect.v[side][!split_axis] - 10.0f;
+                            }
+                            
+                            // build frame
+                            ui_set_next_rect(drop_rect);
+                            ui_set_next_color_background(drop_background_color);
+                            ui_set_next_color_border(drop_border_color);
+                            ui_set_next_rounding(vec4(5.0f));
+                            ui_key_t drop_key = ui_key_from_stringf({ 0 }, "root_drop_site_%i", side);
+                            ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
+                            ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                            data->type = ui_drop_site_type_edge;
+                            data->axis = !split_axis;
+                            data->side = side;
+                            ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
+                            ui_frame_interaction(drop_frame);
+                            
+                            // visualize new panel
+                            if (ui_key_equals(drop_key, context->key_hovered)) {
+                                
+                                // calculate rect
+                                rect_t new_panel_rect = drop_rect;
+                                new_panel_rect.v0[split_axis] = panel_rect.v0[split_axis] + 5.0f;
+                                new_panel_rect.v1[split_axis] = panel_rect.v1[split_axis] - 5.0f;
+                                
+                                if (side == ui_side_min) {
+                                    new_panel_rect.v0[!split_axis] = panel_rect.v0[!split_axis] + 5.0f;
+                                    new_panel_rect.v1[!split_axis] += vis_major_size * drop_frame->hover_t;
+                                } else {
+                                    new_panel_rect.v0[!split_axis] -= vis_major_size * drop_frame->hover_t;
+                                    new_panel_rect.v1[!split_axis] = panel_rect.v1[!split_axis] - 5.0f;
+                                }
+                                
+                                //build visualization frame
+                                ui_set_next_rect(new_panel_rect);
+                                ui_set_next_color_background(vis_background_color);
+                                ui_set_next_color_border(vis_border_color);
+                                ui_frame_from_key(vis_panel_flags, { 0 });
+                                
+                            }
+                            
+                            // perform drop
+                            if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                                
+                                // detemine split panel and directiob
+                                ui_dir dir = (split_axis == ui_axis_x ? (side == ui_side_min ? ui_dir_up : ui_dir_down) :
+                                              split_axis == ui_axis_y ? (side == ui_side_min ? ui_dir_left: ui_dir_right) :
+                                              ui_dir_none);
+                                
+                                if (dir != ui_dir_none) {
+                                    
+                                    // push command
+                                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                                    cmd->dst_panel = panel;
+                                    cmd->src_panel = context->view_drag->parent_panel;
+                                    cmd->dir = dir;
+                                    cmd->view = context->view_drag;
+                                    
+                                }
+                            }
+                            
                         }
                         
-                        // build frame
+                    }
+                    
+                    // interate through children building drop sites
+                    for (ui_panel_t* child = panel->tree_first;  ; child = child->tree_next) {
+                        
+                        // calculate drop rect
+                        rect_t child_rect = ui_rect_from_panel_child(panel, child, panel_rect);
+                        vec2_t child_rect_center = rect_center(child_rect);
+                        
+                        // determine if edge or split
+                        rect_t drop_rect;
+                        ui_drop_site_type drop_type;
+                        ui_side drop_side = 0;
+                        if (child != panel->tree_first && child != nullptr) {
+                            drop_type = ui_drop_site_type_split;
+                            drop_rect = rect(child_rect_center, child_rect_center);
+                            drop_rect.v0[split_axis] = child_rect.v0[split_axis] - drop_site_minor_size * 1.5f;
+                            drop_rect.v1[split_axis] = child_rect.v0[split_axis] + drop_site_minor_size * 1.5f;
+                            drop_rect.v0[!split_axis] -= drop_site_major_size;
+                            drop_rect.v1[!split_axis] += drop_site_major_size;
+                        } else {
+                            drop_type = ui_drop_site_type_edge;
+                            drop_rect = rect(child_rect_center, child_rect_center);
+                            if (child == panel->tree_first) {
+                                drop_rect.v0[split_axis] = child_rect.v0[split_axis] + 10.0f;
+                                drop_rect.v1[split_axis] = child_rect.v0[split_axis] + 10.0f + drop_site_minor_size * 2.0f;
+                                drop_side = ui_side_min;
+                            } else {
+                                drop_rect.v0[split_axis] = child_rect.v0[split_axis] - 10.0f - drop_site_minor_size * 2.0f;
+                                drop_rect.v1[split_axis] = child_rect.v0[split_axis] - 10.0f;
+                                drop_side = ui_side_max;
+                            }
+                            drop_rect.v0[!split_axis] -= drop_site_major_size;
+                            drop_rect.v1[!split_axis] += drop_site_major_size;
+                        }
+                        
+                        // build drop frame
                         ui_set_next_rect(drop_rect);
-                        ui_set_next_color_background(drop_background_color);
-                        ui_set_next_color_border(drop_border_color);
                         ui_set_next_rounding(vec4(5.0f));
-                        ui_key_t drop_key = ui_key_from_stringf({ 0 }, "root_drop_site_%i", side);
+                        ui_set_next_color_background( drop_background_color);
+                        ui_set_next_color_border(drop_border_color);
+                        ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
                         ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
-                        ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                        data->type = ui_drop_site_type_edge;
-                        data->axis = !split_axis;
-                        data->side = side;
-                        ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                         ui_frame_interaction(drop_frame);
+                        
+                        // set draw data
+                        ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                        data->type = drop_type;
+                        data->axis = split_axis;
+                        data->side = drop_side;
+                        ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
                         
                         // visualize new panel
                         if (ui_key_equals(drop_key, context->key_hovered)) {
                             
                             // calculate rect
                             rect_t new_panel_rect = drop_rect;
-                            new_panel_rect.v0[split_axis] = panel_rect.v0[split_axis] + 5.0f;
-                            new_panel_rect.v1[split_axis] = panel_rect.v1[split_axis] - 5.0f;
                             
-                            if (side == ui_side_min) {
-                                new_panel_rect.v0[!split_axis] = panel_rect.v0[!split_axis] + 5.0f;
-                                new_panel_rect.v1[!split_axis] += vis_major_size * drop_frame->hover_t;
+                            if (drop_type == ui_drop_site_type_split) {
+                                new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
+                                new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
+                                new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
+                                new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
                             } else {
-                                new_panel_rect.v0[!split_axis] -= vis_major_size * drop_frame->hover_t;
-                                new_panel_rect.v1[!split_axis] = panel_rect.v1[!split_axis] - 5.0f;
+                                
+                                if (child == panel->tree_first) {
+                                    new_panel_rect.v0[split_axis] -= 5.0f;
+                                    new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
+                                } else {
+                                    new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
+                                    new_panel_rect.v1[split_axis] += 5.0f;
+                                }
+                                
+                                new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
+                                new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
                             }
+                            
                             
                             //build visualization frame
                             ui_set_next_rect(new_panel_rect);
                             ui_set_next_color_background(vis_background_color);
                             ui_set_next_color_border(vis_border_color);
                             ui_frame_from_key(vis_panel_flags, { 0 });
-                            
                         }
                         
                         // perform drop
                         if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
                             
-                            // detemine split panel and directiob
-                            ui_dir dir = (split_axis == ui_axis_x ? (side == ui_side_min ? ui_dir_up : ui_dir_down) :
-                                          split_axis == ui_axis_y ? (side == ui_side_min ? ui_dir_left: ui_dir_right) :
-                                          ui_dir_none);
-                            
-                            if (dir != ui_dir_none) {
-                                
-                                // push command
-                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
-                                cmd->dst_panel = panel;
-                                cmd->src_panel = context->view_drag->parent_panel;
-                                cmd->dir = dir;
-                                cmd->view = context->view_drag;
-                                
+                            // detemine split panel and direction
+                            ui_panel_t* split_panel = child;
+                            ui_dir split_dir = (split_axis == ui_axis_x) ? ui_dir_left : ui_dir_up;
+                            if (split_panel == nullptr) {
+                                split_panel = panel->tree_last;
+                                split_dir = (split_axis == ui_axis_x) ? ui_dir_right : ui_dir_down;
                             }
+                            
+                            // push command
+                            ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                            cmd->src_panel = context->view_drag->parent_panel;
+                            cmd->dst_panel = split_panel;
+                            cmd->dir = split_dir;
+                            cmd->view = context->view_drag;
+                        }
+                        
+                        // end on opl
+                        if (child == nullptr) {
+                            break;
                         }
                         
                     }
                     
                 }
                 
-                // interate through children building drop sites
-                for (ui_panel_t* child = panel->tree_first;  ; child = child->tree_next) {
+                
+                // build drag boundaries
+                for (ui_panel_t* child = panel->tree_first; child != nullptr && child->tree_next != nullptr; child = child->tree_next) {
                     
-                    // calculate drop rect
-                    rect_t child_rect = ui_rect_from_panel_child(panel, child, panel_rect);
-                    vec2_t child_rect_center = rect_center(child_rect);
+                    ui_panel_t* min_child = child;
+                    ui_panel_t* max_child = child->tree_next;
                     
-                    // determine if edge or split
-                    rect_t drop_rect;
-                    ui_drop_site_type drop_type;
-                    ui_side drop_side = 0;
-                    if (child != panel->tree_first && child != nullptr) {
-                        drop_type = ui_drop_site_type_split;
-                        drop_rect = rect(child_rect_center, child_rect_center);
-                        drop_rect.v0[split_axis] = child_rect.v0[split_axis] - drop_site_minor_size * 1.5f;
-                        drop_rect.v1[split_axis] = child_rect.v0[split_axis] + drop_site_minor_size * 1.5f;
-                        drop_rect.v0[!split_axis] -= drop_site_major_size;
-                        drop_rect.v1[!split_axis] += drop_site_major_size;
-                    } else {
-                        drop_type = ui_drop_site_type_edge;
-                        drop_rect = rect(child_rect_center, child_rect_center);
-                        if (child == panel->tree_first) {
-                            drop_rect.v0[split_axis] = child_rect.v0[split_axis] + 10.0f;
-                            drop_rect.v1[split_axis] = child_rect.v0[split_axis] + 10.0f + drop_site_minor_size * 2.0f;
-                            drop_side = ui_side_min;
-                        } else {
-                            drop_rect.v0[split_axis] = child_rect.v0[split_axis] - 10.0f - drop_site_minor_size * 2.0f;
-                            drop_rect.v1[split_axis] = child_rect.v0[split_axis] - 10.0f;
-                            drop_side = ui_side_max;
-                        }
-                        drop_rect.v0[!split_axis] -= drop_site_major_size;
-                        drop_rect.v1[!split_axis] += drop_site_major_size;
-                    }
+                    rect_t min_child_rect = ui_rect_from_panel_child(min_child->tree_parent, min_child, panel_rect);
+                    rect_t max_child_rect = ui_rect_from_panel_child(max_child->tree_parent, max_child, panel_rect);
                     
-                    // build drop frame
-                    ui_set_next_rect(drop_rect);
-                    ui_set_next_rounding(vec4(5.0f));
-                    ui_set_next_color_background( drop_background_color);
-                    ui_set_next_color_border(drop_border_color);
-                    ui_key_t drop_key = ui_key_from_stringf({0}, "drop_boundary_%p_%p", panel, child);
-                    ui_frame_t* drop_frame = ui_frame_from_key(drop_site_flags, drop_key);
-                    ui_frame_interaction(drop_frame);
+                    // calculate boundary rect
+                    rect_t boundary_rect = { 0 };
+                    boundary_rect.v0[split_axis]  = min_child_rect.v1[split_axis] - 8.0f;
+                    boundary_rect.v1[split_axis]  = max_child_rect.v0[split_axis] + 8.0f;
+                    boundary_rect.v0[!split_axis] = panel_rect.v0[!split_axis];
+                    boundary_rect.v1[!split_axis] = panel_rect.v1[!split_axis];	
                     
-                    // set draw data
-                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                    data->type = drop_type;
-                    data->axis = split_axis;
-                    data->side = drop_side;
-                    ui_frame_set_custom_draw(drop_frame, ui_drop_site_draw_function, data);
+                    // build frame
+                    ui_frame_flags boundary_flags = 
+                        ui_frame_flag_interactable |
+                        ui_frame_flag_floating |
+                        ui_frame_flag_hover_cursor;
                     
-                    // visualize new panel
-                    if (ui_key_equals(drop_key, context->key_hovered)) {
+                    ui_set_next_rect(boundary_rect);
+                    ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
+                    ui_key_t boundary_key = ui_key_from_stringf({ 0 }, "%p_panel_boundary", child);
+                    ui_frame_t* boundary_frame = ui_frame_from_key(boundary_flags, boundary_key);
+                    ui_frame_set_display_string(boundary_frame, str("panel_boundary")); // for debug
+                    ui_interaction boundary_interaction = ui_frame_interaction(boundary_frame);
+                    
+                    /*if (boundary_interaction & ui_interaction_hovered) {
+                        rect_t vis_rect = boundary_rect;
+                        vis_rect.v0[split_axis] += 7.0f;
+                        vis_rect.v1[split_axis] -= 8.0f;
                         
-                        // calculate rect
-                        rect_t new_panel_rect = drop_rect;
-                        
-                        if (drop_type == ui_drop_site_type_split) {
-                            new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
-                            new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
-                            new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
-                            new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
-                        } else {
-                            
-                            if (child == panel->tree_first) {
-                                new_panel_rect.v0[split_axis] -= 5.0f;
-                                new_panel_rect.v1[split_axis] += vis_major_size * drop_frame->hover_t;
-                            } else {
-                                new_panel_rect.v0[split_axis] -= vis_major_size * drop_frame->hover_t;
-                                new_panel_rect.v1[split_axis] += 5.0f;
-                            }
-                            
-                            new_panel_rect.v0[!split_axis] = child_rect.v0[!split_axis] + 5.0f;
-                            new_panel_rect.v1[!split_axis] = child_rect.v1[!split_axis] - 5.0f;
+                        if (boundary_interaction & ui_interaction_left_dragging) {
+                            vis_rect.v0[split_axis] += context->mouse_delta[split_axis];
+                            vis_rect.v1[split_axis] += context->mouse_delta[split_axis];
                         }
                         
-                        
-                        //build visualization frame
-                        ui_set_next_rect(new_panel_rect);
-                        ui_set_next_color_background(vis_background_color);
-                        ui_set_next_color_border(vis_border_color);
-                        ui_frame_from_key(vis_panel_flags, { 0 });
-                    }
+                        ui_set_next_rect(vis_rect);
+                        ui_frame_t* vis_frame = ui_frame_from_key(ui_frame_flag_draw_background, { 0 });
+                    }*/
                     
-                    // perform drop
-                    if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                    if (boundary_interaction & ui_interaction_left_double_clicked) {
+                        ui_kill_action();
+                        f32 sum_percent = min_child->percent_of_parent + max_child->percent_of_parent;
+                        min_child->percent_of_parent = 0.5f * sum_percent ;
+                        max_child->percent_of_parent = 0.5f * sum_percent ;
                         
-                        // detemine split panel and direction
-                        ui_panel_t* split_panel = child;
-                        ui_dir split_dir = (split_axis == ui_axis_x) ? ui_dir_left : ui_dir_up;
-                        if (split_panel == nullptr) {
-                            split_panel = panel->tree_last;
-                            split_dir = (split_axis == ui_axis_x) ? ui_dir_right : ui_dir_down;
+                    } else if (boundary_interaction & ui_interaction_left_pressed) {
+                        vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
+                        ui_drag_store_data(&drag_data, sizeof(vec2_t));
+                    } else if (boundary_interaction & ui_interaction_left_dragging) {
+                        
+                        // get drag data
+                        vec2_t* drag_data = (vec2_t*)ui_drag_get_data();
+                        vec2_t mouse_delta = ui_drag_delta();
+                        
+                        vec2_t panel_size = rect_size(panel_rect);
+                        f32 total_size = panel_size[split_axis];
+                        
+                        // min child
+                        f32 min_pct_before = drag_data->x;
+                        f32 min_px_before = min_pct_before * total_size;
+                        f32 min_px_after = max(min_px_before + mouse_delta[split_axis], 50.0f);
+                        f32 min_pct_after = min_px_after / total_size;
+                        f32 pct_delta = min_pct_after - min_pct_before;
+                        
+                        // max child
+                        f32 max_pct_before = drag_data->y;
+                        f32 max_pct_after = max_pct_before - pct_delta;
+                        f32 max_px_after = max_pct_after * total_size;
+                        if (max_px_after < 50.0f) {
+                            max_px_after = 50.0f;
+                            max_pct_after = max_px_after / total_size;
+                            pct_delta = -(max_pct_after - max_pct_before);
+                            min_pct_after = min_pct_before + pct_delta;
                         }
                         
-                        // push command
-                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
-                        cmd->src_panel = context->view_drag->parent_panel;
-                        cmd->dst_panel = split_panel;
-                        cmd->dir = split_dir;
-                        cmd->view = context->view_drag;
+                        min_child->percent_of_parent = min_pct_after;
+                        max_child->percent_of_parent = max_pct_after;
+                        
                     }
-                    
-                    // end on opl
-                    if (child == nullptr) {
-                        break;
-                    }
-                    
-                }
-                
-            }
-            
-            
-            // build drag boundaries
-            for (ui_panel_t* child = panel->tree_first; child != nullptr && child->tree_next != nullptr; child = child->tree_next) {
-                
-                ui_panel_t* min_child = child;
-                ui_panel_t* max_child = child->tree_next;
-                
-                rect_t min_child_rect = ui_rect_from_panel_child(min_child->tree_parent, min_child, panel_rect);
-                rect_t max_child_rect = ui_rect_from_panel_child(max_child->tree_parent, max_child, panel_rect);
-                
-                // calculate boundary rect
-                rect_t boundary_rect = { 0 };
-                boundary_rect.v0[split_axis]  = min_child_rect.v1[split_axis] - 8.0f;
-                boundary_rect.v1[split_axis]  = max_child_rect.v0[split_axis] + 8.0f;
-                boundary_rect.v0[!split_axis] = panel_rect.v0[!split_axis];
-                boundary_rect.v1[!split_axis] = panel_rect.v1[!split_axis];	
-                
-                // build frame
-                ui_frame_flags boundary_flags = 
-                    ui_frame_flag_interactable |
-                    ui_frame_flag_floating |
-                    ui_frame_flag_hover_cursor;
-                
-                ui_set_next_rect(boundary_rect);
-                ui_set_next_hover_cursor(split_axis == ui_axis_x ? os_cursor_resize_EW : os_cursor_resize_NS);
-                ui_key_t boundary_key = ui_key_from_stringf({ 0 }, "%p_panel_boundary", child);
-                ui_frame_t* boundary_frame = ui_frame_from_key(boundary_flags, boundary_key);
-                ui_frame_set_display_string(boundary_frame, str("panel_boundary")); // for debug
-                ui_interaction boundary_interaction = ui_frame_interaction(boundary_frame);
-                
-                /*if (boundary_interaction & ui_interaction_hovered) {
-                    rect_t vis_rect = boundary_rect;
-                    vis_rect.v0[split_axis] += 7.0f;
-                    vis_rect.v1[split_axis] -= 8.0f;
-                    
-                    if (boundary_interaction & ui_interaction_left_dragging) {
-                        vis_rect.v0[split_axis] += context->mouse_delta[split_axis];
-                        vis_rect.v1[split_axis] += context->mouse_delta[split_axis];
-                    }
-                    
-                    ui_set_next_rect(vis_rect);
-                    ui_frame_t* vis_frame = ui_frame_from_key(ui_frame_flag_draw_background, { 0 });
-                }*/
-                
-                if (boundary_interaction & ui_interaction_left_double_clicked) {
-                    ui_kill_action();
-                    f32 sum_percent = min_child->percent_of_parent + max_child->percent_of_parent;
-                    min_child->percent_of_parent = 0.5f * sum_percent ;
-                    max_child->percent_of_parent = 0.5f * sum_percent ;
-                    
-                } else if (boundary_interaction & ui_interaction_left_pressed) {
-                    vec2_t drag_data = vec2(min_child->percent_of_parent, max_child->percent_of_parent);
-                    ui_drag_store_data(&drag_data, sizeof(vec2_t));
-                } else if (boundary_interaction & ui_interaction_left_dragging) {
-                    
-                    // get drag data
-                    vec2_t* drag_data = (vec2_t*)ui_drag_get_data();
-                    vec2_t mouse_delta = ui_drag_delta();
-                    
-                    vec2_t panel_size = rect_size(panel_rect);
-                    f32 total_size = panel_size[split_axis];
-                    
-                    // min child
-                    f32 min_pct_before = drag_data->x;
-                    f32 min_px_before = min_pct_before * total_size;
-                    f32 min_px_after = max(min_px_before + mouse_delta[split_axis], 50.0f);
-                    f32 min_pct_after = min_px_after / total_size;
-                    f32 pct_delta = min_pct_after - min_pct_before;
-                    
-                    // max child
-                    f32 max_pct_before = drag_data->y;
-                    f32 max_pct_after = max_pct_before - pct_delta;
-                    f32 max_px_after = max_pct_after * total_size;
-                    if (max_px_after < 50.0f) {
-                        max_px_after = 50.0f;
-                        max_pct_after = max_px_after / total_size;
-                        pct_delta = -(max_pct_after - max_pct_before);
-                        min_pct_after = min_pct_before + pct_delta;
-                    }
-                    
-                    min_child->percent_of_parent = min_pct_after;
-                    max_child->percent_of_parent = max_pct_after;
                     
                 }
                 
@@ -848,146 +851,146 @@ ui_begin(ui_context_t* context) {
             
         }
         
-    }
-    
-    // create leaf panel ui
-    {
-        
-        for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
+        // create leaf panel ui
+        {
             
-            // skip if not leaf panel
-            if (panel->tree_first != nullptr) { continue; }
-            if (panel == context->panel_root) { continue;}
-            
-            b8 panel_is_focused = (context->panel_focused == panel);
-            
-            // calculate rect
-            rect_t panel_rect = rect_shrink(ui_rect_from_panel(panel, content_rect), 2.0f);
-            vec2_t panel_center = rect_center(panel_rect);
-            vec2_t panel_size = rect_size(panel_rect);
-            
-            rect_t container_rect = panel_rect; container_rect.y0 += 23.0f;
-            rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 25.0f;
-            
-            // build drop sites
-            if (ui_drag_is_active() && context->view_drag != nullptr && rect_contains(panel_rect, context->mouse_pos)) {
+            for (ui_panel_t* panel = context->panel_root; panel != nullptr; panel = ui_panel_rec_depth_first(panel).next) {
                 
-                // calculate drop rects
-                rect_t drop_rect_center = rect(vec2_sub(panel_center, drop_site_major_size), vec2_add(panel_center, drop_site_major_size));
-                rect_t drop_rect_up = rect_translate(drop_rect_center, vec2(0.0f, -(drop_site_major_size * 2.25f)));
-                rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +(drop_site_major_size * 2.25f)));
-                rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-(drop_site_major_size * 2.25f), 0.0f));
-                rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+(drop_site_major_size * 2.25f), 0.0f));
+                // skip if not leaf panel
+                if (panel->tree_first != nullptr) { continue; }
+                if (panel == context->panel_root) { continue;}
                 
-                struct ui_drop_site_t {
-                    ui_key_t key;
-                    ui_dir split_dir;
-                    rect_t rect;
-                    ui_frame_t* frame;
-                };
+                b8 panel_is_focused = (context->panel_focused == panel);
                 
-                ui_drop_site_t drop_sites[] = {
-                    { ui_key_from_stringf( { 0 }, "drop_site_center_%p", panel), ui_dir_none, drop_rect_center },
-                    { ui_key_from_stringf( { 0 }, "drop_site_up_%p", panel), ui_dir_up, drop_rect_up},
-                    { ui_key_from_stringf( { 0 }, "drop_site_down_%p", panel), ui_dir_down, drop_rect_down},
-                    { ui_key_from_stringf( { 0 }, "drop_site_left_%p", panel), ui_dir_left, drop_rect_left},
-                    { ui_key_from_stringf( { 0 }, "drop_site_right_%p", panel), ui_dir_right, drop_rect_right},
-                };
+                // calculate rect
+                rect_t panel_rect = rect_shrink(ui_rect_from_panel(panel, content_rect), 2.0f);
+                vec2_t panel_center = rect_center(panel_rect);
+                vec2_t panel_size = rect_size(panel_rect);
                 
-                for (u32 i = 0; i < array_count(drop_sites); i++) {
-                    
-                    // get info
-                    ui_key_t drop_key = drop_sites[i].key;
-                    ui_dir drop_dir = drop_sites[i].split_dir;
-                    rect_t drop_rect = drop_sites[i].rect;
-                    ui_axis split_axis = ui_axis_from_dir(drop_dir);
-                    ui_side split_side = ui_side_from_dir(drop_dir);
-                    
-                    // skip if not in same axis as split axis
-                    if (drop_dir != ui_dir_none && split_axis == panel->tree_parent->split_axis) {
-                        continue;
-                    }
-                    
-                    // build drop site frame
-                    ui_set_next_rect(drop_rect);
-                    ui_set_next_color_background(drop_background_color);
-                    ui_set_next_color_border(drop_border_color);
-                    ui_set_next_rounding(vec4(5.0f));
-                    drop_sites[i].frame = ui_frame_from_key(drop_site_flags, drop_key);
-                    ui_frame_interaction(drop_sites[i].frame);
-                    
-                    // set draw data
-                    ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
-                    ui_frame_set_custom_draw(drop_sites[i].frame, ui_drop_site_draw_function, data);
-                    
-                    if (drop_dir == ui_dir_none) {
-                        data->type = ui_drop_site_type_center;
-                    } else {
-                        data->type = ui_drop_site_type_edge;
-                        data->axis = split_axis;
-                        data->side = split_side;
-                    }
-                    
-                    
-                }
+                rect_t container_rect = panel_rect; container_rect.y0 += 23.0f;
+                rect_t tab_bar_rect = panel_rect; tab_bar_rect.y1 = tab_bar_rect.y0 + 25.0f;
                 
-                for (i32 i = 0; i < array_count(drop_sites); i++) {
+                // build drop sites
+                if (ui_drag_is_active() && context->view_drag != nullptr && rect_contains(panel_rect, context->mouse_pos)) {
                     
-                    // get drop site info
-                    ui_key_t drop_key = drop_sites[i].key;
-                    rect_t drop_rect = drop_sites[i].rect;
-                    ui_frame_t* drop_frame = drop_sites[i].frame;
-                    ui_dir drop_dir = drop_sites[i].split_dir;
-                    ui_axis split_axis = ui_axis_from_dir(drop_dir);
-                    ui_side split_side = ui_side_from_dir(drop_dir);
+                    // calculate drop rects
+                    rect_t drop_rect_center = rect(vec2_sub(panel_center, drop_site_major_size), vec2_add(panel_center, drop_site_major_size));
+                    rect_t drop_rect_up = rect_translate(drop_rect_center, vec2(0.0f, -(drop_site_major_size * 2.25f)));
+                    rect_t drop_rect_down = rect_translate(drop_rect_center, vec2(0.0f, +(drop_site_major_size * 2.25f)));
+                    rect_t drop_rect_left =  rect_translate(drop_rect_center, vec2(-(drop_site_major_size * 2.25f), 0.0f));
+                    rect_t drop_rect_right = rect_translate(drop_rect_center, vec2(+(drop_site_major_size * 2.25f), 0.0f));
                     
-                    // visualize new panel
-                    if (ui_key_equals(drop_key, context->key_hovered)) {
+                    struct ui_drop_site_t {
+                        ui_key_t key;
+                        ui_dir split_dir;
+                        rect_t rect;
+                        ui_frame_t* frame;
+                    };
+                    
+                    ui_drop_site_t drop_sites[] = {
+                        { ui_key_from_stringf( { 0 }, "drop_site_center_%p", panel), ui_dir_none, drop_rect_center },
+                        { ui_key_from_stringf( { 0 }, "drop_site_up_%p", panel), ui_dir_up, drop_rect_up},
+                        { ui_key_from_stringf( { 0 }, "drop_site_down_%p", panel), ui_dir_down, drop_rect_down},
+                        { ui_key_from_stringf( { 0 }, "drop_site_left_%p", panel), ui_dir_left, drop_rect_left},
+                        { ui_key_from_stringf( { 0 }, "drop_site_right_%p", panel), ui_dir_right, drop_rect_right},
+                    };
+                    
+                    for (u32 i = 0; i < array_count(drop_sites); i++) {
                         
-                        // calculate rect based on which drop site
-                        rect_t new_panel_rect = drop_rect;
-                        rect_t padded_panel_rect = rect_shrink(panel_rect, 5.0f);
-                        vec2_t padded_panel_size = rect_size(padded_panel_rect);
+                        // get info
+                        ui_key_t drop_key = drop_sites[i].key;
+                        ui_dir drop_dir = drop_sites[i].split_dir;
+                        rect_t drop_rect = drop_sites[i].rect;
+                        ui_axis split_axis = ui_axis_from_dir(drop_dir);
+                        ui_side split_side = ui_side_from_dir(drop_dir);
+                        
+                        // skip if not in same axis as split axis
+                        if (drop_dir != ui_dir_none && split_axis == panel->tree_parent->split_axis) {
+                            continue;
+                        }
+                        
+                        // build drop site frame
+                        ui_set_next_rect(drop_rect);
+                        ui_set_next_color_background(drop_background_color);
+                        ui_set_next_color_border(drop_border_color);
+                        ui_set_next_rounding(vec4(5.0f));
+                        drop_sites[i].frame = ui_frame_from_key(drop_site_flags, drop_key);
+                        ui_frame_interaction(drop_sites[i].frame);
+                        
+                        // set draw data
+                        ui_drop_site_draw_data_t* data = (ui_drop_site_draw_data_t*)arena_alloc(ui_build_arena(), sizeof(ui_drop_site_draw_data_t));
+                        ui_frame_set_custom_draw(drop_sites[i].frame, ui_drop_site_draw_function, data);
                         
                         if (drop_dir == ui_dir_none) {
-                            new_panel_rect = rect_lerp(rect_shrink(padded_panel_rect, vec2_mul(padded_panel_size, 0.1f)), padded_panel_rect, drop_frame->hover_t);
-                        } else if (split_side == ui_side_min) {
-                            f32 padding = (padded_panel_size[split_axis] * 0.1f);
-                            new_panel_rect = padded_panel_rect;
-                            new_panel_rect.v0[split_axis] = lerp(new_panel_rect.v0[split_axis] + padding, new_panel_rect.v0[split_axis], drop_frame->hover_t);
-                            new_panel_rect.v1[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
+                            data->type = ui_drop_site_type_center;
                         } else {
-                            f32 padding = (padded_panel_size[split_axis] * 0.1f);
-                            new_panel_rect = padded_panel_rect;
-                            new_panel_rect.v0[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
-                            new_panel_rect.v1[split_axis] = lerp(new_panel_rect.v1[split_axis] - padding, new_panel_rect.v1[split_axis], drop_frame->hover_t);
+                            data->type = ui_drop_site_type_edge;
+                            data->axis = split_axis;
+                            data->side = split_side;
                         }
                         
-                        // build visualization frame
-                        color_t vis_color = color_lerp(color(0x00000000), vis_background_color, drop_frame->hover_t);
                         
-                        ui_set_next_rect(new_panel_rect);
-                        ui_set_next_color_background(vis_color);
-                        ui_set_next_color_border(vis_border_color);
-                        ui_set_next_rounding(vec4(5.0f));
-                        ui_frame_from_key(vis_panel_flags, { 0 });
+                    }
+                    
+                    for (i32 i = 0; i < array_count(drop_sites); i++) {
                         
-                        // perform drop
-                        if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
+                        // get drop site info
+                        ui_key_t drop_key = drop_sites[i].key;
+                        rect_t drop_rect = drop_sites[i].rect;
+                        ui_frame_t* drop_frame = drop_sites[i].frame;
+                        ui_dir drop_dir = drop_sites[i].split_dir;
+                        ui_axis split_axis = ui_axis_from_dir(drop_dir);
+                        ui_side split_side = ui_side_from_dir(drop_dir);
+                        
+                        // visualize new panel
+                        if (ui_key_equals(drop_key, context->key_hovered)) {
                             
-                            if (drop_dir != ui_dir_none) {
-                                // push command
-                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
-                                cmd->src_panel = context->view_drag->parent_panel;
-                                cmd->dst_panel = panel;
-                                cmd->dir = drop_dir;
-                                cmd->view = context->view_drag;
+                            // calculate rect based on which drop site
+                            rect_t new_panel_rect = drop_rect;
+                            rect_t padded_panel_rect = rect_shrink(panel_rect, 5.0f);
+                            vec2_t padded_panel_size = rect_size(padded_panel_rect);
+                            
+                            if (drop_dir == ui_dir_none) {
+                                new_panel_rect = rect_lerp(rect_shrink(padded_panel_rect, vec2_mul(padded_panel_size, 0.1f)), padded_panel_rect, drop_frame->hover_t);
+                            } else if (split_side == ui_side_min) {
+                                f32 padding = (padded_panel_size[split_axis] * 0.1f);
+                                new_panel_rect = padded_panel_rect;
+                                new_panel_rect.v0[split_axis] = lerp(new_panel_rect.v0[split_axis] + padding, new_panel_rect.v0[split_axis], drop_frame->hover_t);
+                                new_panel_rect.v1[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
                             } else {
+                                f32 padding = (padded_panel_size[split_axis] * 0.1f);
+                                new_panel_rect = padded_panel_rect;
+                                new_panel_rect.v0[split_axis] = padded_panel_rect.v0[split_axis] + (padded_panel_size[split_axis] * 0.5f);
+                                new_panel_rect.v1[split_axis] = lerp(new_panel_rect.v1[split_axis] - padding, new_panel_rect.v1[split_axis], drop_frame->hover_t);
+                            }
+                            
+                            // build visualization frame
+                            color_t vis_color = color_lerp(color(0x00000000), vis_background_color, drop_frame->hover_t);
+                            
+                            ui_set_next_rect(new_panel_rect);
+                            ui_set_next_color_background(vis_color);
+                            ui_set_next_color_border(vis_border_color);
+                            ui_set_next_rounding(vec4(5.0f));
+                            ui_frame_from_key(vis_panel_flags, { 0 });
+                            
+                            // perform drop
+                            if (ui_key_equals(drop_key, context->key_hovered) && ui_drag_drop()) {
                                 
-                                ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_move_view);
-                                cmd->src_panel = context->view_drag->parent_panel;
-                                cmd->dst_panel = panel;
-                                cmd->view = context->view_drag;
+                                if (drop_dir != ui_dir_none) {
+                                    // push command
+                                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_split_panel);
+                                    cmd->src_panel = context->view_drag->parent_panel;
+                                    cmd->dst_panel = panel;
+                                    cmd->dir = drop_dir;
+                                    cmd->view = context->view_drag;
+                                } else {
+                                    
+                                    ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_move_view);
+                                    cmd->src_panel = context->view_drag->parent_panel;
+                                    cmd->dst_panel = panel;
+                                    cmd->view = context->view_drag;
+                                    
+                                }
                                 
                             }
                             
@@ -997,371 +1000,372 @@ ui_begin(ui_context_t* context) {
                     
                 }
                 
+                
+                // build container frame
+                {
+                    
+                    ui_frame_flags panel_flags = 
+                        ui_frame_flag_floating |
+                        ui_frame_flag_draw_background |
+                        ui_frame_flag_draw_border |
+                        ui_frame_flag_draw_clip;
+                    
+                    // focused border
+                    color_t border_color = color(0x323232ff);
+                    if (panel_is_focused) {
+                        border_color = context->color_accent_default_node.v;
+                        border_color.a = 0.25f;
+                    }
+                    
+                    ui_set_next_rect(container_rect);
+                    ui_set_next_color_border(border_color);
+                    ui_set_next_color_background(color(0x242424ff));
+                    
+                    ui_key_t panel_key = ui_key_from_stringf({ 0 }, "%p_panel_frame", panel);
+                    panel->frame = ui_frame_from_key(panel_flags, panel_key);
+                    ui_frame_set_display_string(panel->frame, str("panel_frame")); // debug
+                    
+                    // build panel contents
+                    ui_push_parent(panel->frame);
+                    
+                    // call view function
+                    if (panel->view_focus != nullptr) {
+                        panel->view_focus->view_func();
+                    }
+                    
+                    // empty view panel
+                    if (panel->view_first == nullptr) {
+                        
+                        //ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                        //cmd->panel = panel;
+                        
+                        ui_spacer(ui_size_percent(1.0f));
+                        ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
+                        ui_row_begin();
+                        ui_spacer(ui_size_percent(1.0f));
+                        
+                        ui_set_next_text_alignment(ui_text_alignment_center);
+                        ui_set_next_size(ui_size_pixels(120.0f, 1.0f), ui_size_pixels(20.0f, 1.0f));
+                        ui_set_next_color_background(color(0x502018ff));
+                        ui_interaction close_button_interaction = ui_buttonf("Close Panel###%p_close_button", panel);
+                        
+                        ui_spacer(ui_size_percent(1.0f));
+                        ui_row_end();
+                        ui_spacer(ui_size_percent(1.0f));
+                        
+                        if (close_button_interaction & ui_interaction_left_clicked) {
+                            ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
+                            cmd->src_panel = panel;
+                        }
+                        
+                    }
+                    ui_pop_parent();
+                    
+                }
+                
+                // build tab bar
+                {
+                    ui_frame_flags tab_bar_flags =
+                        ui_frame_flag_floating |
+                        //ui_frame_flag_draw_background |
+                        ui_frame_flag_draw_clip;
+                    
+                    ui_set_next_rect(tab_bar_rect);
+                    ui_set_next_layout_dir(ui_dir_right);
+                    
+                    ui_key_t tab_bar_key = ui_key_from_stringf({ 0 }, "%p_tab_bar_frame", panel);
+                    ui_frame_t* tab_bar_frame = ui_frame_from_key(tab_bar_flags, tab_bar_key);
+                    ui_frame_set_display_string(tab_bar_frame, str("tab_bar_frame")); // debug
+                    
+                    // build tab bar contents
+                    ui_push_parent(tab_bar_frame);
+                    
+                    ui_push_size(ui_size_pixels(120.0f, 0.5f), ui_size_percent(1.0f));
+                    ui_push_rounding(vec4(0.0f, 4.0f, 0.0f, 4.0f));
+                    
+                    for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
+                        
+                        // set view content rect
+                        view->content_rect = container_rect;
+                        
+                        color_t view_background_color = color(0x121212ff);
+                        color_t view_border_color = color(0x242424ff);
+                        
+                        if (view == context->view_focus) {
+                            view_background_color = context->color_accent_default_node.v;
+                            view_background_color.a = 0.25f;
+                            view_border_color = context->color_accent_default_node.v;
+                            view_border_color.a = 0.25f;
+                        } else if (view == panel->view_focus) {
+                            view_background_color = color(0x242424ff);
+                            view_border_color = color(0x323232ff);
+                        }
+                        
+                        
+                        ui_spacer(ui_size_pixels(4.0f));
+                        
+                        ui_set_next_color_background(view_background_color);
+                        ui_set_next_color_border(view_border_color);
+                        ui_set_next_flags(ui_frame_flag_draggable | ui_frame_flag_draw_border);
+                        ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
+                        
+                        if (tab_interaction & ui_interaction_left_clicked) {
+                            ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
+                            cmd->src_panel = panel;
+                            cmd->view = view;
+                        }
+                        
+                        vec2_t mouse_pos = context->mouse_pos;
+                        b8 drag_check = !rect_contains(tab_bar_rect, mouse_pos);
+                        
+                        if ((tab_interaction & ui_interaction_left_dragging) && !ui_drag_is_active() && drag_check) {
+                            ui_drag_begin();
+                            context->view_drag = view;
+                        }
+                        
+                    }
+                    
+                    
+                    ui_pop_rounding();
+                    ui_pop_size();
+                    
+                    ui_pop_parent();
+                }
+                
             }
             
-            
-            // build container frame
-            {
-                
-                ui_frame_flags panel_flags = 
-                    ui_frame_flag_floating |
-                    ui_frame_flag_draw_background |
-                    ui_frame_flag_draw_border |
-                    ui_frame_flag_draw_clip;
-                
-                // focused border
-                color_t border_color = color(0x323232ff);
-                if (panel_is_focused) {
-                    border_color = context->color_accent_default_node.v;
-                    border_color.a = 0.25f;
-                }
-                
-                ui_set_next_rect(container_rect);
-                ui_set_next_color_border(border_color);
-                ui_set_next_color_background(color(0x242424ff));
-                
-                ui_key_t panel_key = ui_key_from_stringf({ 0 }, "%p_panel_frame", panel);
-                panel->frame = ui_frame_from_key(panel_flags, panel_key);
-                ui_frame_set_display_string(panel->frame, str("panel_frame")); // debug
-                
-                // build panel contents
-                ui_push_parent(panel->frame);
-                
-                // call view function
-                if (panel->view_focus != nullptr) {
-                    panel->view_focus->view_func();
-                }
-                
-                // empty view panel
-                if (panel->view_first == nullptr) {
-                    
-                    //ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
-                    //cmd->panel = panel;
-                    
-                    ui_spacer(ui_size_percent(1.0f));
-                    ui_set_next_size(ui_size_by_children(1.0f), ui_size_by_children(1.0f));
-                    ui_row_begin();
-                    ui_spacer(ui_size_percent(1.0f));
-                    
-                    ui_set_next_text_alignment(ui_text_alignment_center);
-                    ui_set_next_size(ui_size_pixels(120.0f, 1.0f), ui_size_pixels(20.0f, 1.0f));
-                    ui_set_next_color_background(color(0x502018ff));
-                    ui_interaction close_button_interaction = ui_buttonf("Close Panel###%p_close_button", panel);
-                    
-                    ui_spacer(ui_size_percent(1.0f));
-                    ui_row_end();
-                    ui_spacer(ui_size_percent(1.0f));
-                    
-                    if (close_button_interaction & ui_interaction_left_clicked) {
-                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_close_panel);
-                        cmd->src_panel = panel;
-                    }
-                    
-                }
-                ui_pop_parent();
-                
-            }
-            
-            // build tab bar
-            {
-                ui_frame_flags tab_bar_flags =
-                    ui_frame_flag_floating |
-                    //ui_frame_flag_draw_background |
-                    ui_frame_flag_draw_clip;
-                
-                ui_set_next_rect(tab_bar_rect);
-                ui_set_next_layout_dir(ui_dir_right);
-                
-                ui_key_t tab_bar_key = ui_key_from_stringf({ 0 }, "%p_tab_bar_frame", panel);
-                ui_frame_t* tab_bar_frame = ui_frame_from_key(tab_bar_flags, tab_bar_key);
-                ui_frame_set_display_string(tab_bar_frame, str("tab_bar_frame")); // debug
-                
-                // build tab bar contents
-                ui_push_parent(tab_bar_frame);
-                
-                ui_push_size(ui_size_pixels(120.0f, 0.5f), ui_size_percent(1.0f));
-                ui_push_rounding(vec4(0.0f, 4.0f, 0.0f, 4.0f));
-                
-                for (ui_view_t* view = panel->view_first; view != nullptr; view = view->next) {
-                    
-                    // set view content rect
-                    view->content_rect = container_rect;
-                    
-                    color_t view_background_color = color(0x121212ff);
-                    color_t view_border_color = color(0x242424ff);
-                    
-                    if (view == context->view_focus) {
-                        view_background_color = context->color_accent_default_node.v;
-                        view_background_color.a = 0.25f;
-                        view_border_color = context->color_accent_default_node.v;
-                        view_border_color.a = 0.25f;
-                    } else if (view == panel->view_focus) {
-                        view_background_color = color(0x242424ff);
-                        view_border_color = color(0x323232ff);
-                    }
-                    
-                    
-                    ui_spacer(ui_size_pixels(4.0f));
-                    
-                    ui_set_next_color_background(view_background_color);
-                    ui_set_next_color_border(view_border_color);
-                    ui_set_next_flags(ui_frame_flag_draggable | ui_frame_flag_draw_border);
-                    ui_interaction tab_interaction = ui_buttonf("%.*s###%p_tab", view->label.size, view->label.data, view);
-                    
-                    if (tab_interaction & ui_interaction_left_clicked) {
-                        ui_cmd_t* cmd = ui_cmd_push(context, ui_cmd_type_focus_panel);
-                        cmd->src_panel = panel;
-                        cmd->view = view;
-                    }
-                    
-                    vec2_t mouse_pos = context->mouse_pos;
-                    b8 drag_check = !rect_contains(tab_bar_rect, mouse_pos);
-                    
-                    if ((tab_interaction & ui_interaction_left_dragging) && !ui_drag_is_active() && drag_check) {
-                        ui_drag_begin();
-                        context->view_drag = view;
-                    }
-                    
-                }
-                
-                
-                ui_pop_rounding();
-                ui_pop_size();
-                
-                ui_pop_parent();
-            }
             
         }
         
         
+        
+        
     }
-    
-    
-    
-    
 }
 
 function void
 ui_end(ui_context_t* context) {
-    
-    ui_pop_parent();
-    
-    // remove inactive frames
-    for (ui_frame_t* frame = context->frame_first, *next = nullptr; frame != nullptr; frame = next) {
-        next = frame->list_next;
-        if (frame->last_build_index < context->build_index || ui_key_equals(frame->key, { 0 })) {
-            dll_remove_np(context->frame_first, context->frame_last, frame, list_next, list_prev);
-            stack_push_n(context->frame_free, frame, list_next);
-        }
-    }
-    
-    // close context
-    if (!context->popup_updated_this_frame) {
-        ui_popup_close();
-    }
-    
-    // popup interaction
-    if(context->popup_is_open) {
-        ui_frame_interaction(context->frame_popup);
-    }
-    
-    // end drag dropping if neccessary
-    if (context->drag_state == ui_drag_state_dropping) {
-        context->drag_state = ui_drag_state_none;
-        context->view_drag = nullptr;
-    }
-    
-    // unused events
-    for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
-        if (event->type == ui_event_type_mouse_release) {
-            context->key_focused = { 0 };
+    prof_scope("ui_end") {
+        
+        ui_pop_parent();
+        
+        // remove inactive frames
+        for (ui_frame_t* frame = context->frame_first, *next = nullptr; frame != nullptr; frame = next) {
+            next = frame->list_next;
+            if (frame->last_build_index < context->build_index || ui_key_equals(frame->key, { 0 })) {
+                dll_remove_np(context->frame_first, context->frame_last, frame, list_next, list_prev);
+                stack_push_n(context->frame_free, frame, list_next);
+            }
         }
         
-        if (event->type == ui_event_type_mouse_press) {
+        // close context
+        if (!context->popup_updated_this_frame) {
             ui_popup_close();
         }
-    }
-    
-    // layout pass
-    {
-        for (ui_axis axis = ui_axis_x; axis < ui_axis_count; axis++) {
-            ui_layout_solve_independent(context->frame_root, axis);
-            ui_layout_solve_upward_dependent(context->frame_root, axis);
-            ui_layout_solve_downward_dependent(context->frame_root, axis);
-            ui_layout_solve_violations(context->frame_root, axis);
-            ui_layout_solve_set_positions(context->frame_root, axis);
-        }
-    }
-    
-    // animate
-    {
         
-        // animate cache
-        for (ui_anim_node_t* n = context->anim_node_first; n != nullptr; n = n->list_next) {
-            f32 delta = n->params.target - n->current;
-            n->current += delta * n->params.rate;
+        // popup interaction
+        if(context->popup_is_open) {
+            ui_frame_interaction(context->frame_popup);
         }
         
-        // animate frames
-        for (ui_frame_t* frame = context->frame_first; frame != nullptr; frame = frame->list_next) {
-            
-            // animate hover and active
-            b8 is_hovered = ui_key_is_hovered(frame->key);
-            b8 is_active = ui_key_equals(context->key_active[os_mouse_button_left], frame->key);
-            frame->hover_t += context->anim_fast_rate * ((f32)is_hovered - frame->hover_t);
-            frame->active_t += context->anim_fast_rate * ((f32)is_active - frame->active_t);
-            
-            // animate view offset
-            frame->view_offset_prev = frame->view_offset;
-            frame->view_offset = vec2_add(frame->view_offset, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), context->anim_fast_rate));
-            
+        // end drag dropping if neccessary
+        if (context->drag_state == ui_drag_state_dropping) {
+            context->drag_state = ui_drag_state_none;
+            context->view_drag = nullptr;
         }
         
-    }
-    
-    // hover cursor
-    { 
+        // unused events
+        for (ui_event_t* event = ui_state.event_first; event != nullptr; event = event->next) {
+            if (event->type == ui_event_type_mouse_release) {
+                context->key_focused = { 0 };
+            }
+            
+            if (event->type == ui_event_type_mouse_press) {
+                ui_popup_close();
+            }
+        }
         
-        ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
-        ui_frame_t* active_frame = ui_frame_find(context->key_active[os_mouse_button_left]);
-        ui_frame_t* frame = active_frame == nullptr ? hovered_frame : active_frame; 
+        // layout pass
+        {
+            for (ui_axis axis = ui_axis_x; axis < ui_axis_count; axis++) {
+                ui_layout_solve_independent(context->frame_root, axis);
+                ui_layout_solve_upward_dependent(context->frame_root, axis);
+                ui_layout_solve_downward_dependent(context->frame_root, axis);
+                ui_layout_solve_violations(context->frame_root, axis);
+                ui_layout_solve_set_positions(context->frame_root, axis);
+            }
+        }
         
-        if (frame != nullptr) {
-            os_cursor cursor = frame->hover_cursor;
-            if (frame->flags & ui_frame_flag_hover_cursor) {
-                os_set_cursor(cursor);
+        // animate
+        {
+            
+            // animate cache
+            for (ui_anim_node_t* n = context->anim_node_first; n != nullptr; n = n->list_next) {
+                f32 delta = n->params.target - n->current;
+                n->current += delta * n->params.rate;
+            }
+            
+            // animate frames
+            for (ui_frame_t* frame = context->frame_first; frame != nullptr; frame = frame->list_next) {
+                
+                // animate hover and active
+                b8 is_hovered = ui_key_is_hovered(frame->key);
+                b8 is_active = ui_key_equals(context->key_active[os_mouse_button_left], frame->key);
+                frame->hover_t += context->anim_fast_rate * ((f32)is_hovered - frame->hover_t);
+                frame->active_t += context->anim_fast_rate * ((f32)is_active - frame->active_t);
+                
+                // animate view offset
+                frame->view_offset_prev = frame->view_offset;
+                frame->view_offset = vec2_add(frame->view_offset, vec2_mul(vec2_sub(frame->view_offset_target, frame->view_offset), context->anim_fast_rate));
+                
             }
             
         }
         
-    }
-    
-    
-    // draw
-    {
-        
-        for (ui_frame_t* frame = context->frame_root; frame != nullptr;) {
-            ui_frame_rec_t rec = ui_frame_rec_depth_first(frame);
+        // hover cursor
+        { 
             
-            // clipping
-            if (frame->flags & ui_frame_flag_draw_clip) {
-                rect_t top_clip = draw_top_clip_mask();
-                rect_t new_clip = frame->rect;
-                if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
-                    new_clip = rect_intersection(new_clip, top_clip);
-                }
-                rect_validate(new_clip);
-                draw_push_clip_mask(new_clip);
-            }
+            ui_frame_t* hovered_frame = ui_frame_find(context->key_hovered);
+            ui_frame_t* active_frame = ui_frame_find(context->key_active[os_mouse_button_left]);
+            ui_frame_t* frame = active_frame == nullptr ? hovered_frame : active_frame; 
             
-            // draw frame
-            if (context->custom_draw != nullptr) {
-                
-                context->custom_draw(frame);
-                
-            } else {
-                
-                ui_palette_t* palette = &frame->palette;
-                
-                // draw shadow
-                if (frame->flags & ui_frame_flag_draw_shadow) {
-                    draw_set_next_color(palette->shadow);
-                    draw_set_next_rounding(frame->rounding);
-                    f32 shadow_size = max(frame->shadow_size, 0.0f);
-                    draw_set_next_softness(shadow_size);
-                    draw_rect(rect_translate(rect_grow(frame->rect, shadow_size), roundf(frame->shadow_size * 0.5f)));
-                }
-                
-                // draw background
-                if (frame->flags & ui_frame_flag_draw_background) {
-                    
-                    color_t background_color = palette->background;
-                    
-                    // draw hover effects
-                    if (frame->flags & ui_frame_flag_draw_hover_effects) {
-                        background_color = color_lerp(background_color, color_blend(background_color, palette->hover), frame->hover_t);
-                    }
-                    
-                    // draw active effects
-                    if (frame->flags & ui_frame_flag_draw_active_effects) {
-                        background_color = color_lerp(background_color, color_blend(background_color, palette->active), frame->active_t);
-                    }
-                    
-                    if (!gfx_handle_equals(frame->texture, {0})) {
-                        draw_set_next_texture(frame->texture);
-                    }
-                    draw_set_next_color(background_color);
-                    draw_set_next_rounding(frame->rounding);
-                    draw_rect(frame->rect);
-                }
-                
-                
-                // draw border
-                if (frame->flags & ui_frame_flag_draw_border) {
-                    draw_set_next_color(palette->border);
-                    draw_set_next_rounding(frame->rounding);
-                    draw_set_next_thickness(frame->border_size);
-                    draw_rect(frame->rect);
-                }
-                
-                // draw text
-                if (frame->flags & ui_frame_flag_draw_text) {
-                    
-                    vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
-                    
-                    draw_push_font(frame->font);
-                    draw_push_font_size(frame->font_size);
-                    
-                    // text shadow
-                    color_t text_shadow = palette->shadow; text_shadow.a = 0.8f;
-                    draw_set_next_color(text_shadow);
-                    draw_text(frame->label, vec2_add(text_pos, 1.0f));
-                    
-                    // text
-                    draw_set_next_color(palette->text);
-                    draw_text(frame->label, text_pos);
-                    
-                    draw_pop_font_size();
-                    draw_pop_font();
-                    
-                }
-                
-                // custom draw
-                if (frame->flags & ui_frame_flag_draw_custom) {
-                    if (frame->custom_draw_func != nullptr) {
-                        frame->custom_draw_func(frame);
-                    }
+            if (frame != nullptr) {
+                os_cursor cursor = frame->hover_cursor;
+                if (frame->flags & ui_frame_flag_hover_cursor) {
+                    os_set_cursor(cursor);
                 }
                 
             }
             
-            // pop clipping
-            i32 pop_index = 0;
-            for (ui_frame_t* f = frame; f != nullptr && pop_index <= rec.pop_count; f = f->tree_parent) {
-                pop_index++;
-                
-                if (f == frame && rec.push_count != 0) {
-                    continue;
-                }
-                
-                if (f->flags & ui_frame_flag_draw_clip) {
-                    draw_pop_clip_mask();
-                }
-                
-            }
-            
-            frame = rec.next;
         }
         
         
+        // draw
+        {
+            
+            for (ui_frame_t* frame = context->frame_root; frame != nullptr;) {
+                ui_frame_rec_t rec = ui_frame_rec_depth_first(frame);
+                
+                // clipping
+                if (frame->flags & ui_frame_flag_draw_clip) {
+                    rect_t top_clip = draw_top_clip_mask();
+                    rect_t new_clip = frame->rect;
+                    if (top_clip.x1 != 0.0f || top_clip.y1 != 0.0f) {
+                        new_clip = rect_intersection(new_clip, top_clip);
+                    }
+                    rect_validate(new_clip);
+                    draw_push_clip_mask(new_clip);
+                }
+                
+                // draw frame
+                if (context->custom_draw != nullptr) {
+                    
+                    context->custom_draw(frame);
+                    
+                } else {
+                    
+                    ui_palette_t* palette = &frame->palette;
+                    
+                    // draw shadow
+                    if (frame->flags & ui_frame_flag_draw_shadow) {
+                        draw_set_next_color(palette->shadow);
+                        draw_set_next_rounding(frame->rounding);
+                        f32 shadow_size = max(frame->shadow_size, 0.0f);
+                        draw_set_next_softness(shadow_size);
+                        draw_rect(rect_translate(rect_grow(frame->rect, shadow_size), roundf(frame->shadow_size * 0.5f)));
+                    }
+                    
+                    // draw background
+                    if (frame->flags & ui_frame_flag_draw_background) {
+                        
+                        color_t background_color = palette->background;
+                        
+                        // draw hover effects
+                        if (frame->flags & ui_frame_flag_draw_hover_effects) {
+                            background_color = color_lerp(background_color, color_blend(background_color, palette->hover), frame->hover_t);
+                        }
+                        
+                        // draw active effects
+                        if (frame->flags & ui_frame_flag_draw_active_effects) {
+                            background_color = color_lerp(background_color, color_blend(background_color, palette->active), frame->active_t);
+                        }
+                        
+                        if (!gfx_handle_equals(frame->texture, {0})) {
+                            draw_set_next_texture(frame->texture);
+                        }
+                        draw_set_next_color(background_color);
+                        draw_set_next_rounding(frame->rounding);
+                        draw_rect(frame->rect);
+                    }
+                    
+                    
+                    // draw border
+                    if (frame->flags & ui_frame_flag_draw_border) {
+                        draw_set_next_color(palette->border);
+                        draw_set_next_rounding(frame->rounding);
+                        draw_set_next_thickness(frame->border_size);
+                        draw_rect(frame->rect);
+                    }
+                    
+                    // draw text
+                    if (frame->flags & ui_frame_flag_draw_text) {
+                        
+                        vec2_t text_pos = ui_text_align(frame->font, frame->font_size, frame->label, frame->rect, frame->text_alignment);
+                        
+                        draw_push_font(frame->font);
+                        draw_push_font_size(frame->font_size);
+                        
+                        // text shadow
+                        color_t text_shadow = palette->shadow; text_shadow.a = 0.8f;
+                        draw_set_next_color(text_shadow);
+                        draw_text(frame->label, vec2_add(text_pos, 1.0f));
+                        
+                        // text
+                        draw_set_next_color(palette->text);
+                        draw_text(frame->label, text_pos);
+                        
+                        draw_pop_font_size();
+                        draw_pop_font();
+                        
+                    }
+                    
+                    // custom draw
+                    if (frame->flags & ui_frame_flag_draw_custom) {
+                        if (frame->custom_draw_func != nullptr) {
+                            frame->custom_draw_func(frame);
+                        }
+                    }
+                    
+                }
+                
+                // pop clipping
+                i32 pop_index = 0;
+                for (ui_frame_t* f = frame; f != nullptr && pop_index <= rec.pop_count; f = f->tree_parent) {
+                    pop_index++;
+                    
+                    if (f == frame && rec.push_count != 0) {
+                        continue;
+                    }
+                    
+                    if (f->flags & ui_frame_flag_draw_clip) {
+                        draw_pop_clip_mask();
+                    }
+                    
+                }
+                
+                frame = rec.next;
+            }
+            
+            
+        }
+        
+        // reset context
+        context->build_index++;
+        arena_clear(ui_build_arena());
+        
+        // reset active context
+        ui_state.context_active = nullptr;
     }
-    
-    // reset context
-    context->build_index++;
-    arena_clear(ui_build_arena());
-    
-    // reset active context
-    ui_state.context_active = nullptr;
 }
 
 
@@ -1369,7 +1373,7 @@ function ui_context_t*
 ui_active() {
     
 	if (ui_state.context_active == nullptr) {
-		printf("[error] [ui] no active context is set!\n");
+        log_errorf("[ui] no active context is set!");
 	}
     
 	return ui_state.context_active;

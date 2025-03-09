@@ -40,7 +40,7 @@ console_execute(console_state_t* state, str_t command_string) {
     
     if (command != nullptr) {
         if (str_list.count-1 == command->argument_count) {
-            command->func(str_list);
+            command->func(state, str_list);
         } else {
             // command did not match number of arguments
             log_errorf("incorrect number of arguments for '%s' command! (expected: %u, received: %u)", command->string.data, command->argument_count, str_list.count-1);
@@ -54,7 +54,7 @@ console_execute(console_state_t* state, str_t command_string) {
 
 
 function void
-console_command_register(console_state_t* state, str_t command_string, u32 argument_count, console_command_func* func) {
+console_command_register(console_state_t* state, str_t command_string, str_t desc, u32 argument_count, console_command_func* func) {
     
     console_command_t* command = state->command_free;
     if (command != nullptr) {
@@ -65,6 +65,7 @@ console_command_register(console_state_t* state, str_t command_string, u32 argum
     memset(command, 0, sizeof(console_command_t));
     
     command->string = command_string;
+    command->desc = desc;
     command->argument_count = argument_count;
     command->func = func;
     
@@ -73,7 +74,6 @@ console_command_register(console_state_t* state, str_t command_string, u32 argum
 
 function void
 console_command_unregister(console_state_t* state, str_t command_string) {
-    
     console_command_t* command = nullptr;
     
     for (console_command_t* c = state->command_first; c != nullptr; c = c->next) {
@@ -87,8 +87,15 @@ console_command_unregister(console_state_t* state, str_t command_string) {
         dll_remove(state->command_first, state->command_last, command);
         stack_push(state->command_free, command);
     }
-    
 }
 
+// default commands
+
+function void 
+console_command_help_func(console_state_t* state, str_list_t str_list) {
+    for (console_command_t* command = state->command_first; command != nullptr; command = command->next) {
+        log_infof("%s : %s", command->string, command->desc);
+    }
+}
 
 #endif // CONSOLE_CPP

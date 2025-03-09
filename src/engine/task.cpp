@@ -96,8 +96,8 @@ task_wait_for_counter(task_counter_t* counter, u32 value) {
 function void 
 task_work_thread_entry_point(void* params) {
     
-    u32 tid = (u32)GetCurrentThreadId();
-    //printf("[%u] starting thread!\n", tid);
+    u32 tid = os_get_thread_id();
+    log_infof("[worker thread  %u] starting...", tid);
     
     while (atomic_u32(&task_state.state_active)) {
         
@@ -114,7 +114,6 @@ task_work_thread_entry_point(void* params) {
             
             // decrement counter
             atomic_u32_dec(&task->counter->count);
-            printf("[%u] after counter: %u\n", tid,  atomic_u32(&task->counter->count));
             
             // push queue to free list
             os_mutex_lock(task_state.task_queue_mutex);
@@ -124,7 +123,7 @@ task_work_thread_entry_point(void* params) {
         
     }
     
-    //printf("[%u] ending thread!\n", tid);
+    log_infof("[worker thread %u] ending.", tid);
     
 }
 

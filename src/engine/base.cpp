@@ -91,7 +91,7 @@ arena_alloc(arena_t* arena, u64 size) {
     void* result = nullptr;
     
 	if (arena == nullptr) {
-		//printf("[error] arena was not initialized!\n");
+        log_errorf("arena %p was not initialized!", arena);
 	} else {
         
         if (arena->pos + size <= arena->size) {
@@ -115,7 +115,7 @@ arena_alloc(arena_t* arena, u64 size) {
             }
             
         } else {
-            //printf("[error] arena is full.\n");
+            log_errorf("arena %p is full!", arena);
         }
         
     }

@@ -13,25 +13,18 @@
 //  - math libary.
 //
 
-// TODO:
-// 
-// [ ] - 
-//
-
-//~ compiler context
-
-#if defined(__clang__)
-#    define COMPILER_CLANG 1
-#elif defined(_MSC_VER)
-#    define COMPILER_MSVC 1
-#elif defined(__GNUC__) || defined(__GNUG__)
-#    define COMPILER_GCC 1
-#endif
-
-//~ os context
-
 // NOTE: 
 // 
+// to set up your own profiling, define the following:
+//  - prof_timestamp
+//  - prof_begin
+//  - prof_end
+//
+// to set up your own logging, define the following:
+// - log_info, log_infof
+// - log_warn, log_warnf
+// - log_error, log_errorf
+//
 // arena backend support:
 //        |  libc  | win32 | mmap |
 // win32: |   X    |   X   |      |
@@ -58,6 +51,23 @@
 // macos: |        |     X    |    X     | 
 // linux: |        |          |    X     |
 //
+
+// TODO:
+// 
+// [ ] - 
+//
+
+//~ compiler context
+
+#if defined(__clang__)
+#    define COMPILER_CLANG 1
+#elif defined(_MSC_VER)
+#    define COMPILER_MSVC 1
+#elif defined(__GNUC__) || defined(__GNUG__)
+#    define COMPILER_GCC 1
+#endif
+
+//~ os context
 
 //- win32
 #if defined(_WIN32)
@@ -126,19 +136,23 @@
 
 //- logging 
 
-#define log_info(s)
-#define log_infof(fmt, ...)
-
-#define log_warn(s)
-#define log_warnf(fmt, ...)
-
-#define log_error(s)
-#define log_errorf(fmt, ...)
+#if !defined(log_info)
+#    define log_info(s)
+#    define log_infof(fmt, ...)
+#    define log_warn(s)
+#    define log_warnf(fmt, ...)
+#    define log_error(s)
+#    define log_errorf(fmt, ...)
+#endif
 
 //- profiling
 
-#define prof_begin(name)
-#define prof_end()
+#if !defined(prof_begin) && !defined(prof_end)
+#    define prof_get_timestamp() 
+#    define prof_begin(name)
+#    define prof_end()
+#    define prof_scope(name) for(int _i_ = ((prof_begin(name)), 0); !_i_; _i_ += 1, (prof_end(name)))
+#endif
 
 //- type constants
 #define u8_max  (0xff)

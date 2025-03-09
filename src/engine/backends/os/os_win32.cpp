@@ -29,16 +29,17 @@ os_init() {
 	os_state.window_last = nullptr;
 	os_state.window_free = nullptr;
     
-    // system info
-    SYSTEM_INFO w32_system_info = { 0 };
-    GetSystemInfo(&w32_system_info);
-    os_state.system_info.logical_processor_count = (u32)w32_system_info.dwNumberOfProcessors;
     
 	// time
 	timeBeginPeriod(1);
 	QueryPerformanceFrequency(&os_state.time_frequency);
 	os_state.blink_time = GetCaretBlinkTime();
 	os_state.double_click_time = GetDoubleClickTime();
+    
+    // system info
+    SYSTEM_INFO w32_system_info = { 0 };
+    GetSystemInfo(&w32_system_info);
+    os_state.system_info.logical_processor_count = (u32)w32_system_info.dwNumberOfProcessors;
     
 	// register window class
 	WNDCLASS window_class = { 0 };
@@ -78,42 +79,44 @@ os_release() {
 
 function void
 os_update() {
-    
-	// clear event list
-	arena_clear(os_state.event_list_arena);
-	os_state.event_list = { 0 };
-    
-	// dispatch win32 messages
-	for (MSG message; PeekMessageA(&message, 0, 0, 0, PM_REMOVE);) {
-		TranslateMessage(&message);
-		DispatchMessageA(&message);
-	}
-    
-	// update each window
-	for (os_w32_window_t* window = os_state.window_first; window != 0; window = window->next) {
+    prof_scope("os_update") {
         
-		// window size
-		RECT w32_rect = { 0 };
-		GetClientRect(window->handle, &w32_rect);
-		window->resolution = uvec2((w32_rect.right - w32_rect.left), (w32_rect.bottom - w32_rect.top));
+        // clear event list
+        arena_clear(os_state.event_list_arena);
+        os_state.event_list = { 0 };
         
-		// mouse position
-		POINT cursor_pos;
-		GetCursorPos(&cursor_pos);
-		ScreenToClient(window->handle, &cursor_pos);
-		window->mouse_pos_last = window->mouse_pos;
-		window->mouse_pos = { (f32)cursor_pos.x, (f32)cursor_pos.y };
-		window->mouse_delta = vec2_sub(window->mouse_pos, window->mouse_pos_last);
+        // dispatch win32 messages
+        for (MSG message; PeekMessageA(&message, 0, 0, 0, PM_REMOVE);) {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
         
-		// time
-		window->tick_previous = window->tick_current;
-		QueryPerformanceCounter(&window->tick_current);
-		window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
-		window->elasped_time += window->delta_time;
-		
-		window->maximized = IsZoomed(window->handle);
-	}
-    
+        // update each window
+        for (os_w32_window_t* window = os_state.window_first; window != 0; window = window->next) {
+            
+            // window size
+            RECT w32_rect = { 0 };
+            GetClientRect(window->handle, &w32_rect);
+            window->resolution = uvec2((w32_rect.right - w32_rect.left), (w32_rect.bottom - w32_rect.top));
+            
+            // mouse position
+            POINT cursor_pos;
+            GetCursorPos(&cursor_pos);
+            ScreenToClient(window->handle, &cursor_pos);
+            window->mouse_pos_last = window->mouse_pos;
+            window->mouse_pos = { (f32)cursor_pos.x, (f32)cursor_pos.y };
+            window->mouse_delta = vec2_sub(window->mouse_pos, window->mouse_pos_last);
+            
+            // time
+            window->tick_previous = window->tick_current;
+            QueryPerformanceCounter(&window->tick_current);
+            window->delta_time = (f64)(window->tick_current.QuadPart - window->tick_previous.QuadPart) / (f64)os_state.time_frequency.QuadPart;
+            window->elasped_time += window->delta_time;
+            
+            window->maximized = IsZoomed(window->handle);
+        }
+        
+    }
 }
 
 function void
