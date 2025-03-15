@@ -1111,11 +1111,17 @@ function b8 ui_expander_begin(str_t label);
 function b8 ui_expanderf_begin(char* fmt, ...);
 function void ui_expander_end();
 
+function ui_interaction ui_color_sv_quad(str_t label, f32 hue, f32* sat, f32* val);
+function ui_interaction ui_color_hue_bar(str_t label, f32* hue, f32 sat, f32 val);
+
 // custom draw functions
 
 function void ui_drop_site_draw_function(ui_frame_t* frame);
 function void ui_slider_draw_function(ui_frame_t* frame);
 function void ui_text_edit_draw_function(ui_frame_t* frame);
+
+function void ui_color_sv_quad_draw_function(ui_frame_t* frame);
+function void ui_color_hue_bar_draw_function(ui_frame_t* frame);
 
 // stacks
 

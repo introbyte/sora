@@ -364,6 +364,7 @@ function void         os_condition_variable_broadcast(os_handle_t cv);
 // fiber (implemented per backend)
 function os_handle_t  os_fiber_create(u32 stack_size, os_fiber_function_t* fiber_func, void* params = nullptr);
 function void         os_fiber_release(os_handle_t fiber);
+function void         os_fiber_switch(os_handle_t fiber);
 function os_handle_t  os_fiber_from_thread();
 
 //- backend includes

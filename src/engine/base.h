@@ -124,7 +124,9 @@
 #define inlnfunc inline static
 
 #if COMPILER_MSVC
-#define thread_static __declspec(thread)
+#    define thread_global __declspec(thread)
+#elif COMPILER_CLANG
+#    define thread_global __thread
 #endif 
 
 //- sizes
@@ -137,12 +139,12 @@
 //- logging 
 
 #if !defined(log_info)
-#    define log_info(s)
-#    define log_infof(fmt, ...)
-#    define log_warn(s)
-#    define log_warnf(fmt, ...)
-#    define log_error(s)
-#    define log_errorf(fmt, ...)
+#    define log_info(s) printf("[info] %s\n", s)
+#    define log_infof(fmt, ...) printf("[info] "fmt"\n", ## __VA_ARGS__)
+#    define log_warn(s) printf("[warn] %s\n", s)
+#    define log_warnf(fmt, ...) printf("[warn] "fmt"\n", ##__VA_ARGS__)
+#    define log_error(s) printf("[error] %s\n", s)
+#    define log_errorf(fmt, ...) printf("[error] "fmt"\n", ##__VA_ARGS__)
 #endif
 
 //- profiling
@@ -151,7 +153,7 @@
 #    define prof_get_timestamp() 
 #    define prof_begin(name)
 #    define prof_end()
-#    define prof_scope(name) for(int _i_ = ((prof_begin(name)), 0); !_i_; _i_ += 1, (prof_end(name)))
+#    define prof_scope(name)
 #endif
 
 //- type constants
@@ -273,8 +275,25 @@ typedef bool b8;
 #define atomic_u32_add(x, c) InterlockedAdd((volatile LONG*)(x), (c))
 #define atomic_u32_cond_assign(x, k, c) InterlockedCompareExchange((volatile LONG*)(x), (k), (c))
 
+#define memory_barrier() MemoryBarrier()
+
 #elif COMPILER_CLANG || COMPILER_GCC
-// not supported yet
+
+#define atomic_u64(x) __atomic_load_n(x, __ATOMIC_SEQ_CST)
+#define atomic_u32(x) __atomic_load_n(x, __ATOMIC_SEQ_CST)
+
+#define atomic_u64_inc(x) (__atomic_fetch_add((volatile u64 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define atomic_u64_dec(x) (__atomic_fetch_sub((volatile u64 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
+#define atomic_u64_assign(x, c) __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
+#define atomic_u64_add(x, c) (__atomic_fetch_add((volatile u64 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define atomic_u64_cond_assign(x, k, c) ({ u64 _new = (c); __atomic_compare_exchange_n((volatile u64 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+
+#define atomic_u32_inc(x) (__atomic_fetch_add((volatile u32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define atomic_u32_dec(x) (__atomic_fetch_sub((volatile u32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define atomic_u32_assign(x, c) __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
+#define atomic_u32_add(x, c) (__atomic_fetch_add((volatile u32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define atomic_u32_cond_assign(x, k, c) ({ u32 _new = (c); __atomic_compare_exchange_n((volatile u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+
 #endif 
 
 //~ enums
@@ -362,6 +381,7 @@ struct fuzzy_match_list_t {
     u32 count;
 };
 
+
 //- time 
 
 struct date_time_t {
@@ -427,11 +447,11 @@ union vec3_t {
     
 	struct {
 		vec2_t xy;
-		f32 z;
+		f32 _unused0;
 	};
     
 	struct {
-		f32 x;
+		f32 _unused1;
 		vec2_t yz;
 	};
     
@@ -481,29 +501,29 @@ union vec4_t {
     
 	struct {
 		vec2_t xy;
-		f32 z;
-		f32 w;
+		f32 _unused0;
+		f32 _unused1;
 	};
     
 	struct {
-		f32 x;
+		f32 _unused2;
 		vec2_t yz;
-		f32 w;
+		f32 _unused3;
 	};
     
 	struct {
-		f32 x;
-		f32 y;
+		f32 _unused4;
+		f32 _unused5;
 		vec2_t zw;
 	};
     
 	struct {
 		vec3_t xyz;
-		f32 w;
+		f32 _unused6;
 	};
 	
 	struct {
-		f32 x;
+		f32 _unused7;
 		vec3_t yzw;
 	};
     
@@ -525,7 +545,7 @@ union quat_t {
     
 	struct {
 		vec3_t xyz;
-		f32 w;
+		f32 _unused0;
 	};
     
 #if BASE_USE_SIMD
@@ -610,7 +630,7 @@ union color_t {
 	};
     
 	struct {
-		f32 h, s, v, a;
+		f32 h, s, v, _unused0;
 	};
     
 	vec4_t vec;
@@ -624,7 +644,7 @@ global u8 utf8_class[32] = {
 	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
 };
 
-thread_static thread_context_t thread_context_local;
+thread_global thread_context_t thread_context_local;
 
 //~ functions
 
@@ -887,6 +907,7 @@ function void   mat4_print(mat4_t);
 //- color
 inlnfunc color_t color(u32 hex);
 inlnfunc color_t color(f32 r, f32 g, f32 b, f32 a = 1.0f);
+inlnfunc color_t color_hsv(f32 h, f32 s, f32 v, f32 a = 1.0f);
 inlnfunc color_t color_add(color_t a, f32 b);
 inlnfunc color_t color_add(color_t a, color_t b);
 inlnfunc color_t color_lerp(color_t a, color_t b, f32 t);

@@ -1,15 +1,35 @@
 @echo off
+setlocal enabledelayedexpansion
+
+
+:: default values
+set "build_mode=debug"
+set "compiler=msvc"
+set "source_file=main.cpp"
 
 :: get arguments
-set "base_file=%~1"
-set "build_mode=%~2"
+for %%a in (%*) do (
+    if /I "%%a"=="debug" set "build_mode=debug"
+    if /I "%%a"=="release" set "build_mode=release"
+    if /I "%%a"=="msvc" set "compiler=msvc"
+    if /I "%%a"=="clang" set "compiler=clang"
+    set "base_file=%%a"
+)
+
+:: ensure the source file is not set to "debug", "release", "msvc", or "clang"
+if /I "%base_file%"=="debug" set "base_file=main"
+if /I "%base_file%"=="release" set "base_file=main"
+if /I "%base_file%"=="msvc" set "base_file=main"
+if /I "%base_file%"=="clang" set "base_file=main"
+
 set "src_dir=src"
 set "extensions=c cpp"
 
-:: defaults
-if "%base_file%"=="" set "base_file=main"
-if "%build_mode%"=="" set "build_mode=debug"
+:: echo build mode/compiler
+echo [build mode: %build_mode%]
+echo [compiler: %compiler%]
 
+:: find source file
 set "source_file="
 for %%e in (%extensions%) do (
      if exist "%src_dir%\%base_file%.%%e" (
@@ -23,20 +43,26 @@ exit /b 1
 
 :: set compile flags
 
-set "common_flags=/nologo /FC /W0"
-set "common_link_flags=/link /INCREMENTAL:NO"
+set "cl_common_flags=/nologo /FC /W0"
+set "cl_common_link_flags=/link /INCREMENTAL:NO"
+
+set "clang_common_flags=-Wno-everything"
+set "clang_common_link_flags="
 
 if "%build_mode%"=="debug" (
-	echo [info] build mode: debug.
-	set "build_flags=/DBUILD_DEBUG /Zi /Od"
-	set "link_flags=/SUBSYSTEM:CONSOLE"
+	set "cl_build_flags=/DBUILD_DEBUG=1 /Zi /Od /fsanitize=address"
+	set "cl_link_flags=/SUBSYSTEM:CONSOLE"
+
+	set "clang_build_flags=-D BUILD_DEBUG=1 -g -O0 -fsanitize=address"
+	set "clang_link_flags=-lclang_rt.asan -fuse-ld=lld"
+
 	goto compile
 ) 
 
 if "%build_mode%"=="release" (
-	echo [info] build mode: release.
-	set "build_flags=/DBUILD_RELEASE /O2 /Zi /fsanitize=address"
-	set "link_flags=/SUBSYSTEM:WINDOWS"
+	set "cl_build_flags=/DBUILD_RELEASE /O2 /Zi /fsanitize=address"
+	set "cl_link_flags=/SUBSYSTEM:WINDOWS"
+
 	goto compile
 ) 
 
@@ -50,7 +76,12 @@ if not exist "build\" (mkdir build)
 
 :: compile 
 pushd build
-cl %common_flags% %build_flags% ..\%source_file% %common_link_flags% %link_flags%
+if "%compiler%"=="msvc" (
+cl %cl_common_flags% %cl_build_flags% ..\%source_file% %cl_common_link_flags% %cl_link_flags%
+)
+if "%compiler%"=="clang" (
+clang-cl %clang_common_flags% %clang_build_flags% ..\%source_file% %clang_common_link_flags% %clang_link_flags%
+)
 popd
 
 :: check for errors

@@ -3,12 +3,19 @@
 #ifndef PROFILE_H
 #define PROFILE_H
 
+// TODO:
+//
+// [ ] - make thread safe.
+//
+//
+
 //- defines 
 
 // overwrite profile macros
 #define prof_get_timestamp() os_time_microseconds()
 #define prof_begin(name) pf_begin(name)
 #define prof_end(name) pf_end(name)
+#define prof_scope(name) for(int _i_ = ((prof_begin(name)), 0); !_i_; _i_ += 1, (prof_end(name)))
 
 //- structs 
 

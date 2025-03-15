@@ -5,11 +5,14 @@
 
 //- includes
 
+#pragma push_macro("function")
+#undef function
 #define WIN32_LEAN_AND_MEAN 1
 #define NOMINMAX
 #include <windows.h>
 #include <timeapi.h>
 #include <dwmapi.h>
+#pragma pop_macro("function")
 
 //- defines
 

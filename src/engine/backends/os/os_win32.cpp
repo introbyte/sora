@@ -737,7 +737,7 @@ os_thread_create(os_thread_function_t* thread_function, void* params) {
     os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_thread);
     
     entity->thread.func = thread_function;
-    entity->thread.handle = CreateThread(0, 0, os_w32_thread_entry_point, entity, 0, &entity->thread.tid);
+    entity->thread.handle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)os_w32_thread_entry_point, entity, 0, &entity->thread.tid);
     entity->thread.params = params;
     
     os_handle_t handle = { (u64)entity };
@@ -929,9 +929,9 @@ function os_handle_t
 os_fiber_create(u32 stack_size, os_fiber_function_t* fiber_func, void* params) {
     os_w32_entity_t* entity = os_w32_entity_create(os_w32_entity_type_fiber);
     
-    entity->fiber.params = params;
-    entity->fiber.func = fiber_func;
-    entity->fiber.fiber_id = CreateFiber(stack_size, fiber_func, params);
+    //entity->fiber.params = params;
+    //entity->fiber.func = fiber_func;
+    entity->fiber.fiber_id = CreateFiber(stack_size, (LPFIBER_START_ROUTINE)fiber_func, params);
     
     os_handle_t handle = { (u64)entity };
     return handle;
@@ -957,7 +957,6 @@ os_fiber_from_thread() {
     os_handle_t handle = { (u64)entity };
     return handle;
 }
-
 
 
 //- win32 specific functions
