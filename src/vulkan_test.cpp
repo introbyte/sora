@@ -3,13 +3,13 @@
 
 #define GFX_BACKEND_VULKAN 1
 
-#include "engine/base.h"
-#include "engine/os.h"
-#include "engine/gfx.h"
+#include "engine/core/base.h"
+#include "engine/core/os.h"
+#include "engine/core/gfx.h"
 
-#include "engine/base.cpp"
-#include "engine/os.cpp"
-#include "engine/gfx.cpp"
+#include "engine/core/base.cpp"
+#include "engine/core/os.cpp"
+#include "engine/core/gfx.cpp"
 
 //- globals 
 

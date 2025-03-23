@@ -38,18 +38,17 @@ shadows showcase:
 ### windows:
 use the `build.bat` script:
 ```
-build <file> [mode]
+build [options] <file>
 
 args:
   <file> - the main file to build. defaults to main.cpp.
-  [mode] - the build mode. options: (debug, release). defaults to debug.
+  [options] - options: (build mode: 'debug', 'release'; compiler: 'msvc', 'clang'). defaults to 'msvc' and 'debug'.
   
 examples:
-  build.bat main.cpp debug
-  build.bat ui_test.cpp release
+  build.bat debug main.cpp
+  build.bat release clang console.cpp
 ```
 `build.bat` expects the main file to be in `\src` and outputs generated files to `\build`.
-
 
 ### linux:
 
@@ -59,23 +58,29 @@ not supported yet.
 - `\res`: contains all resources and assets needed for each project.
 - `\src`: contains all source code.
 	- `\src\engine`: contains engine specific code.
-		- `\src\engine\backends`: contains backends for layers.
-		- `\src\engines\vendor`: contains third party code.
-	- `\src\templates`: contains template main files.
+		- `\src\engine\core`: contains core layers.
+		- `\src\engine\utils`: contains utility layers.
+		- `\src\engine\vendor`: contains third party code.
 	- `\src\projects`: contains project specific code.
+	- `\src\templates`: contains template main files.
 - `\build`: all build artifacts and generated binaries.
 
 # structure
 the codebase is set up in *layers*. some layers depend on other layers.
 here is the current list of layers:
+
+core layers:
 - `audio` (`audio_`): implements audio abstraction for different backends.
 - `base` (none): includes basic types, strings, math, and helper macros.
-- `draw` (`draw_`): implements a simple 2d shape renderer.
-- `draw_3d` (`draw_3d_`): implements a simple 3d renderer.
 - `font` (`font_`): implements a font renderer and cache for different backends.
 - `gfx` (`gfx_`): implements an abstraction over different graphics apis.
-- `log` (`log_`): implements a logging library.
 - `os` (`os_`): implements an abstraction over operating system features such as events, windows, threads, etc.
+
+utility layers:
+- `draw` (`draw_`): implements a simple 2d shape renderer.
+- `draw_3d` (`draw_3d_`): implements a simple 3d renderer.
+- `log` (`log_`): implements a logging library.
+- `profile` (`profile_`): implements a profiling library.
 - `task` (`task_`): implements a fiber-based job system.
 - `ui` (`ui_`): implements an immediate mode ui system.
 

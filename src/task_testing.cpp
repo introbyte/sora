@@ -1,12 +1,12 @@
 // task_testing.cpp
 
-#include "engine/base.h"
-#include "engine/os.h"
-#include "engine/task.h"
+#include "engine/core/base.h"
+#include "engine/core/os.h"
+#include "engine/core/task.h"
 
-#include "engine/base.cpp"
-#include "engine/os.cpp"
-#include "engine/task.cpp"
+#include "engine/core/base.cpp"
+#include "engine/core/os.cpp"
+#include "engine/coretask.cpp"
 
 function void
 test_function(void* params) {

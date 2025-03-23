@@ -2,37 +2,30 @@
 
 //- includes
 
-#include "engine/base.h"
-#include "engine/log.h"
-#include "engine/os.h"
-#include "engine/gfx.h"
-#include "engine/font.h"
-#include "engine/draw.h"
-#include "engine/draw_3d.h"
-#include "engine/ui.h"
+#include "engine/core/base.h"
+#include "engine/core/os.h"
+#include "engine/core/gfx.h"
+#include "engine/core/font.h"
 
-#include "engine/base.cpp"
-#include "engine/log.cpp"
-#include "engine/os.cpp"
-#include "engine/gfx.cpp"
-#include "engine/font.cpp"
-#include "engine/draw.cpp"
-#include "engine/draw_3d.cpp"
-#include "engine/ui.cpp"
-
-#include "projects/render/render_graph.h"
-//#include "projects/graphs/node_graph.h"
-
-#include "projects/render/render_graph.cpp"
-//#include "projects/graphs/node_graph.cpp"
+#include "engine/core/base.cpp"
+#include "engine/core/os.cpp"
+#include "engine/core/gfx.cpp"
+#include "engine/core/font.cpp"
 
 
-#include "projects/utils/mesh.h"
-#include "projects/utils/camera.h"
+#include "engine/utils/draw.h"
+#include "engine/utils/draw_3d.h"
+#include "engine/utils/ui.h"
+#include "engine/utils/render_graph.h"
+#include "engine/utils/mesh.h"
+#include "engine/utils/camera.h"
 
-#include "projects/utils/mesh.cpp"
-#include "projects/utils/camera.cpp"
-
+#include "engine/utils/draw.cpp"
+#include "engine/utils/draw_3d.cpp"
+#include "engine/utils/ui.cpp"
+#include "engine/utils/render_graph.cpp"
+#include "engine/utils/mesh.cpp"
+#include "engine/utils/camera.cpp"
 
 //- globals
 
@@ -364,18 +357,7 @@ console_view() {
     ui_push_parent(container_frame);
     ui_push_size(ui_size_percent(1.0f), ui_size_pixels(20.0f));
     
-    for (log_t* log = log_state.log_first; log != nullptr; log = log->next) {
-        color_t text_color = color(0xe2e2e2ff);
-        
-        if (log->level == log_level_warn) {
-            text_color = color(0xe2a72fff);
-        } else if (log->level == log_level_error) {
-            text_color = color(0xc34c34ff);
-        }
-        
-        ui_set_next_color_text(text_color);
-        ui_label(log->string);
-    }
+    
     
     ui_pop_size();
     ui_pop_parent();
@@ -471,7 +453,6 @@ function i32
 app_entry_point(i32 argc, char** argv) {
     
     // init layers
-    log_init();
     os_init();
     gfx_init();
     font_init();
@@ -497,7 +478,6 @@ app_entry_point(i32 argc, char** argv) {
     font_release();
     gfx_release();
     os_release();
-    log_release();
     
     return 0;
     

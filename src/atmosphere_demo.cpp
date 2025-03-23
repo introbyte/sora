@@ -2,26 +2,23 @@
 
 //- includes
 
-#include "engine/base.h"
-#include "engine/os.h"
-#include "engine/gfx.h"
-#include "engine/font.h"
-#include "engine/draw.h"
-#include "engine/ui.h"
-#include "engine/log.h"
-#include "engine/profile.h"
+#include "engine/core/base.h"
+#include "engine/core/os.h"
+#include "engine/core/gfx.h"
+#include "engine/core/font.h"
 
-#include "engine/base.cpp"
-#include "engine/os.cpp"
-#include "engine/gfx.cpp"
-#include "engine/font.cpp"
-#include "engine/draw.cpp"
-#include "engine/ui.cpp"
-#include "engine/log.cpp"
-#include "engine/profile.cpp"
+#include "engine/core/base.cpp"
+#include "engine/core/os.cpp"
+#include "engine/core/gfx.cpp"
+#include "engine/core/font.cpp"
 
-#include "projects/utils/camera.h"
-#include "projects/utils/camera.cpp"
+#include "engine/utils/draw.h"
+#include "engine/utils/ui.h"
+#include "engine/utils/draw.cpp"
+#include "engine/utils/ui.cpp"
+
+#include "engine/utils/camera.h"
+#include "engine/utils/camera.cpp"
 
 //- structs 
 
@@ -348,8 +345,6 @@ function i32
 app_entry_point(i32 argc, char** argv) {
     
     // init layers
-    log_init();
-    pf_init();
     os_init();
     gfx_init();
     font_init();
@@ -373,8 +368,6 @@ app_entry_point(i32 argc, char** argv) {
     font_release();
     gfx_release();
     os_release();
-    pf_release();
-    log_release();
     
     return 0;
     

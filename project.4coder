@@ -16,27 +16,39 @@ load_paths = {
 
 command_list = {
     {
-        .name = "build",
-        .out = "*compilation*",
+        .name = "build_msvc",
+        .out = "*output*",
         .footer_panel = true,
         .save_dirty_files = true,
         .cursor_at_end = false,
         .cmd = {
-            { "build.bat console_program", .os = "win" },
+            { "build.bat msvc", .os = "win" },
+        },
+    },
+
+    {
+        .name = "build_clang",
+        .out = "*output*",
+        .footer_panel = true,
+        .save_dirty_files = true,
+        .cursor_at_end = false,
+        .cmd = {
+            { "build.bat clang", .os = "win" },
         },
     },
 
     {
         .name = "run",
-        .out = "*run*",
+        .out = "*output*",
         .footer_panel = true,
         .save_dirty_files = false,
         .cursor_at_end = false,
         .cmd = {
-            { "atmosphere_demo.exe", .os = "win" },
+            { "main.exe", .os = "win" },
         },
     },
 };
                   
-fkey_command[1] = "build";               
-fkey_command[2] = "run";
+fkey_command[1] = "build_msvc";
+fkey_command[2] = "build_clang";
+fkey_command[5] = "run";
